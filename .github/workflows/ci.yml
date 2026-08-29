@@ -1,0 +1,91 @@
+# =============================================================================
+# CI — Refract
+# =============================================================================
+# Estratégia v1 (pragmática):
+#
+# 1. npm install --ignore-scripts — o postinstall do repo faz rebuild nativo
+#    (Rust + electron-rebuild) e baixa ~300MB de modelos Whisper/transformers.
+#    Nenhum passo do CI precisa disso: esbuild transpila sem ABI nativa e os
+#    tiers de teste abaixo são JS puro (verificado: sem better-sqlite3/keytar/
+#    sharp na cadeia de imports de electron/llm, electron/intelligence e
+#    src/lib).
+#
+# 2. Blocking vs advisory — estado validado localmente (Windows, Node 24):
+#      renderer tier ........ 119/119 ✅  → blocking
+#      llm tier ............. 2259/2296, 21 falhas pré-existentes → advisory
+#      intelligence tier .... 426/454, 28 falhas pré-existentes → advisory
+#      typecheck:electron ... 14 erros pré-existentes → advisory
+#    As falhas pré-existentes incluem testes que dependem de g++ no PATH,
+#    mutação de process.env entre arquivos e fixtures sensíveis a data —
+#    nada relacionado a mudanças recentes. Promoção para blocking acontece
+#    tier a tier quando zeradas. Nota: contagens podem diferir no Linux.
+#
+# 3. A suíte completa de services (npm test) NÃO roda: contém testes que
+#    sobem subsistemas inteiros (ex.: IntelligenceEngineScreenContext
+#    inicializa LLMHelper + DatabaseManager e pendura o runner).
+#
+# 4. Node 24 para casar com o ambiente de dev onde os tiers foram validados.
+#
+# Próximos passos naturais: zerar as falhas pré-existentes e promover os
+# tiers a blocking, matrix windows-latest, tier de services com timeout.
+# =============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: typecheck + build + unit tiers
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies (sem scripts nativos)
+        run: npm install --ignore-scripts
+
+      - name: Typecheck renderer
+        run: npx tsc --noEmit
+
+      # Advisory: 14 erros pré-existentes (TS7011/TS2341 em IntelligenceEngine,
+      # ipcHandlers, WindowHelper, SessionTracker, premium/*). Promover a
+      # blocking quando zerados.
+      - name: Typecheck electron (advisory)
+        run: npm run typecheck:electron
+        continue-on-error: true
+
+      - name: Build electron (esbuild)
+        run: npm run build:electron
+
+      - name: Build renderer (vite)
+        run: npx vite build
+
+      - name: Unit tests — renderer tier (blocking)
+        run: node --test "src/lib/__tests__/**/*.test.mjs"
+
+      # Advisory: 21 falhas pré-existentes (validado em Windows/Node 24) —
+      # ver cabeçalho do arquivo. Verificar se o número cresce em reviews.
+      - name: Unit tests — LLM tier (advisory)
+        run: node --test "electron/llm/__tests__/**/*.test.mjs" "electron/llm/codeVerification/__tests__/**/*.test.mjs"
+        continue-on-error: true
+
+      # Advisory: 28 falhas pré-existentes — ver cabeçalho do arquivo.
+      - name: Unit tests — intelligence tier (advisory)
+        run: node --test "electron/intelligence/__tests__/**/*.test.mjs"
+        continue-on-error: true

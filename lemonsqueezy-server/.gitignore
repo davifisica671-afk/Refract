@@ -1,0 +1,12 @@
+node_modules/
+data/
+.env
+*.log
+
+# Chaves privadas e scratch de teste — NUNCA commitar.
+# test-key.pem é um keypair Ed25519 de desenvolvimento; ainda assim uma
+# private key não pode entrar no histórico (um `git add .` a pegaria).
+*.pem
+*.key
+tmp-*.cjs
+tmp-*.js

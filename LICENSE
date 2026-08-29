@@ -1,0 +1,50 @@
+Refract — Source-Available License
+Copyright (c) 2026 Davi (davifisica671-afk). All rights reserved.
+
+WHAT THIS IS
+============
+The source code of Refract is published so that anyone can READ and AUDIT it.
+That transparency is part of the product: Refract processes microphone audio,
+screen content and personal documents on your machine, and you should be able
+to verify that it does not send them anywhere.
+
+Publishing the source is NOT a grant of rights. This is source-available
+software, not open source.
+
+WHAT YOU MAY DO
+===============
+1. Read, study and audit this source code.
+2. Run the official builds distributed by the copyright holder.
+3. Quote short excerpts for review, teaching, security research or commentary,
+   with attribution.
+
+WHAT YOU MAY NOT DO
+===================
+Without prior written permission from the copyright holder, you may NOT:
+1. Copy, modify or create derivative works of this software.
+2. Redistribute this software or any derivative, in source or binary form.
+3. Publish, host, sell, sublicense or otherwise make this software (or a product
+   substantially derived from it) available to third parties.
+4. Remove or alter copyright, license or attribution notices.
+5. Use the "Refract" name, logo or brand except to refer to this project.
+
+NO WARRANTY
+===========
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+THIRD-PARTY COMPONENTS
+======================
+This software depends on third-party packages distributed under their own
+licenses (MIT, Apache-2.0, BSD and similar permissive terms). Those licenses
+apply to those components, not to this software, and are unaffected by the
+terms above.
+
+PERMISSIONS AND COMMERCIAL LICENSING
+====================================
+For any use beyond the above — including forks, integrations, redistribution
+or commercial licensing — contact the copyright holder.

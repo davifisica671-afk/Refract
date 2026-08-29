@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Refract — light concept</title>
+<style>
+  /* Protótipo de DIREÇÃO clara/arejada (original, conteúdo do Refract).
+     Sem backdrop-filter — só gradientes + sombras suaves, pra não travar. */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #10121a; --muted: #5b6072; --line: rgba(16,18,26,.08);
+    --blue: #4b6bff; --lav: #8b7cff; --card: #fff;
+  }
+  body {
+    font-family: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif;
+    color: var(--ink); background: #eef1fb; -webkit-font-smoothing: antialiased;
+    min-height: 100vh; position: relative; overflow-x: hidden;
+  }
+  /* fundo: branco-azulado com auréola suave no topo */
+  .bg { position: fixed; inset: 0; z-index: -1;
+    background:
+      radial-gradient(900px 520px at 50% -8%, #dfe4ff 0%, transparent 60%),
+      radial-gradient(700px 500px at 85% 8%, #efe7ff 0%, transparent 55%),
+      linear-gradient(180deg, #f4f6fe 0%, #eef1fb 100%);
+  }
+  .nav { max-width: 1120px; margin: 0 auto; display: flex; align-items: center; gap: 22px; padding: 22px 28px; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -.02em; font-size: 17px; }
+  .bm { width: 22px; height: 22px; border-radius: 7px; background: conic-gradient(from 210deg, var(--blue), var(--lav), #34d3ee, var(--blue)); box-shadow: 0 4px 12px -2px rgba(75,107,255,.5); }
+  .nav-links { display: flex; gap: 24px; margin-left: auto; }
+  .nav-links a { color: var(--muted); font-size: 14px; text-decoration: none; }
+  .nav .cta { background: var(--ink); color: #fff; font-size: 13.5px; font-weight: 600; padding: 9px 16px; border-radius: 999px; text-decoration: none; }
+
+  .hero { max-width: 820px; margin: 0 auto; padding: 40px 28px 20px; text-align: center; position: relative; z-index: 2; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); background: #fff; border: 1px solid var(--line); padding: 6px 13px; border-radius: 999px; box-shadow: 0 2px 8px rgba(16,18,26,.04); }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; }
+  h1 { font-size: clamp(40px, 6vw, 66px); line-height: 1.02; letter-spacing: -.035em; font-weight: 750; margin: 22px 0 18px; }
+  h1 .g { background: linear-gradient(100deg, var(--blue), var(--lav)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { font-size: 19px; color: var(--muted); max-width: 26em; margin: 0 auto 28px; line-height: 1.5; }
+  .btns { display: flex; gap: 12px; justify-content: center; }
+  .btn { font-size: 15px; font-weight: 600; padding: 13px 22px; border-radius: 999px; text-decoration: none; transition: transform .18s; }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-dark { background: var(--ink); color: #fff; box-shadow: 0 10px 26px -8px rgba(16,18,26,.5); }
+  .btn-soft { background: #fff; color: var(--ink); border: 1px solid var(--line); box-shadow: 0 4px 12px rgba(16,18,26,.05); }
+  .foot { margin-top: 16px; font-size: 13px; color: #8990a3; }
+  /* ícones flutuantes (motivo arejado) — quadrados arredondados com sombra suave */
+  .float { position: absolute; z-index: 1; width: 62px; height: 62px; border-radius: 16px;
+    background: #fff; border: 1px solid var(--line);
+    box-shadow: 0 14px 30px -10px rgba(16,18,26,.18), inset 0 1px 0 #fff;
+    display: grid; place-items: center; font-size: 26px; }
+  .float.b { background: linear-gradient(180deg, #6d8fff, #4b6bff); border: none; box-shadow: 0 16px 34px -8px rgba(75,107,255,.55); }
+  .f1 { top: 120px; left: 8%;  transform: rotate(-10deg); animation: fl 6s ease-in-out infinite; }
+  .f2 { top: 250px; left: 15%; transform: rotate(8deg);   animation: fl 7s ease-in-out .4s infinite; }
+  .f3 { top: 100px; right: 9%; transform: rotate(9deg);   animation: fl 6.5s ease-in-out .2s infinite; }
+  .f4 { top: 260px; right: 14%; transform: rotate(-7deg); animation: fl 7.5s ease-in-out .6s infinite; }
+  @keyframes fl { 50% { transform: translateY(-14px) rotate(var(--r,0)); } }
+
+  /* janela do produto (mock claro, sem backdrop-filter) */
+  .window { max-width: 900px; margin: 40px auto 0; border-radius: 16px; overflow: hidden;
+    background: #fff; border: 1px solid var(--line);
+    box-shadow: 0 40px 90px -30px rgba(16,18,26,.35), 0 10px 30px -12px rgba(16,18,26,.15); position: relative; z-index: 2; }
+  .win-bar { height: 38px; display: flex; align-items: center; gap: 7px; padding: 0 14px; border-bottom: 1px solid var(--line); background: #fbfcfe; }
+  .win-bar i { width: 11px; height: 11px; border-radius: 50%; background: #e2e5ee; }
+  .win-body { position: relative; background: linear-gradient(160deg, #eef1fb, #fff); padding: 26px; min-height: 300px; display: flex; align-items: center; justify-content: center; }
+  .callframe { width: 100%; max-width: 560px; aspect-ratio: 16/9; border-radius: 12px;
+    background: linear-gradient(135deg, #3b3a6b, #1a2140); box-shadow: 0 20px 50px -20px rgba(0,0,0,.5); position: relative; }
+  .ov { position: absolute; right: 18px; bottom: 18px; width: 260px; background: rgba(20,24,40,.92); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 12px 14px; color: #fff; box-shadow: 0 18px 40px -14px rgba(0,0,0,.6); }
+  .ov .pill { display: inline-block; font-size: 10px; background: rgba(255,255,255,.14); padding: 3px 9px; border-radius: 999px; margin-bottom: 8px; }
+  .ov p { font-size: 12.5px; line-height: 1.5; }
+  .ov b { color: #fff; }
+  .hud2 { position: absolute; right: 18px; top: -14px; font-size: 11px; background: #fff; color: var(--ink); border: 1px solid var(--line); padding: 5px 11px; border-radius: 999px; box-shadow: 0 8px 20px -6px rgba(16,18,26,.25); }
+
+  @media (max-width: 720px) { .float { display: none; } h1 { font-size: 40px; } }
+  /* __APPEND__ */
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  <header class="nav">
+    <span class="brand"><span class="bm"></span> Refract</span>
+    <nav class="nav-links"><a href="#">Privacy</a><a href="#">Coach</a><a href="#">Features</a><a href="#">Pricing</a></nav>
+    <a class="cta" href="#">Download free</a>
+  </header>
+
+  <span class="float f1" style="--r:-10deg">🎙️</span>
+  <span class="float b f2" style="--r:8deg">✨</span>
+  <span class="float f3" style="--r:9deg">🔒</span>
+  <span class="float f4" style="--r:-7deg">📈</span>
+
+  <section class="hero">
+    <span class="eyebrow"><span class="dot"></span> Private by design · runs on your device</span>
+    <h1>The AI copilot that makes you <span class="g">better every conversation.</span></h1>
+    <p class="sub">Real-time help in interviews, sales calls and meetings — on-device speech, your own API key, nothing ever leaves your machine.</p>
+    <div class="btns">
+      <a class="btn btn-dark" href="#">Download free →</a>
+      <a class="btn btn-soft" href="#">See how it works</a>
+    </div>
+    <p class="foot">Free with your own key · No account · Open by design</p>
+  </section>
+
+  <div class="window">
+    <div class="win-bar"><i></i><i></i><i></i></div>
+    <div class="win-body">
+      <div class="callframe">
+        <div class="hud2">🗣 62% · 148 wpm · ◦ 1</div>
+        <div class="ov">
+          <span class="pill">● live · interview</span>
+          <p><b>Yes — I cut response time by 40%.</b> Moved the STT pipeline to on-device Whisper, off the critical path.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="height:60px"></div>
+</body>
+</html>

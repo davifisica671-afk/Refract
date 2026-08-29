@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Refract — The private AI copilot that makes you better at every conversation</title>
+<meta name="description" content="Real-time AI copilot for interviews, sales and meetings. On-device speech, your own API keys, nothing ever leaves your machine.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="./styles.css">
+<noscript><style>[data-reveal]{opacity:1!important;transform:none!important}</style></noscript>
+</head>
+<body>
+  <!-- fundo aurora animado -->
+  <div class="aurora" aria-hidden="true">
+    <span class="a a1"></span><span class="a a2"></span><span class="a a3"></span>
+  </div>
+
+  <!-- ── NAV ─────────────────────────────────────────────────────────── -->
+  <header class="nav" data-reveal>
+    <a class="brand" href="#top" aria-label="Refract">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">Refract</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#privacy">Privacy</a>
+      <a href="#coach">Coach</a>
+      <a href="#features">Features</a>
+      <a href="#compare">vs Cluely</a>
+    </nav>
+    <a class="btn btn-ghost nav-cta" href="#download">Download free</a>
+  </header>
+
+  <!-- ── HERO ────────────────────────────────────────────────────────── -->
+  <main id="top">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow" data-reveal><span class="dot"></span> Private by design · runs on your device</p>
+      <h1 class="hero-title" data-reveal>
+        Your AI copilot for real conversations —
+        <span class="grad">that never leaves your machine.</span>
+      </h1>
+      <p class="hero-sub" data-reveal>
+        Refract listens, understands and helps you in real time — interviews, sales calls,
+        meetings. On-device speech, your own API keys, <strong>zero data sent anywhere.</strong>
+      </p>
+      <div class="hero-cta" data-reveal>
+        <a class="btn btn-primary" href="#download">Download free →</a>
+        <a class="btn btn-ghost" href="#coach">See how it works</a>
+      </div>
+      <p class="hero-foot" data-reveal>Free with your own API key · No account · Open by design</p>
+    </div>
+    <!-- mock do overlay real do produto (vidro) -->
+    <div class="hero-visual" data-reveal>
+      <div class="mock-desktop" aria-hidden="true">
+        <span class="mock-line w60"></span><span class="mock-line w40 warm"></span>
+        <span class="mock-line w75"></span><span class="mock-line w50 cool"></span>
+      </div>
+      <div class="glass-panel" role="img" aria-label="Refract overlay">
+        <span class="glens l3"></span><span class="glens l2"></span><span class="glens l1"></span>
+        <div class="hud">🗣 62% · 148 wpm · ◦ 1 <span class="hud-caret">▾</span></div>
+        <div class="panel-body">
+          <div class="pill-row">
+            <span class="pill"><span class="live"></span> live</span>
+            <span class="pill">interview</span>
+          </div>
+          <p class="answer"><strong>Yes — I cut response time by 40%.</strong> I moved the STT
+          pipeline to on-device Whisper, taking the network round-trip off the critical path.</p>
+          <span class="answer-src">Refract · generated locally</span>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- ── PROVA / CONTRASTE ───────────────────────────────────────────── -->
+  <section class="strip" data-reveal>
+    <p>Your conversations are the most sensitive thing you own. In 2025 a leading rival
+      leaked <strong>83,000 users</strong>. Refract can't leak what it never sends.</p>
+  </section>
+
+  <!-- ── WEDGE 1 · PRIVACIDADE ───────────────────────────────────────── -->
+  <section id="privacy" class="feature-row">
+    <div class="feature-text" data-reveal>
+      <p class="kicker">Private by architecture</p>
+      <h2>It runs on your machine. Not ours.</h2>
+      <p class="lead">Speech-to-text is on-device (Whisper). The AI runs on <em>your</em> API key.
+        There is no Refract server in the loop reading your calls — because there's nothing to read.</p>
+      <ul class="ticks">
+        <li>On-device transcription — audio never uploaded</li>
+        <li>Bring your own key (Claude, GPT, Gemini, Groq, local)</li>
+        <li>No account, no telemetry on what you say</li>
+      </ul>
+    </div>
+    <div class="feature-card glass-lite" data-reveal>
+      <div class="lock">🔒</div>
+      <div class="flow"><span>Mic</span><i>→</i><span>On-device</span><i>→</i><span>Your LLM</span></div>
+      <p class="flow-note">Nothing touches a Refract server.</p>
+    </div>
+  </section>
+
+  <!-- ── WEDGE 2 · PRESENCE COACH ────────────────────────────────────── -->
+  <section id="coach" class="feature-row reverse">
+    <div class="feature-text" data-reveal>
+      <p class="kicker">Nobody else does this</p>
+      <h2>Cluely gives you the answer. Refract makes you better.</h2>
+      <p class="lead">A live presence coach reads <em>how you're landing</em> — talk/listen balance,
+        pace, filler words, interruptions — and nudges you in the moment. Every call, you improve.</p>
+      <ul class="ticks">
+        <li>Live talk-vs-listen, pace and filler tracking</li>
+        <li>Gentle nudges: "you've talked 1 min straight"</li>
+        <li>100% local — the coach never phones home</li>
+      </ul>
+    </div>
+    <div class="feature-card glass-lite coach-card" data-reveal>
+      <div class="stat"><b>62%</b><span>you talking</span></div>
+      <div class="bar"><i style="width:62%"></i></div>
+      <div class="stat"><b>148</b><span>wpm pace</span></div>
+      <div class="stat warm"><b>3</b><span>fillers</span></div>
+    </div>
+  </section>
+
+  <!-- ── FEATURES GRID ───────────────────────────────────────────────── -->
+  <section id="features" class="grid-section">
+    <h2 class="section-title" data-reveal>Everything, on-device.</h2>
+    <div class="grid">
+      <div class="g-card" data-reveal><div class="g-ico">🎙️</div><h3>Native audio</h3><p>Sub-500ms capture in Rust — system + mic, separated.</p></div>
+      <div class="g-card" data-reveal><div class="g-ico">🧠</div><h3>Multi-LLM BYOK</h3><p>Claude, GPT, Gemini, Groq or fully local via Ollama.</p></div>
+      <div class="g-card" data-reveal><div class="g-ico">🫥</div><h3>Truly invisible</h3><p>Undetectable overlay — invisible to screen-share.</p></div>
+      <div class="g-card" data-reveal><div class="g-ico">📚</div><h3>Local memory</h3><p>Your résumé and docs, indexed on-device with RAG.</p></div>
+      <div class="g-card" data-reveal><div class="g-ico">👁️</div><h3>Screen OCR</h3><p>Reads what's on screen to ground every suggestion.</p></div>
+      <div class="g-card" data-reveal><div class="g-ico">🎭</div><h3>7 personas</h3><p>Interview, sales, brainstorm — tuned modes.</p></div>
+    </div>
+  </section>
+  <!-- ── COMPARAÇÃO ──────────────────────────────────────────────────── -->
+  <section id="compare" class="compare-section">
+    <h2 class="section-title" data-reveal>Refract vs Cluely</h2>
+    <div class="compare glass-lite" data-reveal>
+      <div class="c-row c-head"><span></span><span class="c-us">Refract</span><span>Cluely</span></div>
+      <div class="c-row"><span>Runs on your device</span><span class="yes">✓</span><span class="no">Cloud</span></div>
+      <div class="c-row"><span>Your own API key</span><span class="yes">✓</span><span class="no">—</span></div>
+      <div class="c-row"><span>Coaches how you speak</span><span class="yes">✓</span><span class="no">—</span></div>
+      <div class="c-row"><span>Sends your audio to a server</span><span class="yes">Never</span><span class="no">Yes</span></div>
+      <div class="c-row"><span>Price to start</span><span class="yes">Free (BYOK)</span><span class="no">$20/mo</span></div>
+    </div>
+  </section>
+
+  <!-- ── FAQ ─────────────────────────────────────────────────────────── -->
+  <section class="faq-section">
+    <h2 class="section-title" data-reveal>Questions</h2>
+    <div class="faq">
+      <details data-reveal><summary>Is it really private?</summary><p>Yes. Transcription happens on your device and the AI runs on your own key. There is no Refract server receiving your conversations.</p></details>
+      <details data-reveal><summary>What does "free" mean?</summary><p>The app is free. You bring your own LLM API key (or run a local model), so you only pay your provider — often cents per session. A Pro tier adds hosted extras.</p></details>
+      <details data-reveal><summary>Can the other side tell I'm using it?</summary><p>No. The overlay is invisible to screen-share and meeting software.</p></details>
+      <details data-reveal><summary>Which platforms?</summary><p>Windows and Linux today; macOS next.</p></details>
+    </div>
+  </section>
+
+  <!-- ── DOWNLOAD / CTA ──────────────────────────────────────────────── -->
+  <section id="download" class="cta-final" data-reveal>
+    <h2>Stop guessing. Start improving.</h2>
+    <p>Free, private, yours. Bring your key and go.</p>
+    <div class="hero-cta"><a class="btn btn-primary lg" href="#">Download for Windows →</a><a class="btn btn-ghost lg" href="#">Linux (AppImage)</a></div>
+  </section>
+
+  <footer class="footer">
+    <div class="brand"><span class="brand-mark"></span><span class="brand-name">Refract</span></div>
+    <p>The private AI copilot that makes you better at every conversation.</p>
+    <p class="fine">Private by design · Bring your own key · © Refract</p>
+  </footer>
+
+  <script src="./app.js"></script>
+  </main>
+</body>
+</html>

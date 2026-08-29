@@ -1,0 +1,3135 @@
+﻿/**
+ * SettingsOverlay.tsx
+ *
+ * Overlay principal de configurações do Refract.
+ * Contém todas as seções de configuração: geral, áudio, provedores STT,
+ * atalhos de teclado, aparência, idioma, opacidade do overlay,
+ * configurações de reunião e acesso aos sub-painéis de configurações avançadas.
+ */
+import React, { useState, useEffect, useMemo } from 'react';
+import packageJson from '../../package.json';
+import {
+    X, Mic, Speaker, Monitor, Keyboard, User, LifeBuoy, LogOut, Upload,
+    ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
+    Camera, RotateCcw, Eye, Layout, MessageSquare, Crop,
+    ChevronDown, ChevronUp, Check, BadgeCheck, Power, Palette, Calendar, Ghost, Sun, Moon, RefreshCw, Info, Globe, FlaskConical, Terminal, Settings, Activity, ExternalLink, Trash2,
+    Sparkles, Pencil, Briefcase, Building2, Search, MapPin, CheckCircle, HelpCircle, Zap, SlidersHorizontal, PointerOff,
+    Star, AlertCircle, Gift, Smartphone, Cpu, Shield
+} from 'lucide-react';
+import { analytics } from '../lib/analytics/analytics.service';
+import { AboutSection } from './AboutSection';
+import { HelpSettings } from './settings/HelpSettings';
+import { AIProvidersSettings } from './settings/AIProvidersSettings';
+import { RefractApiSettings } from './settings/RefractApiSettings';
+import { RefractProSettings } from './settings/RefractProSettings';
+import { PhoneMirrorSettings } from './settings/PhoneMirrorSettings';
+import { IntelligenceSettings } from './settings/IntelligenceSettings';
+import { SkillsSettings } from './settings/SkillsSettings';
+import { LocalWhisperModelPanel } from './LocalWhisperModelPanel';
+import { RefractLogoMark } from './RefractLogoMark';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useShortcuts } from '../hooks/useShortcuts';
+import { isMac } from '../utils/platformUtils';
+import { useResolvedTheme } from '../hooks/useResolvedTheme';
+import {
+    clampOverlayOpacity,
+    getOverlayAppearance,
+    OVERLAY_OPACITY_DEFAULT,
+    OVERLAY_OPACITY_MIN,
+    getDefaultOverlayOpacity,
+} from '../lib/overlayAppearance';
+import { getMeetingInterfaceTheme, setMeetingInterfaceTheme, type MeetingInterfaceTheme } from '../lib/meetingInterfaceTheme';
+import { KeyRecorder } from './ui/KeyRecorder';
+import { ProfileVisualizer, PremiumUpgradeModal } from '../premium';
+import icon from './icon.png';
+
+// ---------------------------------------------------------------------------
+// StarRating — renderiza filled/empty stars para culture ratings
+
+
+// ---------------------------------------------------------------------------
+// MockupRefractInterface — fake in-meeting widget para o opacidade preview
+// ---------------------------------------------------------------------------
+const MockupRefractInterface = ({ opacity }: { opacity: number }) => {
+    const resolvedTheme = useResolvedTheme();
+    const appearance = useMemo(
+        () => getOverlayAppearance(opacity, resolvedTheme),
+        [opacity, resolvedTheme]
+    );
+
+    return (
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent">
+                {/* RefractInterface Widget — opacity controlled por o slider */}
+                <div
+                    id="mockup-refract-interface"
+                    className="flex flex-col items-center pointer-events-none -mt-56"
+                >
+                    {/* TopPill Replica */}
+                    <div className="flex justify-center mb-2 select-none z-50">
+                        <div className="flex items-center gap-2 rounded-full overlay-pill-surface backdrop-blur-md pl-1.5 pr-1.5 py-1.5" style={appearance.pillStyle}>
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden overlay-icon-surface" style={appearance.iconStyle}>
+                                <img
+                                    src={icon}
+                                    alt="Refract"
+                                    className="w-[24px] h-[24px] object-contain opacity-95 scale-105 force-black-icon"
+                                    draggable="false"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2 px-4 py-1.5 rounded-full text-[12px] font-medium border overlay-chip-surface overlay-text-interactive" style={appearance.chipStyle}>
+                                <ChevronUp className="w-3.5 h-3.5 opacity-70" />
+                                <span className="opacity-80 tracking-wide">Hide</span>
+                            </div>
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center overlay-icon-surface overlay-text-primary" style={appearance.iconStyle}>
+                                <div className="w-3.5 h-3.5 rounded-[3px] bg-red-400 opacity-80" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Principal Interface Window Replica */}
+                    <div className="relative w-[600px] max-w-full overlay-shell-surface overlay-text-primary backdrop-blur-2xl border rounded-[24px] overflow-hidden flex flex-col pt-2 pb-3" style={appearance.shellStyle}>
+
+                        {/* Rolling Transcript Bar */}
+                        <div className="w-full flex justify-center py-2 px-4 border-b mb-1 overlay-transcript-surface" style={appearance.transcriptStyle}>
+                            <p className="text-[13px] truncate max-w-[90%] font-medium overlay-text-primary">
+                                <span className={`${resolvedTheme === 'light' ? 'text-blue-700' : 'text-blue-400'} mr-2 font-semibold`}>Interviewer</span>
+                                <span className="opacity-95">So how would you optimize the current algorithm?</span>
+                            </p>
+                        </div>
+
+                        {/* Chat History Mock */}
+                        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3">
+                            <div className="flex justify-start">
+                                <div className="max-w-[85%] px-4 py-3 text-[14px] leading-relaxed font-normal overlay-text-primary">
+                                    <span className="font-semibold text-emerald-500 block mb-1">Suggestion</span>
+                                    A good approach would be to use a hash map to cache the intermediate results, which brings the time complexity down from O(n²) to O(n).
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Rápido Actions */}
+                        <div className="flex flex-nowrap justify-center items-center gap-1.5 px-4 pb-3 pt-3">
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium border shrink-0 overlay-chip-surface overlay-text-interactive" style={appearance.chipStyle}>
+                                <Pencil className="w-3 h-3 opacity-70" /> What to answer?
+                            </div>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium border shrink-0 overlay-chip-surface overlay-text-interactive" style={appearance.chipStyle}>
+                                <MessageSquare className="w-3 h-3 opacity-70" /> Clarify
+                            </div>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium border shrink-0 overlay-chip-surface overlay-text-interactive" style={appearance.chipStyle}>
+                                <RefreshCw className="w-3 h-3 opacity-70" /> Recap
+                            </div>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium border shrink-0 overlay-chip-surface overlay-text-interactive" style={appearance.chipStyle}>
+                                <HelpCircle className="w-3 h-3 opacity-70" /> Follow Up Question
+                            </div>
+                            <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium min-w-[74px] shrink-0 border overlay-chip-surface overlay-text-interactive" style={appearance.chipStyle}>
+                                <Zap className="w-3 h-3 opacity-70" /> Answer
+                            </div>
+                        </div>
+
+                        {/* Entrada Area */}
+                        <div className="px-3">
+                            <div className="relative group">
+                                <div className="w-full border rounded-xl pl-3 pr-10 py-2.5 h-[38px] flex items-center overlay-input-surface" style={appearance.inputStyle}>
+                                    <span className="text-[13px] overlay-text-muted">Ask anything on screen or conversation</span>
+                                </div>
+                            </div>
+
+                            {/* Bottom Linha */}
+                            <div className="flex items-center justify-between mt-3 px-0.5">
+                                <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 border rounded-lg text-xs font-medium w-[140px] overlay-control-surface overlay-text-interactive" style={appearance.controlStyle}>
+                                        <span className="truncate min-w-0 flex-1">Gemini 3 Flash</span>
+                                        <ChevronDown size={14} className="shrink-0" />
+                                    </div>
+                                    <div className="w-px h-3 mx-1" style={appearance.dividerStyle} />
+                                    <div className="w-7 h-7 flex items-center justify-center rounded-lg overlay-icon-surface overlay-text-muted" style={appearance.iconStyle}>
+                                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        </div>
+    );
+};
+
+interface CustomSelectProps {
+    label: string;
+    icon: React.ReactNode;
+    value: string;
+    options: MediaDeviceInfo[];
+    onChange: (value: string) => void;
+    placeholder?: string;
+}
+
+const CustomSelect: React.FC<CustomSelectProps> = ({ label, icon, value, options, onChange, placeholder = "Select device" }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const selectedLabel = options.find(o => o.deviceId === value)?.label || placeholder;
+
+    return (
+        <div className="bg-bg-card rounded-xl p-4 border border-border-subtle" ref={containerRef}>
+            {label && (
+                <div className="flex items-center gap-2 mb-3">
+                    <span className="text-text-secondary">{icon}</span>
+                    <label className="text-xs font-medium text-text-primary uppercase tracking-wide">{label}</label>
+                </div>
+            )}
+
+            <div className="relative">
+                <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="w-full bg-bg-input border border-border-subtle rounded-lg px-3 py-2.5 text-sm text-text-primary flex items-center justify-between hover:bg-bg-elevated transition-colors"
+                >
+                    <span className="truncate pr-4">{selectedLabel}</span>
+                    <ChevronDown size={14} className={`text-text-secondary transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isOpen && (
+                    <div className="absolute top-full left-0 w-full mt-1 bg-bg-elevated border border-border-subtle rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto animated fadeIn">
+                        <div className="p-1 space-y-0.5">
+                            {options.map((device) => (
+                                <button
+                                    key={device.deviceId}
+                                    onClick={() => {
+                                        onChange(device.deviceId);
+                                        setIsOpen(false);
+                                    }}
+                                    className={`w-full text-left px-3 py-2 text-sm rounded-md flex items-center justify-between group transition-colors ${value === device.deviceId ? 'bg-bg-input hover:bg-bg-elevated text-text-primary' : 'text-text-secondary hover:bg-bg-input hover:text-text-primary'}`}
+                                >
+                                    <span className="truncate">{device.label || `Device ${device.deviceId.slice(0, 5)}...`}</span>
+                                    {value === device.deviceId && <Check size={14} className="text-accent-primary" />}
+                                </button>
+                            ))}
+                            {options.length === 0 && (
+                                <div className="px-3 py-2 text-sm text-gray-500 italic">No devices found</div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+interface ProviderOption {
+    id: string;
+    label: string;
+    badge?: string | null;
+    recommended?: boolean;
+    desc: string;
+    color: string;
+    icon: React.ReactNode;
+}
+
+interface ProviderSelectProps {
+    value: string;
+    options: ProviderOption[];
+    onChange: (value: string) => void;
+}
+
+const ProviderSelect: React.FC<ProviderSelectProps> = ({ value, options, onChange }) => {
+    const isLight = useResolvedTheme() === 'light';
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const selected = options.find(o => o.id === value);
+
+    const getBadgeStyle = (color?: string) => {
+        switch (color) {
+            case 'blue': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
+            case 'orange': return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
+            case 'purple': return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
+            case 'teal': return 'bg-teal-500/10 text-teal-500 border-teal-500/20';
+            case 'cyan': return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
+            case 'indigo': return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
+            case 'green': return 'bg-green-500/10 text-green-500 border-green-500/20';
+            default: return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
+        }
+    };
+
+    const getIconStyle = (color?: string, isSelectedItem: boolean = false) => {
+        if (isSelectedItem) return 'bg-accent-primary text-white shadow-sm';
+        // Para unselected items em lista ou acionar
+        switch (color) {
+            case 'blue': return 'bg-blue-500/10 text-blue-600';
+            case 'orange': return 'bg-orange-500/10 text-orange-600';
+            case 'purple': return 'bg-purple-500/10 text-purple-600';
+            case 'teal': return 'bg-teal-500/10 text-teal-600';
+            case 'cyan': return 'bg-cyan-500/10 text-cyan-600';
+            case 'indigo': return 'bg-indigo-500/10 text-indigo-600';
+            case 'green': return 'bg-green-500/10 text-green-600';
+            default: return 'bg-gray-500/10 text-gray-600';
+        }
+    };
+
+    return (
+        <div ref={containerRef} className="relative z-20 font-sans">
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className={`w-full group bg-bg-input border border-border-subtle hover:border-border-muted shadow-sm rounded-xl p-2.5 pr-3.5 flex items-center justify-between transition-all duration-200 outline-none focus:ring-2 focus:ring-accent-primary/20 ${isOpen ? 'ring-2 ring-accent-primary/20 border-accent-primary/50' : 'hover:shadow-md'}`}
+            >
+                {selected ? (
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0 transition-all duration-300 ${getIconStyle(selected.color)}`}>
+                            {selected.icon}
+                        </div>
+                        <div className="min-w-0 flex-1 text-left">
+                            <div className="flex items-center gap-2">
+                                <span className="text-[13px] font-semibold text-text-primary truncate leading-tight">{selected.label}</span>
+                                {selected.badge && <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide ml-2 ${getBadgeStyle(selected.badge === 'Saved' ? 'green' : selected.color)}`}>{selected.badge}</span>}
+                                {selected.recommended && <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide ml-2 ${getBadgeStyle(selected.color)}`}>Recommended</span>}
+                            </div>
+                            {/* Curto description para acionar */}
+                            <span className="text-[11px] text-text-tertiary truncate block leading-tight mt-0.5">{selected.desc}</span>
+                        </div>
+                    </div>
+                ) : <span className="text-text-secondary px-2 text-sm">Select Provider</span>}
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-text-tertiary transition-transform duration-300 group-hover:bg-bg-input ${isOpen ? 'rotate-180 bg-bg-input text-text-primary' : ''}`}>
+                    <ChevronDown size={14} strokeWidth={2.5} />
+                </div>
+            </button>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className={`absolute top-full left-0 w-full mt-2 backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden ring-1 ring-black/5 ${isLight ? 'bg-bg-elevated border border-border-subtle' : 'bg-bg-elevated/90 border border-white/5'}`}
+                    >
+                        <div className="max-h-[320px] overflow-y-auto p-1.5 space-y-0.5 custom-scrollbar">
+                            {options.map(option => {
+                                const isSelected = value === option.id;
+                                return (
+                                    <button
+                                        key={option.id}
+                                        onClick={() => { onChange(option.id); setIsOpen(false); }}
+                                        className={`w-full rounded-[10px] p-2 flex items-center gap-3 transition-all duration-200 group relative ${isSelected ? (isLight ? 'bg-bg-item-active shadow-inner' : 'bg-white/10 shadow-inner') : (isLight ? 'hover:bg-bg-item-surface' : 'hover:bg-white/5')}`}
+                                    >
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 ${isSelected ? 'scale-100' : 'scale-95 group-hover:scale-100'} ${getIconStyle(option.color, false)}`}>
+                                            {option.icon}
+                                        </div>
+                                        <div className="flex-1 min-w-0 text-left">
+                                            <div className="flex items-center justify-between mb-0.5">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-[13px] font-medium transition-colors ${isSelected && !isLight ? 'text-white' : 'text-text-primary'}`}>{option.label}</span>
+                                                    {option.badge && <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide ${getBadgeStyle(option.badge === 'Saved' ? 'green' : option.color)}`}>{option.badge}</span>}
+                                                    {option.recommended && <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide ${getBadgeStyle(option.color)}`}>Recommended</span>}
+                                                </div>
+                                                {isSelected && <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}><Check size={14} className="text-accent-primary" strokeWidth={3} /></motion.div>}
+                                            </div>
+                                            <span className={`text-[11px] block truncate transition-colors ${isSelected && !isLight ? 'text-white/70' : 'text-text-tertiary'}`}>{option.desc}</span>
+                                        </div>
+                                        {/* Hover Indicator */}
+                                        {!isSelected && <div className="absolute inset-0 rounded-[10px] ring-1 ring-inset ring-transparent group-hover:ring-border-subtle pointer-events-none" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+interface SettingsOverlayProps {
+    isOpen: boolean;
+    onClose: () => void;
+    initialTab?: string;
+    initialIsPremium?: boolean | null;
+    initialHasRefractKey?: boolean;
+}
+
+const SETTINGS_TAB_META: Record<string, { title: string; subtitle: string }> = {
+    general: { title: 'General', subtitle: 'Appearance, privacy, and everyday behavior' },
+    'refract-api': { title: 'Refract API', subtitle: 'Managed intelligence and account access' },
+    'refract-pro': { title: 'Refract Pro', subtitle: 'Plan details and premium capabilities' },
+    'ai-providers': { title: 'AI Providers', subtitle: 'Models, credentials, and provider routing' },
+    skills: { title: 'Skills', subtitle: 'Specialized instructions for your assistant' },
+    calendar: { title: 'Calendar', subtitle: 'Upcoming meetings and calendar connections' },
+    audio: { title: 'Audio', subtitle: 'Microphone, system audio, and transcription' },
+    keybinds: { title: 'Keyboard shortcuts', subtitle: 'Fast, private control from anywhere' },
+    'phone-mirror': { title: 'Sync', subtitle: 'Connect companion devices securely' },
+    intelligence: { title: 'Intelligence', subtitle: 'Memory, context, and answer behavior' },
+    help: { title: 'Setup & Help', subtitle: 'Diagnostics, setup, and support resources' },
+    about: { title: 'About Refract', subtitle: 'Version, acknowledgements, and legal details' },
+};
+
+const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
+    isOpen,
+    onClose,
+    initialTab = 'general',
+    initialIsPremium = null,
+    initialHasRefractKey = false,
+}) => {
+    const isLight = useResolvedTheme() === 'light';
+    const [activeTab, setActiveTab] = useState(initialTab);
+    const activeTabMeta = SETTINGS_TAB_META[activeTab] ?? SETTINGS_TAB_META.general;
+    const navItemClass = 'settings-nav-item w-full text-left px-3 flex items-center gap-3';
+
+    // Sincronizar aba ativa quando o modal abre
+    useEffect(() => {
+        if (isOpen && initialTab) {
+            setActiveTab(initialTab);
+
+
+        }
+    }, [isOpen, initialTab]);
+
+    const { shortcuts, updateShortcut, resetShortcuts } = useShortcuts();
+    const [isUndetectable, setIsUndetectable] = useState(false);
+    const [isMousePassthrough, setIsMousePassthrough] = useState(false);
+    const [disguiseMode, setDisguiseMode] = useState<'terminal' | 'settings' | 'activity' | 'none'>('none');
+    const [openOnLogin, setOpenOnLogin] = useState(false);
+    const [themeMode, setThemeMode] = useState<'system' | 'light' | 'dark'>('system');
+    const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
+    const [isAiLangDropdownOpen, setIsAiLangDropdownOpen] = useState(false);
+    const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'uptodate' | 'error'>('idle');
+    const themeDropdownRef = React.useRef<HTMLDivElement>(null);
+    const aiLangDropdownRef = React.useRef<HTMLDivElement>(null);
+    const [meetingInterfaceTheme, setMeetingInterfaceThemeState] = useState<MeetingInterfaceTheme>(getMeetingInterfaceTheme);
+    const [isInterfaceThemeDropdownOpen, setIsInterfaceThemeDropdownOpen] = useState(false);
+    const interfaceThemeDropdownRef = React.useRef<HTMLDivElement>(null);
+
+
+    const [verboseLogging, setVerboseLogging] = useState(false);
+    const [meetingRetention, setMeetingRetention] = useState<'forever' | '7d' | '30d' | 'never'>('forever');
+    const [showVerboseToast, setShowVerboseToast] = useState(false);
+    const verboseToastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Fechar dropdown ao clicar fora
+    // Sincronizar com mudanças de estado globais
+    useEffect(() => {
+        if (isOpen) {
+
+
+            // Busca o verdadeiro estado inicial do processo principal
+            window.electronAPI?.getUndetectable?.().then(setIsUndetectable).catch(() => { });
+            window.electronAPI?.getOverlayMousePassthrough?.().then(setIsMousePassthrough).catch(() => { });
+            window.electronAPI?.getDisguise?.().then(setDisguiseMode).catch(() => { });
+            window.electronAPI?.getVerboseLogging?.().then(setVerboseLogging).catch(() => { });
+            window.electronAPI?.getMeetingRetention?.().then(setMeetingRetention).catch(() => { });
+        }
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!showVerboseToast) return;
+        verboseToastTimerRef.current = setTimeout(() => setShowVerboseToast(false), 5200);
+        return () => {
+            if (verboseToastTimerRef.current) clearTimeout(verboseToastTimerRef.current);
+        };
+    }, [showVerboseToast]);
+
+
+
+    useEffect(() => {
+        if (window.electronAPI?.onUndetectableChanged) {
+            const unsubscribe = window.electronAPI.onUndetectableChanged((newState: boolean) => {
+                setIsUndetectable(newState);
+            });
+            return () => unsubscribe();
+        }
+    }, []);
+
+    useEffect(() => {
+        if (window.electronAPI?.onMeetingRetentionChanged) {
+            const unsubscribe = window.electronAPI.onMeetingRetentionChanged(setMeetingRetention);
+            return () => unsubscribe();
+        }
+    }, []);
+
+    useEffect(() => {
+        if (window.electronAPI?.onDisguiseChanged) {
+            const unsubscribe = window.electronAPI.onDisguiseChanged((newMode: any) => {
+                setDisguiseMode(newMode);
+            });
+            return () => unsubscribe();
+        }
+    }, []);
+
+    useEffect(() => {
+        if (window.electronAPI?.onOverlayMousePassthroughChanged) {
+            const unsubscribe = window.electronAPI.onOverlayMousePassthroughChanged((enabled: boolean) => {
+                setIsMousePassthrough(enabled);
+            });
+            return () => unsubscribe();
+        }
+    }, []);
+
+    useEffect(() => {
+        if (window.electronAPI?.onSttLanguageAutoDetected) {
+            const unsubscribe = window.electronAPI.onSttLanguageAutoDetected((bcp47: string) => {
+                setAutoDetectedLanguage(bcp47);
+            });
+            return () => unsubscribe();
+        }
+    }, []);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (themeDropdownRef.current && !themeDropdownRef.current.contains(event.target as Node)) {
+                setIsThemeDropdownOpen(false);
+            }
+            if (aiLangDropdownRef.current && !aiLangDropdownRef.current.contains(event.target as Node)) {
+                setIsAiLangDropdownOpen(false);
+            }
+            if (interfaceThemeDropdownRef.current && !interfaceThemeDropdownRef.current.contains(event.target as Node)) {
+                setIsInterfaceThemeDropdownOpen(false);
+            }
+        };
+
+        if (isThemeDropdownOpen || isAiLangDropdownOpen || isInterfaceThemeDropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isThemeDropdownOpen, isAiLangDropdownOpen, isInterfaceThemeDropdownOpen]);
+
+    const [showTranscript, setShowTranscript] = useState(() => {
+        const stored = localStorage.getItem('refract_interviewer_transcript');
+        return stored !== 'false';
+    });
+
+    const [autoScroll, setAutoScroll] = useState(() => {
+        const stored = localStorage.getItem('refract_auto_scroll');
+        return stored === 'true';
+    });
+
+    // Recognition Language
+    const [recognitionLanguage, setRecognitionLanguage] = useState('');
+    const [selectedSttGroup, setSelectedSttGroup] = useState('');
+    const [availableLanguages, setAvailableLanguages] = useState<Record<string, any>>({});
+    const [autoDetectedLanguage, setAutoDetectedLanguage] = useState<string | null>(null);
+
+    // AI Resposta Language
+    const [aiResponseLanguage, setAiResponseLanguage] = useState('English');
+    const [availableAiLanguages, setAvailableAiLanguages] = useState<any[]>([]);
+
+    // Estado de opacidade do overlay
+    const [overlayOpacity, setOverlayOpacity] = useState<number>(() => {
+        const stored = localStorage.getItem('refract_overlay_opacity');
+        const parsed = stored ? parseFloat(stored) : NaN;
+        // Tratar valor ausente ou o padrão antigo (0.65) como "não definido pelo usuário"
+        const isUserSet = Number.isFinite(parsed) && parsed !== OVERLAY_OPACITY_DEFAULT;
+        return isUserSet ? clampOverlayOpacity(parsed) : getDefaultOverlayOpacity();
+    });
+
+    // Quando o tema muda e o usuário não salvou um valor personalizado, reinicia para o padrão baseado não tema
+    const resolvedTheme = useResolvedTheme();
+    useEffect(() => {
+        const stored = localStorage.getItem('refract_overlay_opacity');
+        const parsed = stored ? parseFloat(stored) : NaN;
+        const isUserSet = Number.isFinite(parsed) && parsed !== OVERLAY_OPACITY_DEFAULT;
+        if (!isUserSet) {
+            setOverlayOpacity(getDefaultOverlayOpacity());
+        }
+    }, [resolvedTheme]);
+
+
+    // Estado de pré-visualização ao vivo — verdadeiro enquanto o usuário segura abaixo do slider
+    const [isPreviewingOpacity, setIsPreviewingOpacity] = useState(false);
+    const [previewOverlayOpacity, setPreviewOverlayOpacity] = useState(overlayOpacity);
+
+    // Referência para manter o último valor de opacidade sem acionar renderização durante o arrasto
+    const latestOpacityRef = React.useRef(overlayOpacity);
+
+    const handleOpacityChange = (val: number) => {
+        // Atualização direta não DOM para arrasto de 60fps sem atraso (ignora reconciliação do React)
+        const percentText = `${Math.round(val * 100)}%`;
+        document.querySelectorAll('.opacity-percent-label').forEach(el => el.textContent = percentText);
+        setPreviewOverlayOpacity(val);
+        latestOpacityRef.current = val;
+
+        // Transmissão IPC em tempo real para que o overlay da reunião acompanhe o controle deslizante instantaneamente
+        // (seguro a 60fps, não acionar renderização do React)
+        window.electronAPI?.setOverlayOpacity?.(val);
+    };
+
+    // Correção de bug #3: manter latestOpacityRef sincronizado quando overlayOpacity muda fora do arrasto
+    // (ex.: na primeira montagem ou se outra parte do código atualizar)
+    useEffect(() => {
+        latestOpacityRef.current = overlayOpacity;
+        setPreviewOverlayOpacity(overlayOpacity);
+    }, [overlayOpacity]);
+
+    // Correção de bug #3 (fechar durante arrasto): se o overlay fechar enquanto o usuário ainda está arrastando,
+    // restaurar todo o estado do DOM para que nada permaneça em estado quebrado
+    useEffect(() => {
+        if (!isOpen && isPreviewingOpacity) {
+            stopPreviewingOpacity();
+        }
+    }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const startPreviewingOpacity = () => {
+        // Correção de bug #5: proteger contra chamadas repetidas rápidas (pointerDown duplo / eventos de toque)
+        if (isPreviewingOpacity) return;
+
+        // Mutação direta não DOM para ocultação instantânea sub-milissegundo (ignorando as comparações lentas da árvore do React)
+        document.body.classList.add('disable-transitions');
+
+        const backdrop = document.getElementById('settings-backdrop');
+        const wrapper = document.getElementById('settings-panel-wrapper');
+        const panel = document.getElementById('settings-panel');
+        const card = document.getElementById('opacity-slider-card');
+        const mockup = document.getElementById('settings-mockup-wrapper');
+        const launcher = document.getElementById('launcher-container');
+
+        if (backdrop) {
+            backdrop.style.backgroundColor = 'transparent';
+            backdrop.style.backdropFilter = 'none';
+            backdrop.style.transition = 'none';
+        }
+        if (wrapper) {
+            wrapper.style.backgroundColor = 'transparent';
+            wrapper.style.border = 'none';
+            wrapper.style.boxShadow = 'none';
+        }
+        if (panel) {
+            panel.style.visibility = 'hidden';
+        }
+        if (launcher) {
+            launcher.style.visibility = 'hidden';
+        }
+
+        if (card) {
+            card.style.visibility = 'visible';
+            card.style.position = 'relative';
+            card.style.zIndex = '9999';
+        }
+        if (mockup) {
+            mockup.style.opacity = '1';
+        }
+
+        setPreviewOverlayOpacity(latestOpacityRef.current);
+        setIsPreviewingOpacity(true);
+    };
+
+    const stopPreviewingOpacity = () => {
+        // Direct DOM restoration
+        document.body.classList.remove('disable-transitions');
+        const backdrop = document.getElementById('settings-backdrop');
+        const wrapper = document.getElementById('settings-panel-wrapper');
+        const panel = document.getElementById('settings-panel');
+        const card = document.getElementById('opacity-slider-card');
+        const mockup = document.getElementById('settings-mockup-wrapper');
+        const launcher = document.getElementById('launcher-container');
+
+        if (backdrop) {
+            backdrop.style.backgroundColor = '';
+            backdrop.style.backdropFilter = '';
+            backdrop.style.transition = '';
+        }
+        if (wrapper) {
+            wrapper.style.backgroundColor = '';
+            wrapper.style.border = '';
+            wrapper.style.boxShadow = '';
+        }
+        if (panel) {
+            panel.style.visibility = '';
+        }
+        if (launcher) {
+            launcher.style.visibility = '';
+        }
+
+        if (card) {
+            card.style.visibility = '';
+            card.style.position = '';
+            card.style.zIndex = '';
+        }
+        if (mockup) {
+            // Correção de bug #4: restaurar mockup para oculto (opacidade 0) em vez de deixá-lo visível
+            mockup.style.opacity = '0';
+        }
+
+        setIsPreviewingOpacity(false);
+        // Sincronizar o valor final arrastado de volta ao estado do React (persiste via localStorage + useEffect IPC)
+        setOverlayOpacity(latestOpacityRef.current);
+        setPreviewOverlayOpacity(latestOpacityRef.current);
+    };
+
+    useEffect(() => {
+        // Apenas persistir não localStorage, pois o IPC é tratado em tempo real não handleOpacityChange
+        // para evitar chamada redundante extra 150ms após cada arrasto terminar
+        const timeoutId = setTimeout(() => {
+            localStorage.setItem('refract_overlay_opacity', String(overlayOpacity));
+        }, 150);
+        return () => clearTimeout(timeoutId);
+    }, [overlayOpacity]);
+
+    useEffect(() => {
+        const loadLanguages = async () => {
+            if (window.electronAPI?.getRecognitionLanguages) {
+                const langs = await window.electronAPI.getRecognitionLanguages();
+                setAvailableLanguages(langs);
+
+                // Carrega preferência salva ou detecção automática
+                const storedStt = await window.electronAPI.getSttLanguage();
+                let currentLangKey = storedStt;
+
+                if (!currentLangKey) {
+                    const systemLocale = navigator.language;
+                    // Tentar encontrar correspondência exata ou primária
+                    const match = Object.entries(langs).find(([_, config]: [string, any]) =>
+                        config.bcp47 === systemLocale ||
+                        config.iso639 === systemLocale ||
+                        (config.alternates && config.alternates.includes(systemLocale))
+                    );
+
+                    currentLangKey = match ? match[0] : 'english-us';
+
+                    // Salvar o padrão detectado automaticamente
+                    if (window.electronAPI?.setRecognitionLanguage) {
+                        window.electronAPI.setRecognitionLanguage(currentLangKey);
+                    }
+                }
+
+                setRecognitionLanguage(currentLangKey);
+
+                // Inicializar agrupamento com base não idioma atual
+                if (langs[currentLangKey]) {
+                    setSelectedSttGroup(langs[currentLangKey].group);
+                } else {
+                    setSelectedSttGroup('English');
+                }
+            }
+
+            if (window.electronAPI?.getAiResponseLanguages) {
+                const aiLangs = await window.electronAPI.getAiResponseLanguages();
+                // Ordenar Auto primeiro, English segundo, depois alfabético
+                const sortedAiLangs = [...aiLangs].sort((a, b) => {
+                    if (a.code === 'auto') return -1;
+                    if (b.code === 'auto') return 1;
+                    if (a.label === 'English') return -1;
+                    if (b.label === 'English') return 1;
+                    return a.label.localeCompare(b.label);
+                });
+                setAvailableAiLanguages(sortedAiLangs);
+
+                const storedAi = await window.electronAPI.getAiResponseLanguage();
+                setAiResponseLanguage(storedAi || 'auto');
+            }
+        };
+        loadLanguages();
+    }, []);
+
+    const handleLanguageChange = async (key: string) => {
+        setRecognitionLanguage(key);
+        setAutoDetectedLanguage(null);  // sempre reiniciar — nova sessão pode detectar idioma diferente
+        if (availableLanguages[key]) {
+            setSelectedSttGroup(availableLanguages[key].group);
+        }
+        if (window.electronAPI?.setRecognitionLanguage) {
+            await window.electronAPI.setRecognitionLanguage(key);
+        }
+    };
+
+    const handleGroupChange = (group: string) => {
+        setSelectedSttGroup(group);
+        // Encontrar variante padrão para este agrupamento (primeira)
+        const firstVariant = Object.entries(availableLanguages).find(([_, lang]) => lang.group === group);
+        if (firstVariant) {
+            handleLanguageChange(firstVariant[0]);
+        }
+    };
+
+    // Função auxiliar para obter agrupamentos únicos
+    const languageGroups = Array.from(new Set(Object.values(availableLanguages).map((l: any) => l.group)))
+        .sort((a, b) => {
+            if (a === 'Auto') return -1;
+            if (b === 'Auto') return 1;
+            if (a === 'English') return -1;
+            if (b === 'English') return 1;
+            return a.localeCompare(b);
+        });
+
+    // Função auxiliar para obter variantes do agrupamento atual
+    const currentGroupVariants = Object.entries(availableLanguages)
+
+        .filter(([_, lang]) => lang.group === selectedSttGroup)
+        .map(([key, lang]) => ({
+            deviceId: key,
+            label: lang.label,
+            kind: 'audioinput' as MediaDeviceKind,
+            groupId: '',
+            toJSON: () => ({})
+        }));
+
+    const handleAiLanguageChange = async (key: string) => {
+        if (!key) return;
+        const previous = aiResponseLanguage;
+        setAiResponseLanguage(key); // Atualização otimista
+        try {
+            if (window.electronAPI?.setAiResponseLanguage) {
+                const result = await window.electronAPI.setAiResponseLanguage(key);
+                if (result && !result.success) {
+                    // Reverter em caso de falha explícita
+                    setAiResponseLanguage(previous);
+                    console.error('[Settings] Failed to set AI response language:', result.error);
+                }
+            }
+        } catch (err) {
+            // Reverter em caso de exceção
+            setAiResponseLanguage(previous);
+            console.error('[Settings] Exception setting AI response language:', err);
+        }
+    };
+
+
+    // Sincronizar configuração de transcrição
+    useEffect(() => {
+        const handleStorage = () => {
+            const stored = localStorage.getItem('refract_interviewer_transcript');
+            setShowTranscript(stored !== 'false');
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
+    }, []);
+
+    // Sincronizar configuração de rolagem automática
+    useEffect(() => {
+        const handleStorage = () => {
+            const stored = localStorage.getItem('refract_auto_scroll');
+            setAutoScroll(stored === 'true');
+        };
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
+    }, []);
+
+    useEffect(() => {
+        // Ouvir em ambos `storage` (mesma janela) e a transmissão IPC (janela cruzada)
+        // para que o painel de configurações reflete o tema ativo independentemente de qual janela
+        // alterou. Ver ipcHandlers.ts `interface-theme:set` para o relay.
+        const handleStorage = () => {
+            setMeetingInterfaceThemeState(getMeetingInterfaceTheme());
+        };
+        window.addEventListener('storage', handleStorage);
+        const unsubscribeIpc = window.electronAPI?.onMeetingInterfaceThemeChanged?.((theme) => {
+            const valid: MeetingInterfaceTheme[] = ['default', 'liquid-glass', 'modern'];
+            if (valid.includes(theme as MeetingInterfaceTheme)) {
+                setMeetingInterfaceThemeState(theme as MeetingInterfaceTheme);
+            }
+        });
+        return () => {
+            window.removeEventListener('storage', handleStorage);
+            unsubscribeIpc?.();
+        };
+    }, []);
+
+    // Theme Handlers
+    const handleSetTheme = async (mode: 'system' | 'light' | 'dark') => {
+        setThemeMode(mode);
+        if (window.electronAPI?.setThemeMode) {
+            await window.electronAPI.setThemeMode(mode);
+        }
+    };
+
+    // Audio Settings
+    const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
+    const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
+    const [selectedInput, setSelectedInput] = useState('');
+    const [selectedOutput, setSelectedOutput] = useState('');
+    const [micLevel, setMicLevel] = useState(0);
+    const [useExperimentalSck, setUseExperimentalSck] = useState(false);
+    // Aviso de alternativa do dispositivo mais recente. Preenchido pelo processo principal via
+    // IPC 'device-selection-applied' quando o dispositivo salvo não pôde ser aberto
+    // e o pipeline de áudio silenciosamente voltou ao padrão do sistema.
+    const [deviceFallbackNotice, setDeviceFallbackNotice] = useState<{
+        kind: 'input' | 'output';
+        requested: string | null;
+        actual: string | null;
+        reason?: string;
+    } | null>(null);
+
+    // Configurações do provedor STT
+    const [sttProvider, setSttProvider] = useState<'none' | 'google' | 'groq' | 'openai' | 'deepgram' | 'elevenlabs' | 'azure' | 'ibmwatson' | 'soniox' | 'refract' | 'local-whisper'>('none');
+    const [groqSttModel, setGroqSttModel] = useState('whisper-large-v3-turbo');
+    const [sttGroqKey, setSttGroqKey] = useState('');
+    const [sttOpenaiKey, setSttOpenaiKey] = useState('');
+    const [sttDeepgramKey, setSttDeepgramKey] = useState('');
+    const [sttElevenLabsKey, setSttElevenLabsKey] = useState('');
+    const [sttAzureKey, setSttAzureKey] = useState('');
+    const [sttAzureRegion, setSttAzureRegion] = useState('eastus');
+    const [sttIbmKey, setSttIbmKey] = useState('');
+    const [sttOpenaiBaseUrl, setSttOpenaiBaseUrl] = useState('');
+    const [sttTestStatus, setSttTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+    const [sttTestError, setSttTestError] = useState('');
+    const [sttSaving, setSttSaving] = useState(false);
+    const [sttSaved, setSttSaved] = useState(false);
+    const [googleServiceAccountPath, setGoogleServiceAccountPath] = useState<string | null>(null);
+    const [hasRefractKey, setHasRefractKey] = useState(initialHasRefractKey);
+    const [hasStoredSttGroqKey, setHasStoredSttGroqKey] = useState(false);
+    const [hasStoredSttOpenaiKey, setHasStoredSttOpenaiKey] = useState(false);
+    const [hasStoredDeepgramKey, setHasStoredDeepgramKey] = useState(false);
+    const [hasStoredElevenLabsKey, setHasStoredElevenLabsKey] = useState(false);
+    const [hasStoredAzureKey, setHasStoredAzureKey] = useState(false);
+    const [hasStoredIbmWatsonKey, setHasStoredIbmWatsonKey] = useState(false);
+    const [sttSonioxKey, setSttSonioxKey] = useState('');
+    const [hasStoredSonioxKey, setHasStoredSonioxKey] = useState(false);
+    const [isSttDropdownOpen, setIsSttDropdownOpen] = useState(false);
+    const sttDropdownRef = React.useRef<HTMLDivElement>(null);
+
+    // Fechar dropdown do STT ao clicar fora
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (sttDropdownRef.current && !sttDropdownRef.current.contains(event.target as Node)) {
+                setIsSttDropdownOpen(false);
+            }
+        };
+        if (isSttDropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isSttDropdownOpen]);
+
+    // Carregar configurações STT ao montar
+    useEffect(() => {
+        const loadSttSettings = async () => {
+            try {
+                // @ts-ignore
+                const creds = await window.electronAPI?.getStoredCredentials?.();
+                if (creds) {
+                    setSttProvider(creds.sttProvider || 'none');
+                    if (creds.groqSttModel) setGroqSttModel(creds.groqSttModel);
+                    setGoogleServiceAccountPath(creds.googleServiceAccountPath);
+                    setHasStoredSttGroqKey(creds.hasSttGroqKey);
+                    setHasStoredSttOpenaiKey(creds.hasSttOpenaiKey);
+                    setHasStoredDeepgramKey(creds.hasDeepgramKey);
+                    setHasStoredElevenLabsKey(creds.hasElevenLabsKey);
+                    setHasStoredAzureKey(creds.hasAzureKey);
+                    if (creds.azureRegion) setSttAzureRegion(creds.azureRegion);
+                    setHasStoredIbmWatsonKey(creds.hasIbmWatsonKey);
+                    setHasStoredSonioxKey(creds.hasSonioxKey || false);
+
+                    setHasRefractKey(creds.hasRefractKey || false);
+                    // Não pré-preencher campos de chave STT com credenciais salvas.
+                    // O backend retorna valores mascarados ("sk-...XXXX") por segurança; pré-preencher
+                    // causaria o envio da string mascarada não teste, que todo provedor (Deepgram, Groq, Soniox, etc.)
+                    // rejeita como inválido.
+                    // Os booleanos hasStoredXxxKey já exibem o selo "Saved" e definem o
+                    // placeholder como "••••••••••••" — isso é feedback UX suficiente.
+                    if (typeof creds.openAiSttBaseUrl === 'string') setSttOpenaiBaseUrl(creds.openAiSttBaseUrl);
+                }
+            } catch (e) {
+                console.error('Failed to load STT settings:', e);
+            }
+        };
+        if (isOpen) loadSttSettings();
+    }, [isOpen]);
+
+    // PR #173: Recarregar configurações ao vivo sempre que o backend transmite mudança de credenciais
+    // (ex.: quando o usuário salva uma chave STT em outra janela, ou o principal dispara após
+    // o provedor se reconfigurar com a chave do Refract)
+    useEffect(() => {
+        if (!window.electronAPI?.onCredentialsChanged) return;
+        const unsubscribe = window.electronAPI.onCredentialsChanged(() => {
+            if (isOpen) {
+                // Buscar credenciais silenciosamente — puramente aditivo, sem reiniciar estado
+                window.electronAPI?.getStoredCredentials?.().then((creds: any) => {
+                    if (!creds) return;
+                    setSttProvider(creds.sttProvider || 'none');
+                    if (creds.groqSttModel) setGroqSttModel(creds.groqSttModel);
+                    setHasRefractKey(creds.hasRefractKey || false);
+                    setHasStoredSttGroqKey(creds.hasSttGroqKey);
+                    setHasStoredSttOpenaiKey(creds.hasSttOpenaiKey);
+                    setHasStoredDeepgramKey(creds.hasDeepgramKey);
+                    setHasStoredElevenLabsKey(creds.hasElevenLabsKey);
+                    setHasStoredAzureKey(creds.hasAzureKey);
+                    setHasStoredIbmWatsonKey(creds.hasIbmWatsonKey);
+                    setHasStoredSonioxKey(creds.hasSonioxKey || false);
+                }).catch(() => { /* ignorar silenciosamente */ });
+            }
+        });
+        return () => unsubscribe();
+    }, []); // Montagem única: configuração estável que precisa executar exatamente uma vez
+
+    const handleSttProviderChange = async (provider: 'none' | 'google' | 'groq' | 'openai' | 'deepgram' | 'elevenlabs' | 'azure' | 'ibmwatson' | 'soniox' | 'refract' | 'local-whisper') => {
+        setSttProvider(provider);
+        setIsSttDropdownOpen(false);
+        setSttTestStatus('idle');
+        setSttTestError('');
+        try {
+            // @ts-ignore
+            await window.electronAPI?.setSttProvider?.(provider);
+        } catch (e) {
+            console.error('Failed to set STT provider:', e);
+        }
+    };
+
+    const handleSttKeySubmit = async (provider: 'groq' | 'openai' | 'deepgram' | 'elevenlabs' | 'azure' | 'ibmwatson' | 'soniox', key: string) => {
+        if (!key.trim()) return;
+        // Rejeitar valores mascarados retornados por getStoredCredentials ("sk-...XXXX").
+        // Essas nunca são chaves de API válidas e todo provedor as rejeita.
+        if (/^sk-\.\.\.[A-Za-z0-9]{4}$/.test(key.trim())) {
+            setSttTestStatus('error');
+            setSttTestError('Please enter your actual API key — the displayed value is masked for security.');
+            return;
+        }
+
+        // Teste automático antes de salvar
+        setSttSaving(true);
+        setSttTestStatus('testing');
+        setSttTestError('');
+
+        try {
+            // @ts-ignore
+            const testResult = await window.electronAPI?.testSttConnection?.(
+                provider,
+                key.trim(),
+                provider === 'azure' ? sttAzureRegion : undefined
+            );
+
+            if (!testResult?.success) {
+                setSttTestStatus('error');
+                setSttTestError(testResult?.error || 'Validation failed. Key not saved.');
+                setSttSaving(false);
+                return; // Para salvar
+            }
+
+            // Se sucesso, prosseguir para salvar
+            setSttTestStatus('success');
+            setTimeout(() => setSttTestStatus('idle'), 3000);
+
+            if (provider === 'groq') {
+                // @ts-ignore
+                await window.electronAPI?.setGroqSttApiKey?.(key.trim());
+            } else if (provider === 'openai') {
+                // @ts-ignore
+                await window.electronAPI?.setOpenAiSttApiKey?.(key.trim());
+            } else if (provider === 'elevenlabs') {
+                // @ts-ignore
+                await window.electronAPI?.setElevenLabsApiKey?.(key.trim());
+            } else if (provider === 'azure') {
+                // @ts-ignore
+                await window.electronAPI?.setAzureApiKey?.(key.trim());
+            } else if (provider === 'ibmwatson') {
+                // @ts-ignore
+                await window.electronAPI?.setIbmWatsonApiKey?.(key.trim());
+            } else if (provider === 'soniox') {
+                // @ts-ignore
+                await window.electronAPI?.setSonioxApiKey?.(key.trim());
+            } else {
+                // @ts-ignore
+                await window.electronAPI?.setDeepgramApiKey?.(key.trim());
+            }
+            if (provider === 'groq') setHasStoredSttGroqKey(true);
+            else if (provider === 'openai') setHasStoredSttOpenaiKey(true);
+            else if (provider === 'elevenlabs') setHasStoredElevenLabsKey(true);
+            else if (provider === 'azure') setHasStoredAzureKey(true);
+            else if (provider === 'ibmwatson') setHasStoredIbmWatsonKey(true);
+            else if (provider === 'soniox') setHasStoredSonioxKey(true);
+            else setHasStoredDeepgramKey(true);
+
+            setSttSaved(true);
+            setTimeout(() => setSttSaved(false), 2000);
+        } catch (e: any) {
+            console.error(`Failed to save ${provider} STT key:`, e);
+            setSttTestStatus('error');
+            setSttTestError(e.message || 'Validation failed');
+        } finally {
+            setSttSaving(false);
+        }
+    };
+
+    const handleRemoveSttKey = async (provider: 'groq' | 'openai' | 'deepgram' | 'elevenlabs' | 'azure' | 'ibmwatson' | 'soniox') => {
+        if (!confirm(`Are you sure you want to remove the ${provider === 'ibmwatson' ? 'IBM Watson' : provider.charAt(0).toUpperCase() + provider.slice(1)} API key?`)) return;
+
+        try {
+            if (provider === 'groq') {
+                // @ts-ignore
+                await window.electronAPI?.setGroqSttApiKey?.('');
+                setSttGroqKey('');
+                setHasStoredSttGroqKey(false);
+            } else if (provider === 'openai') {
+                // @ts-ignore
+                await window.electronAPI?.setOpenAiSttApiKey?.('');
+                setSttOpenaiKey('');
+                setHasStoredSttOpenaiKey(false);
+            } else if (provider === 'elevenlabs') {
+                // @ts-ignore
+                await window.electronAPI?.setElevenLabsApiKey?.('');
+                setSttElevenLabsKey('');
+                setHasStoredElevenLabsKey(false);
+            } else if (provider === 'azure') {
+                // @ts-ignore
+                await window.electronAPI?.setAzureApiKey?.('');
+                setSttAzureKey('');
+                setHasStoredAzureKey(false);
+            } else if (provider === 'ibmwatson') {
+                // @ts-ignore
+                await window.electronAPI?.setIbmWatsonApiKey?.('');
+                setSttIbmKey('');
+                setHasStoredIbmWatsonKey(false);
+            } else if (provider === 'soniox') {
+                // @ts-ignore
+                await window.electronAPI?.setSonioxApiKey?.('');
+                setSttSonioxKey('');
+                setHasStoredSonioxKey(false);
+            } else {
+                // @ts-ignore
+                await window.electronAPI?.setDeepgramApiKey?.('');
+                setSttDeepgramKey('');
+                setHasStoredDeepgramKey(false);
+            }
+        } catch (e) {
+            console.error(`Failed to remove ${provider} STT key:`, e);
+        }
+    };
+
+    const handleRemoveTavilyKey = async () => {
+        if (!confirm('Are you sure you want to remove the Tavily API Key?')) return;
+
+        try {
+            await window.electronAPI?.setTavilyApiKey?.('');
+
+
+        } catch (e) {
+            console.error('Failed to remove Tavily API key:', e);
+        }
+    };
+
+    const handleTestSttConnection = async () => {
+        if (sttProvider === 'none' || sttProvider === 'google' || sttProvider === 'refract' || sttProvider === 'local-whisper') return;
+        const keyMap: Record<string, string> = {
+            groq: sttGroqKey, openai: sttOpenaiKey, deepgram: sttDeepgramKey,
+            elevenlabs: sttElevenLabsKey, azure: sttAzureKey, ibmwatson: sttIbmKey,
+            soniox: sttSonioxKey,
+        };
+        const keyToTest = keyMap[sttProvider] || '';
+        if (!keyToTest.trim()) {
+            setSttTestStatus('error');
+            setSttTestError('Please enter an API key first');
+            return;
+        }
+
+        setSttTestStatus('testing');
+        setSttTestError('');
+        try {
+            // @ts-ignore
+            const result = await window.electronAPI?.testSttConnection?.(
+                sttProvider,
+                keyToTest.trim(),
+                sttProvider === 'azure' ? sttAzureRegion : undefined
+            );
+            if (result?.success) {
+                setSttTestStatus('success');
+                setTimeout(() => setSttTestStatus('idle'), 3000);
+            } else {
+                setSttTestStatus('error');
+                setSttTestError(result?.error || 'Connection failed');
+            }
+        } catch (e: any) {
+            setSttTestStatus('error');
+            setSttTestError(e.message || 'Test failed');
+        }
+    };
+
+
+    const [calendarStatus, setCalendarStatus] = useState<{ connected: boolean; email?: string }>({ connected: false });
+    const [isCalendarsLoading, setIsCalendarsLoading] = useState(false);
+    const [calendarEvents, setCalendarEvents] = useState<Array<{ id: string; title: string; startTime: string; endTime: string; link?: string }>>([]);
+    const [isCalendarRefreshing, setIsCalendarRefreshing] = useState(false);
+
+
+    // Carrega stored credentials em montar
+
+
+
+
+    const handleCheckForUpdates = async () => {
+        if (updateStatus === 'checking') return;
+        setUpdateStatus('checking');
+        try {
+            await window.electronAPI.checkForUpdates();
+        } catch (error) {
+            console.error("Failed to check for updates:", error);
+            setUpdateStatus('error');
+            setTimeout(() => setUpdateStatus('idle'), 3000);
+        }
+    };
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const unsubs = [
+            window.electronAPI.onUpdateChecking(() => {
+                setUpdateStatus('checking');
+            }),
+            window.electronAPI.onUpdateAvailable(() => {
+                setUpdateStatus('available');
+                // Don't fechar configurações - let user see o botão change para "Atualiza Available"
+            }),
+            window.electronAPI.onUpdateNotAvailable(() => {
+                setUpdateStatus('uptodate');
+                setTimeout(() => setUpdateStatus('idle'), 3000);
+            }),
+            window.electronAPI.onUpdateError((err) => {
+                console.error('[Settings] Update error:', err);
+                setUpdateStatus('error');
+                setTimeout(() => setUpdateStatus('idle'), 3000);
+            })
+        ];
+
+        return () => unsubs.forEach(unsub => unsub());
+    }, [isOpen, onClose]);
+
+
+
+    useEffect(() => {
+        if (isOpen) {
+            // Carrega detectable status
+            if (window.electronAPI?.getUndetectable) {
+                window.electronAPI.getUndetectable().then(setIsUndetectable);
+            }
+            if (window.electronAPI?.getOpenAtLogin) {
+                window.electronAPI.getOpenAtLogin().then(setOpenOnLogin);
+            }
+            if (window.electronAPI?.getThemeMode) {
+                window.electronAPI.getThemeMode().then(({ mode }) => setThemeMode(mode));
+            }
+
+            // Carrega settings
+            const loadDevices = async () => {
+                try {
+                    const [inputs, outputs] = await Promise.all([
+                        // @ts-ignore
+                        window.electronAPI?.getInputDevices() || Promise.resolve([]),
+                        // @ts-ignore
+                        window.electronAPI?.getOutputDevices() || Promise.resolve([])
+                    ]);
+
+                    // Mapa para shape compatible com CustomSelect (que expects MediaDeviceInfo-like objects)
+                    const formatDevices = (devs: any[]) => devs.map(d => ({
+                        deviceId: d.id,
+                        label: d.name,
+                        kind: 'audioinput' as MediaDeviceKind,
+                        groupId: '',
+                        toJSON: () => d
+                    }));
+
+                    setInputDevices(formatDevices(inputs));
+                    setOutputDevices(formatDevices(outputs));
+
+                    // Carrega saved preferences
+                    const savedInput = localStorage.getItem('preferredInputDeviceId');
+                    const savedOutput = localStorage.getItem('preferredOutputDeviceId');
+
+                    if (savedInput && inputs.find((d: any) => d.id === savedInput)) {
+                        setSelectedInput(savedInput);
+                    } else if (inputs.length > 0 && !selectedInput) {
+                        setSelectedInput(inputs[0].id);
+                    }
+
+                    if (savedOutput && outputs.find((d: any) => d.id === savedOutput)) {
+                        setSelectedOutput(savedOutput);
+                    } else if (outputs.length > 0 && !selectedOutput) {
+                        setSelectedOutput(outputs[0].id);
+                    }
+                } catch (e) {
+                    console.error("Error loading native devices:", e);
+                }
+            };
+            loadDevices();
+
+            // Carrega Experimental SCK pref
+            const savedSck = localStorage.getItem('useExperimentalSckBackend') === 'true';
+            setUseExperimentalSck(savedSck);
+
+            // Carrega Calendar Status
+            if (window.electronAPI?.getCalendarStatus) {
+                window.electronAPI.getCalendarStatus().then(setCalendarStatus);
+            }
+        }
+    }, [isOpen, selectedInput, selectedOutput]); // Re-run if isOpen changes, ou if selected devices são cleared
+
+    // Busca upcoming calendar events enquanto o Calendar aba é abrir e connected.
+    // Polls todo 60s para mirror o Launcher's cadence.
+    useEffect(() => {
+        if (!isOpen || activeTab !== 'calendar' || !calendarStatus.connected) return;
+        if (!window.electronAPI?.getUpcomingEvents) return;
+
+        let cancelled = false;
+        const fetchEvents = () => {
+            window.electronAPI.getUpcomingEvents()
+                .then(events => { if (!cancelled) setCalendarEvents(events || []); })
+                .catch(err => console.error('[Settings] Failed to fetch upcoming events:', err));
+        };
+        fetchEvents();
+        const interval = setInterval(fetchEvents, 60_000);
+        return () => { cancelled = true; clearInterval(interval); };
+    }, [isOpen, activeTab, calendarStatus.connected]);
+
+    // Ouvir para device-selection-applied então o user pode see quando their saved
+    // device couldn't ser opened e audio fell voltar para o system default.
+    // Pre-fix isso era silent: configurações showed "AirPods" selected mas capture
+    // era actually using o built-in mic, leaving users para wonder por que their
+    // device choice "doesn't work".
+    useEffect(() => {
+        if (!window.electronAPI?.onDeviceSelectionApplied) return;
+        const unsubscribe = window.electronAPI.onDeviceSelectionApplied((payload) => {
+            if (payload.fellBack) {
+                setDeviceFallbackNotice({
+                    kind: payload.kind,
+                    requested: payload.requested,
+                    actual: payload.actual,
+                    reason: payload.reason,
+                });
+            } else {
+                // Successful aplica para isso kind — claro qualquer stale notice that
+                // pointed at o mesmo channel.
+                setDeviceFallbackNotice(prev =>
+                    prev && prev.kind === payload.kind ? null : prev
+                );
+            }
+        });
+        return unsubscribe;
+    }, []);
+
+    // Uso o native mic testar caminho então device IDs stay consistent com o meeting runtime.
+    // GProteger apenas inicia quando selectedInput é populated (loadDevices define it após device enum).
+    // Não senão branch: limpeza em o retorna função gerencia stopAudioTest quando isso effect
+    // unmounts (tab strocar configurações cfechar selectedInput change). Avoids redundant para calls
+    // em todo renderizar onde activeTab !== 'audio'.
+    useEffect(() => {
+        if (isOpen && activeTab === 'audio' && selectedInput) {
+            const unsubscribe = window.electronAPI?.onAudioTestLevel?.((level) => {
+                setMicLevel(Math.max(0, Math.min(100, level * 100)));
+            });
+
+            window.electronAPI?.startAudioTest(selectedInput).catch((error) => {
+                console.error("Error starting native microphone test:", error);
+                setMicLevel(0);
+            });
+
+            return () => {
+                unsubscribe?.();
+                window.electronAPI?.stopAudioTest?.().catch((error) => {
+                    console.error("Error stopping native microphone test:", error);
+                });
+                setMicLevel(0);
+            };
+        }
+        // Effect didn't executa (activeTab !== 'audio' ou isOpen === falso ou selectedInput empty).
+        // Reinicia meter mas fazer Não chamar stopAudioTest — limpeza acima gerencia it quando testar era running.
+        setMicLevel(0);
+    }, [isOpen, activeTab, selectedInput]);
+
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    id="settings-backdrop"
+                    className={`fixed inset-0 z-50 flex items-center justify-center p-8 transition-colors duration-150 ${isPreviewingOpacity ? 'bg-transparent backdrop-blur-none' : ''}`}
+                >
+                    <motion.div
+                        id="settings-panel-wrapper"
+                        initial={{ scale: 0.94, opacity: 0, y: 20 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.94, opacity: 0, y: 20 }}
+                        transition={{
+                            type: "spring",
+                            stiffness: 400,
+                            damping: 32,
+                            mass: 1
+                        }}
+                        className="settings-shell bg-bg-elevated w-full max-w-[1040px] h-[88vh] min-h-[620px] rounded-2xl border border-border-subtle overflow-hidden relative"
+                    >
+                        <div
+                            id="settings-panel"
+                            className="flex w-full h-full"
+                            style={{ visibility: isPreviewingOpacity ? 'hidden' : 'visible' }}
+                        >
+                        {/* Sidebar */}
+                        <div className="settings-sidebar flex flex-col border-r border-border-subtle">
+                            <div className="px-4 pt-4 pb-3 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+                                <div className="settings-brand">
+                                    <div className="settings-brand-mark">
+                                        <RefractLogoMark size={16} />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-[13px] font-semibold text-text-primary leading-none">Refract</h2>
+                                        <p className="text-[10.5px] text-text-tertiary mt-1">Preferences</p>
+                                    </div>
+                                </div>
+                                <nav className="settings-nav">
+                                    <button
+                                        onClick={() => setActiveTab('general')}
+                                        data-active={activeTab === 'general'}
+                                        className={navItemClass}
+                                    >
+                                        <Monitor size={16} /> General
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('refract-api')}
+                                        data-active={activeTab === 'refract-api'}
+                                        className={navItemClass}
+                                    >
+                                        <RefractLogoMark size={16} className={activeTab === 'refract-api' ? 'text-blue-500' : 'text-blue-500/70'} />
+                                        <span>Refract API</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('refract-pro')}
+                                        data-active={activeTab === 'refract-pro'}
+                                        className={navItemClass}
+                                    >
+                                        <RefractLogoMark size={16} className={activeTab === 'refract-pro' ? 'text-text-primary' : 'text-text-secondary'} />
+                                        <span>Refract Pro</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('ai-providers')}
+                                        data-active={activeTab === 'ai-providers'}
+                                        className={navItemClass}
+                                    >
+                                        <FlaskConical size={16} /> AI Providers
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('skills')}
+                                        data-active={activeTab === 'skills'}
+                                        className={navItemClass}
+                                    >
+                                        <Sparkles size={16} className={activeTab === 'skills' ? 'text-accent-primary' : 'text-text-secondary'} /> Skills
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('calendar')}
+                                        data-active={activeTab === 'calendar'}
+                                        className={navItemClass}
+                                    >
+                                        <Calendar size={16} /> Calendar
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('audio')}
+                                        data-active={activeTab === 'audio'}
+                                        className={navItemClass}
+                                    >
+                                        <Mic size={16} /> Audio
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('keybinds')}
+                                        data-active={activeTab === 'keybinds'}
+                                        className={navItemClass}
+                                    >
+                                        <Keyboard size={16} /> Keybinds
+                                    </button>
+
+                                    <button
+                                        onClick={() => setActiveTab('phone-mirror')}
+                                        data-active={activeTab === 'phone-mirror'}
+                                        className={navItemClass}
+                                    >
+                                        <Smartphone size={16} /> Sync
+                                    </button>
+
+                                    <button
+                                        onClick={() => setActiveTab('intelligence')}
+                                        data-active={activeTab === 'intelligence'}
+                                        className={navItemClass}
+                                    >
+                                        <Cpu size={16} className={activeTab === 'intelligence' ? 'text-accent-primary' : ''} /> Intelligence
+                                    </button>
+
+                                    <button
+                                        onClick={() => setActiveTab('help')}
+                                        data-active={activeTab === 'help'}
+                                        className={navItemClass}
+                                    >
+                                        <HelpCircle size={16} /> Setup & Help
+                                    </button>
+
+                                    <button
+                                        onClick={() => setActiveTab('about')}
+                                        data-active={activeTab === 'about'}
+                                        className={navItemClass}
+                                    >
+                                        <Info size={16} /> About
+                                    </button>
+                                </nav>
+                            </div>
+
+                            <div className="settings-footer mt-auto p-3 border-t border-border-subtle">
+                                <button
+                                    onClick={() => window.electronAPI.quitApp()}
+                                    className="settings-nav-item w-full text-left px-3 flex items-center gap-3 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                >
+                                    <LogOut size={16} /> Quit Refract
+                                </button>
+                                <button onClick={onClose} className="settings-nav-item group mt-1 w-full text-left px-3 flex items-center gap-3">
+                                    <X size={16} /> Close
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="settings-content flex-1 overflow-y-auto custom-scrollbar p-7 relative">
+                            <div className="settings-content-header">
+                                <div>
+                                    <h2 className="settings-content-title">{activeTabMeta.title}</h2>
+                                    <p className="settings-content-subtitle">{activeTabMeta.subtitle}</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="refract-topbar-button flex items-center justify-center text-text-tertiary"
+                                    aria-label="Close settings"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            {activeTab === 'general' && (
+                                <div className="space-y-6 animated fadeIn">
+                                    <div className="space-y-3.5">
+                                        {/* UndetectableToggle */}
+                                        <div className={`settings-card ${isLight ? 'bg-bg-card' : 'bg-bg-item-surface'} rounded-xl p-5 border border-border-subtle flex items-center justify-between transition-all ${isUndetectable ? 'shadow-lg shadow-blue-500/10' : ''}`}>
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    {isUndetectable ? (
+                                                        <svg
+                                                            width="18"
+                                                            height="18"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            strokeWidth="2"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                            className="text-text-primary"
+                                                        >
+                                                            <path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z" fill="currentColor" stroke="currentColor" />
+                                                            <path d="M9 10h.01" stroke="var(--bg-item-surface)" strokeWidth="2.5" />
+                                                            <path d="M15 10h.01" stroke="var(--bg-item-surface)" strokeWidth="2.5" />
+                                                        </svg>
+                                                    ) : (
+                                                        <Ghost size={18} className="text-text-primary" />
+                                                    )}
+                                                    <h3 className="text-lg font-bold text-text-primary">{isUndetectable ? 'Undetectable' : 'Detectable'}</h3>
+                                                </div>
+                                                <p className="text-xs text-text-secondary">
+                                                    Refract is currently {isUndetectable ? 'undetectable' : 'detectable'} by screen-sharing. <button onClick={() => window.electronAPI?.openExternal?.('https://refract.software/supportedapps')} className="text-blue-400 hover:underline">Supported apps here</button>
+                                                </p>
+                                            </div>
+                                            <div
+                                                onClick={() => {
+                                                    const newState = !isUndetectable;
+                                                    setIsUndetectable(newState);
+                                                    window.electronAPI?.setUndetectable(newState);
+                                                    // Analytics: Undetectable Modo Alternar
+                                                    analytics.trackModeSelected(newState ? 'undetectable' : 'overlay');
+                                                }}
+                                                className={`w-11 h-6 rounded-full relative transition-colors ${isUndetectable ? 'bg-accent-primary' : 'bg-bg-toggle-switch border border-border-muted'}`}
+                                            >
+                                                <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${isUndetectable ? 'translate-x-5' : 'translate-x-0'}`} />
+                                            </div>
+                                        </div>
+
+                                        {/* Mouse Passthrough Alternar — Adapted de public PR #113 */}
+                                        <div className={`settings-card ${isLight ? 'bg-bg-card' : 'bg-bg-item-surface'} rounded-xl p-5 border border-border-subtle flex items-center justify-between transition-all ${isMousePassthrough ? 'shadow-lg shadow-sky-500/10' : ''}`}>
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex items-center gap-2">
+                                                    <PointerOff size={18} className={isMousePassthrough ? 'text-sky-400' : 'text-text-primary'} />
+                                                    <h3 className="text-lg font-bold text-text-primary">Mouse Passthrough</h3>
+                                                </div>
+                                                <p className="text-xs text-text-secondary">
+                                                    Overlay stays visible but lets all mouse clicks pass through to the app beneath.
+                                                </p>
+                                            </div>
+                                            <div
+                                                onClick={() => {
+                                                    const newState = !isMousePassthrough;
+                                                    setIsMousePassthrough(newState);
+                                                    window.electronAPI?.setOverlayMousePassthrough(newState);
+                                                }}
+                                                className={`w-11 h-6 rounded-full relative transition-colors cursor-pointer ${isMousePassthrough ? 'bg-sky-500' : 'bg-bg-toggle-switch border border-border-muted'}`}
+                                            >
+                                                <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${isMousePassthrough ? 'translate-x-5' : 'translate-x-0'}`} />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <h3 className="text-lg font-bold text-text-primary mb-1">General settings</h3>
+                                            <p className="text-xs text-text-secondary mb-2">Customize how Refract works for you</p>
+
+                                            <div className={`settings-card overflow-visible rounded-xl border divide-y divide-border-subtle ${isLight ? 'bg-bg-card border-border-subtle' : 'bg-bg-card border-border-subtle'}`}>
+                                            <div className="space-y-0">
+                                                {/* Abrir at Login */}
+                                                <div className="flex items-center justify-between px-4 py-3">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 bg-bg-item-surface rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 ${
+                                                            openOnLogin
+                                                                ? isLight
+                                                                    ? 'border-indigo-500/30 text-indigo-600 bg-indigo-50/50'
+                                                                    : 'border-indigo-500/40 text-indigo-400 bg-indigo-500/5'
+                                                                : 'border-border-subtle text-text-tertiary'
+                                                        }`}>
+                                                            <Power size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-sm font-bold text-text-primary">Open Refract when you log in</h3>
+                                                            <p className="text-xs text-text-secondary mt-0.5">Refract will open automatically when you log in to your computer</p>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => {
+                                                            const newState = !openOnLogin;
+                                                            setOpenOnLogin(newState);
+                                                            window.electronAPI?.setOpenAtLogin(newState);
+                                                        }}
+                                                        className={`w-11 h-6 rounded-full relative transition-colors ${openOnLogin ? 'bg-accent-primary' : 'bg-bg-toggle-switch border border-border-muted'}`}
+                                                    >
+                                                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${openOnLogin ? 'translate-x-5' : 'translate-x-0'}`} />
+                                                    </div>
+                                                </div>
+
+                                                {/* Retenção de Reunião */}
+                                                <div className="flex items-start justify-between px-4 py-3 gap-4">
+                                                    <div className="flex items-start gap-4">
+                                                        <div className={`w-10 h-10 bg-bg-item-surface rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 ${
+                                                            meetingRetention === 'never'
+                                                                ? isLight
+                                                                    ? 'border-emerald-500/30 text-emerald-600 bg-emerald-50/50'
+                                                                    : 'border-emerald-500/40 text-emerald-400 bg-emerald-500/5'
+                                                                : 'border-border-subtle text-text-tertiary'
+                                                        }`}>
+                                                            <Shield size={20} />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <h3 className="text-sm font-bold text-text-primary">Do not save meetings</h3>
+                                                            <p className="text-xs text-text-secondary mt-0.5 leading-normal">When enabled, live assistance works but transcripts, summaries, and history are discarded when the meeting ends</p>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => {
+                                                            const nextRetention = meetingRetention === 'never' ? 'forever' : 'never';
+                                                            setMeetingRetention(nextRetention);
+                                                            window.electronAPI?.setMeetingRetention?.(nextRetention);
+                                                        }}
+                                                        className={`w-11 h-6 rounded-full relative transition-colors cursor-pointer shrink-0 mt-2 ${meetingRetention === 'never' ? 'bg-emerald-500' : 'bg-bg-toggle-switch border border-border-muted'}`}
+                                                        role="switch"
+                                                        aria-checked={meetingRetention === 'never'}
+                                                        aria-label="Do not save meetings"
+                                                    >
+                                                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${meetingRetention === 'never' ? 'translate-x-5' : 'translate-x-0'}`} />
+                                                    </div>
+                                                </div>
+
+                                                {/* Depurar Logging */}
+                                                <div className="flex items-center justify-between px-4 py-3">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 bg-bg-item-surface rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 ${
+                                                            verboseLogging
+                                                                ? isLight
+                                                                    ? 'border-amber-500/30 text-amber-600 bg-amber-50/50'
+                                                                    : 'border-amber-500/40 text-amber-400 bg-amber-500/5'
+                                                                : 'border-border-subtle text-text-tertiary'
+                                                        }`}>
+                                                            <Terminal size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-sm font-bold text-text-primary">Verbose debug logging</h3>
+                                                            <p className="text-xs text-text-secondary mt-0.5">Print detailed audio, STT, and pipeline diagnostics</p>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => {
+                                                            const newState = !verboseLogging;
+                                                            setVerboseLogging(newState);
+                                                            window.electronAPI?.setVerboseLogging?.(newState);
+                                                            if (newState) {
+                                                                setShowVerboseToast(true);
+                                                            }
+                                                        }}
+                                                        className={`w-11 h-6 rounded-full relative transition-colors cursor-pointer ${verboseLogging ? 'bg-amber-500' : 'bg-bg-toggle-switch border border-border-muted'}`}
+                                                    >
+                                                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${verboseLogging ? 'translate-x-5' : 'translate-x-0'}`} />
+                                                    </div>
+                                                </div>
+
+                                                {/* Verbose logging toast */}
+                                                <AnimatePresence>
+                                                    {showVerboseToast && (
+                                                        <motion.div
+                                                            key="verbose-toast"
+                                                            initial={{ opacity: 0, y: -6, height: 0 }}
+                                                            animate={{ opacity: 1, y: 0, height: 'auto' }}
+                                                            exit={{ opacity: 0, y: -4, height: 0 }}
+                                                            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+                                                            className="mx-4 mb-1 overflow-hidden"
+                                                        >
+                                                            <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                                    <Terminal size={14} className="text-amber-400 shrink-0" />
+                                                                    <p className="text-xs text-amber-200/80 leading-snug truncate">
+                                                                        Logs → <span className="font-mono text-amber-300">~/Documents/refract_debug.log</span>
+                                                                    </p>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => window.electronAPI?.openLogFile?.()}
+                                                                    className="shrink-0 text-[11px] font-medium text-amber-400 hover:text-amber-300 transition-colors px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25"
+                                                                >
+                                                                    Open
+                                                                </button>
+                                                            </div>
+                                                            {/* 5-segundo drain bar */}
+                                                            <motion.div
+                                                                className="h-[2px] bg-amber-500/40 rounded-b-xl"
+                                                                initial={{ scaleX: 1, originX: 0 }}
+                                                                animate={{ scaleX: 0 }}
+                                                                transition={{ duration: 5, ease: 'linear', delay: 0.2 }}
+                                                            />
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+
+                                                {/* Interviewer Transcript */}
+                                                <div className="flex items-center justify-between px-4 py-3">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 bg-bg-item-surface rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 ${
+                                                            showTranscript
+                                                                ? isLight
+                                                                    ? 'border-blue-500/30 text-blue-600 bg-blue-50/50'
+                                                                    : 'border-blue-500/40 text-blue-400 bg-blue-500/5'
+                                                                : 'border-border-subtle text-text-tertiary'
+                                                        }`}>
+                                                            <MessageSquare size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-sm font-bold text-text-primary">Interviewer Transcript</h3>
+                                                            <p className="text-xs text-text-secondary mt-0.5">Show real-time transcription of the interviewer</p>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => {
+                                                            const newState = !showTranscript;
+                                                            setShowTranscript(newState);
+                                                            localStorage.setItem('refract_interviewer_transcript', String(newState));
+                                                            window.dispatchEvent(new Event('storage'));
+                                                        }}
+                                                        className={`w-11 h-6 rounded-full relative transition-colors ${showTranscript ? 'bg-accent-primary' : 'bg-bg-toggle-switch border border-border-muted'}`}
+                                                    >
+                                                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${showTranscript ? 'translate-x-5' : 'translate-x-0'}`} />
+                                                    </div>
+                                                </div>
+
+                                                {/* Auto Rolar */}
+                                                <div className="flex items-center justify-between px-4 py-3">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 bg-bg-item-surface rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 ${
+                                                            autoScroll
+                                                                ? isLight
+                                                                    ? 'border-purple-500/30 text-purple-600 bg-purple-50/50'
+                                                                    : 'border-purple-500/40 text-purple-400 bg-purple-500/5'
+                                                                : 'border-border-subtle text-text-tertiary'
+                                                        }`}>
+                                                            <ArrowDown size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-sm font-bold text-text-primary">Auto Scroll</h3>
+                                                            <p className="text-xs text-text-secondary mt-0.5">Automatically scroll to the latest message as new responses arrive</p>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => {
+                                                            const newState = !autoScroll;
+                                                            setAutoScroll(newState);
+                                                            localStorage.setItem('refract_auto_scroll', String(newState));
+                                                            window.dispatchEvent(new Event('storage'));
+                                                        }}
+                                                        className={`w-11 h-6 rounded-full relative transition-colors cursor-pointer ${autoScroll ? 'bg-accent-primary' : 'bg-bg-toggle-switch border border-border-muted'}`}
+                                                    >
+                                                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${autoScroll ? 'translate-x-5' : 'translate-x-0'}`} />
+                                                    </div>
+                                                </div>
+
+
+                                                {/* Theme */}
+                                                <div className="flex items-center justify-between px-4 py-3">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 bg-bg-item-surface rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 ${
+                                                            themeMode !== 'system'
+                                                                ? isLight
+                                                                    ? 'border-violet-500/30 text-violet-600 bg-violet-50/50'
+                                                                    : 'border-violet-500/40 text-violet-400 bg-violet-500/5'
+                                                                : 'border-border-subtle text-text-tertiary'
+                                                        }`}>
+                                                            <Palette size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-sm font-bold text-text-primary">Theme</h3>
+                                                            <p className="text-xs text-text-secondary mt-0.5">Customize how Refract looks on your device</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="relative" ref={themeDropdownRef}>
+                                                        <button
+                                                            onClick={() => setIsThemeDropdownOpen(!isThemeDropdownOpen)}
+                                                            className="bg-bg-component hover:bg-bg-elevated border border-border-subtle text-text-primary px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-2 min-w-[110px] justify-between"
+                                                        >
+                                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                                <span className="text-text-secondary shrink-0">
+                                                                    {themeMode === 'system' && <Monitor size={14} />}
+                                                                    {themeMode === 'light' && <Sun size={14} />}
+                                                                    {themeMode === 'dark' && <Moon size={14} />}
+                                                                </span>
+                                                                <span className="capitalize text-ellipsis overflow-hidden whitespace-nowrap">{themeMode}</span>
+                                                            </div>
+                                                            <ChevronDown size={12} className={`shrink-0 transition-transform ${isThemeDropdownOpen ? 'rotate-180' : ''}`} />
+                                                        </button>
+
+                                                        {/* Dropdown Menu */}
+                                                        {isThemeDropdownOpen && (
+                                                            <div className="absolute right-0 top-full mt-1 min-w-full w-max bg-bg-elevated border border-border-subtle rounded-lg shadow-xl overflow-hidden z-20 p-1 animated fadeIn select-none">
+                                                                {[
+                                                                    { mode: 'system', label: 'System', icon: <Monitor size={14} /> },
+                                                                    { mode: 'light', label: 'Light', icon: <Sun size={14} /> },
+                                                                    { mode: 'dark', label: 'Dark', icon: <Moon size={14} /> }
+                                                                ].map((option) => (
+                                                                    <button
+                                                                        key={option.mode}
+                                                                        onClick={() => {
+                                                                            handleSetTheme(option.mode as any);
+                                                                            setIsThemeDropdownOpen(false);
+                                                                        }}
+                                                                        className={`w-full text-left px-2 py-1.5 rounded-md text-xs flex items-center gap-2 transition-colors ${themeMode === option.mode ? 'text-text-primary bg-bg-item-active/50' : 'text-text-secondary hover:bg-bg-input hover:text-text-primary'}`}
+                                                                    >
+                                                                        <span className={themeMode === option.mode ? 'text-text-primary' : 'text-text-secondary group-hover:text-text-primary'}>{option.icon}</span>
+                                                                        <span className="font-medium">{option.label}</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Meeting Interface Style */}
+                                                <div className="flex items-center justify-between px-4 py-3">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 bg-bg-item-surface rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 ${
+                                                            (meetingInterfaceTheme === 'liquid-glass' || meetingInterfaceTheme === 'modern')
+                                                                ? isLight
+                                                                    ? 'border-sky-500/30 text-sky-600 bg-sky-50/50'
+                                                                    : 'border-sky-500/40 text-sky-400 bg-sky-500/5'
+                                                                : 'border-border-subtle text-text-tertiary'
+                                                        }`}>
+                                                            <Layout size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-sm font-bold text-text-primary">Meeting Interface Style</h3>
+                                                            <p className="text-xs text-text-secondary mt-0.5">
+                                                                {meetingInterfaceTheme === 'liquid-glass'
+                                                                    ? 'Liquid glass — Apple-inspired transparent overlay'
+                                                                    : meetingInterfaceTheme === 'modern'
+                                                                        ? 'Modern — polished dark glass with cobalt accents'
+                                                                        : 'Default overlay appearance'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="relative" ref={interfaceThemeDropdownRef}>
+                                                        <button
+                                                            onClick={() => setIsInterfaceThemeDropdownOpen(!isInterfaceThemeDropdownOpen)}
+                                                            className="bg-bg-component hover:bg-bg-elevated border border-border-subtle text-text-primary px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-2 min-w-[110px] justify-between"
+                                                        >
+                                                            <span className="text-ellipsis overflow-hidden whitespace-nowrap">
+                                                                {meetingInterfaceTheme === 'liquid-glass'
+                                                                    ? 'Liquid Glass'
+                                                                    : meetingInterfaceTheme === 'modern'
+                                                                        ? 'Modern'
+                                                                        : 'Default'}
+                                                            </span>
+                                                            <ChevronDown size={12} className={`shrink-0 transition-transform ${isInterfaceThemeDropdownOpen ? 'rotate-180' : ''}`} />
+                                                        </button>
+
+                                                        {isInterfaceThemeDropdownOpen && (
+                                                            <div className="absolute right-0 top-full mt-1 w-full bg-bg-elevated border border-border-subtle rounded-lg shadow-xl overflow-hidden z-20 p-1 animated fadeIn select-none">
+                                                                {([
+                                                                    { mode: 'default' as MeetingInterfaceTheme, label: 'Default' },
+                                                                    { mode: 'liquid-glass' as MeetingInterfaceTheme, label: 'Liquid Glass' },
+                                                                    { mode: 'modern' as MeetingInterfaceTheme, label: 'Modern' },
+                                                                ] as const).map((option) => (
+                                                                    <button
+                                                                        key={option.mode}
+                                                                        onClick={() => {
+                                                                            setMeetingInterfaceTheme(option.mode);
+                                                                            setMeetingInterfaceThemeState(option.mode);
+                                                                            setIsInterfaceThemeDropdownOpen(false);
+                                                                        }}
+                                                                        className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs flex items-center gap-2 transition-colors ${meetingInterfaceTheme === option.mode ? 'text-text-primary bg-bg-item-active/50' : 'text-text-secondary hover:bg-bg-input hover:text-text-primary'}`}
+                                                                    >
+                                                                        <span className="font-medium">{option.label}</span>
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                    {/* AI Resposta Language */}
+                                                <div className="flex items-center justify-between px-4 py-3">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 bg-bg-item-surface rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 ${
+                                                            aiResponseLanguage !== 'auto'
+                                                                ? isLight
+                                                                    ? 'border-teal-500/30 text-teal-600 bg-teal-50/50'
+                                                                    : 'border-teal-500/40 text-teal-400 bg-teal-500/5'
+                                                                : 'border-border-subtle text-text-tertiary'
+                                                        }`}>
+                                                            <Globe size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-sm font-bold text-text-primary">AI Response Language</h3>
+                                                            <p className="text-xs text-text-secondary mt-0.5">
+                                                                {aiResponseLanguage === 'auto'
+                                                                    ? 'Mirrors user\'s language automatically'
+                                                                    : 'Language for AI suggestions and notes'
+                                                                }
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="relative" ref={aiLangDropdownRef}>
+                                                        <button
+                                                            onClick={() => setIsAiLangDropdownOpen(!isAiLangDropdownOpen)}
+                                                            className="bg-bg-component hover:bg-bg-elevated border border-border-subtle text-text-primary px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-2 min-w-[110px] justify-between"
+                                                        >
+                                                            <span className="capitalize text-ellipsis overflow-hidden whitespace-nowrap flex items-center gap-1">
+                                                                {aiResponseLanguage === 'auto' ? 'Auto' : aiResponseLanguage}
+                                                            </span>
+                                                            <ChevronDown size={12} className={`shrink-0 transition-transform ${isAiLangDropdownOpen ? 'rotate-180' : ''}`} />
+                                                        </button>
+
+                                                        {/* Dropdown Menu */}
+                                                        {isAiLangDropdownOpen && (
+                                                            <div className="absolute right-0 top-full mt-1 min-w-full w-max bg-bg-elevated border border-border-subtle rounded-lg shadow-xl overflow-hidden z-20 p-1 animated fadeIn select-none max-h-60 overflow-y-auto custom-scrollbar">
+                                                                {availableAiLanguages.map((option) => (
+                                                                    <button
+                                                                        key={option.code}
+                                                                        onClick={() => {
+                                                                            handleAiLanguageChange(option.code);
+                                                                            setIsAiLangDropdownOpen(false);
+                                                                        }}
+                                                                        className={`w-full text-left px-2 py-1.5 rounded-md text-xs flex items-center gap-2 transition-colors ${aiResponseLanguage === option.code ? 'text-text-primary bg-bg-item-active/50' : 'text-text-secondary hover:bg-bg-input hover:text-text-primary'}`}
+                                                                    >
+                                                                        {option.code === 'auto' ? (
+                                                                            <span className="font-medium">Auto</span>
+                                                                        ) : (
+                                                                            <span className="font-medium">{option.label}</span>
+                                                                        )}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Versão */}
+                                                <div className="flex items-start justify-between gap-4 px-4 py-3">
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="w-10 h-10 bg-bg-item-surface rounded-lg border border-border-subtle flex items-center justify-center text-text-tertiary shrink-0">
+                                                            <BadgeCheck size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-sm font-bold text-text-primary">Version</h3>
+                                                            <p className="text-xs text-text-secondary mt-0.5">
+                                                                You are currently using Refract version {packageJson.version}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (updateStatus === 'available') {
+                                                                try {
+                                                                    // @ts-ignore
+                                                                    await window.electronAPI.downloadUpdate();
+                                                                    onClose(); // Fechar settings to show banner
+                                                                } catch (err) {
+                                                                    console.error("Failed to start download:", err);
+                                                                }
+                                                            } else {
+                                                                handleCheckForUpdates();
+                                                            }
+                                                        }}
+                                                        disabled={updateStatus === 'checking'}
+                                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-2 shrink-0 min-w-[110px] ${
+                                                            updateStatus === 'checking'
+                                                                ? 'bg-bg-input text-text-tertiary border-border-subtle cursor-wait'
+                                                                : updateStatus === 'available'
+                                                                    ? 'bg-accent-primary text-white border-accent-primary hover:bg-accent-secondary shadow-lg shadow-blue-500/20'
+                                                                    : updateStatus === 'uptodate'
+                                                                        ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                                                        : updateStatus === 'error'
+                                                                            ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                                                            : 'bg-bg-component hover:bg-bg-elevated text-text-primary border-border-subtle'
+                                                        }`}
+                                                    >
+                                                        {updateStatus === 'checking' ? (
+                                                            <>
+                                                                <RefreshCw size={14} className="animate-spin" />
+                                                                Checking
+                                                            </>
+                                                        ) : updateStatus === 'available' ? (
+                                                            <>
+                                                                <ArrowDown size={14} />
+                                                                Update
+                                                            </>
+                                                        ) : updateStatus === 'uptodate' ? (
+                                                            <>
+                                                                <Check size={14} />
+                                                                Up to date
+                                                            </>
+                                                        ) : updateStatus === 'error' ? (
+                                                            <>
+                                                                <X size={14} />
+                                                                Error
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <RefreshCw size={14} />
+                                                                Check
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            </div>
+
+                                                {/* ------------------------------------------------------------------ */}
+                                                {/* Interface Opacity (Stealth MModo                                   */}
+                                                {/* ------------------------------------------------------------------ */}
+                                                <div
+                                                    id="opacity-slider-card"
+                                                    style={isPreviewingOpacity ? { visibility: 'visible', position: 'relative', zIndex: 9999 } : {}}
+                                                    className={`settings-card ${isLight ? 'bg-bg-card' : 'bg-bg-item-surface'} rounded-xl p-5 border border-border-subtle mt-4`}
+                                                >
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <label className="flex items-center gap-2 text-xs font-medium text-text-secondary uppercase tracking-wide">
+                                                            <Eye size={13} className="text-text-secondary" />
+                                                            Interface Opacity
+                                                        </label>
+                                                        {/*
+                                                         * Render previewOverlayOpacity (live arrastar value), NOT
+                                                         * overlayOpacity (committed). The arrastar manipulador at
+                                                         * handleOpacityChange does an imperative
+                                                         *   document.querySelectorAll('.opacity-percent-label')
+                                                         *     .forEach(el => el.textContent = percentText)
+                                                         * para sub-frame latency, então calls setPreviewOverlayOpacity(val).
+                                                         * That setter queues a React re-render — se isso JSX read
+                                                         * `overlayOpacity` (the un-committed pre-drag value), React
+                                                         * would clobber o imperative texto voltar para o stale value
+                                                         * on o próximo commit, producing a visible flicker every
+                                                         * arrastar tick. Reading previewOverlayOpacity keeps React's
+                                                         * renderizar e o imperative write in agreement — the
+                                                         * imperative write still wins o sub-frame race, React's
+                                                         * commit just confirms o mesmo value.
+                                                         */}
+                                                        <span className="opacity-percent-label text-xs font-semibold text-text-primary tabular-nums">
+                                                            {Math.round(previewOverlayOpacity * 100)}%
+                                                        </span>
+                                                    </div>
+
+                                                    <input
+                                                        type="range"
+                                                        min={OVERLAY_OPACITY_MIN}
+                                                        max={1.0}
+                                                        step={0.01}
+                                                        defaultValue={overlayOpacity}
+                                                        onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
+                                                        onPointerDown={startPreviewingOpacity}
+                                                        onPointerUp={stopPreviewingOpacity}
+                                                        onPointerCancel={stopPreviewingOpacity}
+                                                        onPointerLeave={stopPreviewingOpacity}
+                                                        className="w-full h-1.5 rounded-full appearance-none bg-bg-input accent-accent-primary"
+                                                        style={{ WebkitAppearance: 'none' } as React.CSSProperties}
+                                                    />
+
+                                                    <div className="flex justify-between mt-1.5">
+                                                        <span className="text-[10px] text-text-tertiary">More Stealth</span>
+                                                        <span className="text-[10px] text-text-tertiary">Fully Visible</span>
+                                                    </div>
+
+                                                    <p className="text-xs text-text-tertiary mt-2">
+                                                        Controls the visibility of the in-meeting overlay.{' '}
+                                                        <span className="text-text-secondary">Hold the slider to preview.</span>
+                                                    </p>
+                                                </div>
+
+                                        </div>
+
+                                    </div>
+
+                                    {/* Processo Disguise */}
+                                    {/* Processo Disguise */}
+                                    <div className={`settings-card ${isLight ? 'bg-bg-card' : 'bg-bg-item-surface'} rounded-xl p-5 border border-border-subtle`}>
+                                        <div className="flex flex-col gap-1 mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="text-lg font-bold text-text-primary">Process Disguise</h3>
+                                            </div>
+                                            <p className="text-xs text-text-secondary">
+                                                Disguise Refract as another application to prevent detection during screen sharing.
+                                                <span className="block mt-1 text-text-tertiary">
+                                                    Select a disguise to be automatically applied when Undetectable mode is on.
+                                                </span>
+                                            </p>
+                                        </div>
+
+                                        <div className={`grid grid-cols-2 gap-3 ${isUndetectable ? 'opacity-50 pointer-events-none' : ''}`}>
+                                            {isUndetectable && (
+                                                <p className="col-span-2 text-xs text-yellow-500/80 -mt-1 mb-1">
+                                                    ⚠️ Disable Undetectable mode first to change disguise.
+                                                </p>
+                                            )}
+                                            {[
+                                                { id: 'none', label: 'None (Default)', icon: <Layout size={14} /> },
+                                                { id: 'terminal', label: 'Terminal', icon: <Terminal size={14} /> },
+                                                { id: 'settings', label: 'System Settings', icon: <Settings size={14} /> },
+                                                { id: 'activity', label: 'Activity Monitor', icon: <Activity size={14} /> }
+                                            ].map((option) => (
+                                                <button
+                                                    key={option.id}
+                                                    disabled={isUndetectable}
+                                                    onClick={() => {
+                                                        if (isUndetectable) return;
+                                                        // @ts-ignore
+                                                        setDisguiseMode(option.id);
+                                                        // @ts-ignore
+                                                        window.electronAPI?.setDisguise(option.id);
+                                                        // Analytics
+                                                        analytics.trackModeSelected(`disguise_${option.id}`);
+                                                    }}
+                                                    className={`p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${disguiseMode === option.id
+                                                        ? 'bg-accent-primary border-accent-primary text-white shadow-lg shadow-blue-500/20'
+                                                        : 'bg-bg-input border-border-subtle text-text-secondary hover:text-text-primary hover:bg-bg-subtle-hover'
+                                                        } ${isUndetectable ? 'cursor-not-allowed' : ''}`}
+                                                >
+                                                    <div className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 ${disguiseMode === option.id ? 'bg-white/20 text-white' : 'bg-bg-item-surface text-text-secondary'
+                                                        }`}>
+                                                        {option.icon}
+                                                    </div>
+                                                    <span className="text-xs font-medium">{option.label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                </div>
+                            )}
+
+                            {activeTab === 'ai-providers' && (
+                                <AIProvidersSettings />
+                            )}
+                            {activeTab === 'skills' && (
+                                <SkillsSettings />
+                            )}
+                            {activeTab === 'refract-api' && (
+                                <RefractApiSettings initialIsSaved={hasRefractKey} />
+                            )}
+                            {activeTab === 'refract-pro' && (
+                                <RefractProSettings initialIsPremium={initialIsPremium} />
+                            )}
+                            {activeTab === 'keybinds' && (
+                                <div className="space-y-5 animated fadeIn select-text pb-4">
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <h3 className="text-lg font-bold text-text-primary mb-1">Keyboard shortcuts</h3>
+                                            <p className="text-xs text-text-secondary">Refract works with these easy to remember commands.</p>
+                                        </div>
+                                        <button
+                                            onClick={resetShortcuts}
+                                            className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-border-subtle bg-bg-subtle/30 hover:bg-bg-subtle hover:border-green-500/30 transition-all duration-200 text-xs font-medium text-text-secondary hover:text-green-500 active:scale-95 mt-1"
+                                        >
+                                            <RotateCcw size={13} strokeWidth={2.5} />
+                                            Restore Default
+                                        </button>
+                                    </div>
+
+                                    <div className="grid gap-6">
+                                        {/* General Category */}
+                                        <div>
+                                            <h4 className="text-sm font-bold text-text-primary mb-3">General</h4>
+                                            <div className="space-y-1">
+                                                <div className="flex items-center justify-between py-1.5 group">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-text-tertiary group-hover:text-text-primary transition-colors w-5 flex justify-center"><Eye size={14} /></span>
+                                                        <span className="text-sm text-text-secondary font-medium group-hover:text-text-primary transition-colors">Toggle Visibility</span>
+                                                    </div>
+                                                    <KeyRecorder
+                                                        currentKeys={shortcuts.toggleVisibility}
+                                                        onSave={(keys) => updateShortcut('toggleVisibility', keys)}
+                                                    />
+                                                </div>
+                                                <div className="flex items-center justify-between py-1.5 group">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-text-tertiary group-hover:text-text-primary transition-colors w-5 flex justify-center"><PointerOff size={14} /></span>
+                                                        <span className="text-sm text-text-secondary font-medium group-hover:text-text-primary transition-colors">Toggle Mouse Passthrough</span>
+                                                    </div>
+                                                    <KeyRecorder
+                                                        currentKeys={shortcuts.toggleMousePassthrough}
+                                                        onSave={(keys) => updateShortcut('toggleMousePassthrough', keys)}
+                                                    />
+                                                </div>
+                                                <div className="flex items-center justify-between py-1.5 group">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-text-tertiary group-hover:text-text-primary transition-colors w-5 flex justify-center"><MessageSquare size={14} /></span>
+                                                        <span className="text-sm text-text-secondary font-medium group-hover:text-text-primary transition-colors">Process Screenshots</span>
+                                                    </div>
+                                                    <KeyRecorder
+                                                        currentKeys={shortcuts.processScreenshots}
+                                                        onSave={(keys) => updateShortcut('processScreenshots', keys)}
+                                                    />
+                                                </div>
+                                                <div className="flex items-center justify-between py-1.5 group">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-text-tertiary group-hover:text-text-primary transition-colors w-5 flex justify-center"><Sparkles size={14} /></span>
+                                                        <span className="text-sm text-text-secondary font-medium group-hover:text-text-primary transition-colors">Capture Screen & Ask AI</span>
+                                                    </div>
+                                                    <KeyRecorder
+                                                        currentKeys={shortcuts.captureAndProcess}
+                                                        onSave={(keys) => updateShortcut('captureAndProcess', keys)}
+                                                    />
+                                                </div>
+                                                <div className="flex items-center justify-between py-1.5 group">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-text-tertiary group-hover:text-text-primary transition-colors w-5 flex justify-center"><Globe size={14} /></span>
+                                                        <span className="text-sm text-text-secondary font-medium group-hover:text-text-primary transition-colors">Capture Page (Browser)</span>
+                                                    </div>
+                                                    <KeyRecorder
+                                                        currentKeys={shortcuts.capturePage}
+                                                        onSave={(keys) => updateShortcut('capturePage', keys)}
+                                                    />
+                                                </div>
+                                                <div className="flex items-center justify-between py-1.5 group">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-text-tertiary group-hover:text-text-primary transition-colors w-5 flex justify-center"><RotateCcw size={14} /></span>
+                                                        <span className="text-sm text-text-secondary font-medium group-hover:text-text-primary transition-colors">Reset / Cancel</span>
+                                                    </div>
+                                                    <KeyRecorder
+                                                        currentKeys={shortcuts.resetCancel}
+                                                        onSave={(keys) => updateShortcut('resetCancel', keys)}
+                                                    />
+                                                </div>
+                                                <div className="flex items-center justify-between py-1.5 group">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-text-tertiary group-hover:text-text-primary transition-colors w-5 flex justify-center"><Camera size={14} /></span>
+                                                        <span className="text-sm text-text-secondary font-medium group-hover:text-text-primary transition-colors">Take Screenshot</span>
+                                                    </div>
+                                                    <KeyRecorder
+                                                        currentKeys={shortcuts.takeScreenshot}
+                                                        onSave={(keys) => updateShortcut('takeScreenshot', keys)}
+                                                    />
+                                                </div>
+                                                <div className="flex items-center justify-between py-1.5 group">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-text-tertiary group-hover:text-text-primary transition-colors w-5 flex justify-center"><Crop size={14} /></span>
+                                                        <span className="text-sm text-text-secondary font-medium group-hover:text-text-primary transition-colors">Selective Screenshot</span>
+                                                    </div>
+                                                    <KeyRecorder
+                                                        currentKeys={shortcuts.selectiveScreenshot}
+                                                        onSave={(keys) => updateShortcut('selectiveScreenshot', keys)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Chat Category */}
+                                        <div>
+                                            <div className="mb-3">
+                                                <h4 className="text-sm font-bold text-text-primary">Chat</h4>
+                                            </div>
+                                            <div className="space-y-1">
+                                                {[
+                                                    { id: 'whatToAnswer', label: 'What to Answer', icon: <Sparkles size={14} /> },
+                                                    { id: 'clarify', label: 'Clarify', icon: <MessageSquare size={14} /> },
+                                                    { id: 'followUp', label: 'Follow Up', icon: <MessageSquare size={14} /> },
+                                                    { id: 'dynamicAction4', label: 'Recap / Brainstorm', icon: <RefreshCw size={14} /> },
+                                                    { id: 'answer', label: 'Answer / Record', icon: <Mic size={14} /> },
+                                                    { id: 'codeHint', label: 'Get Code Hint', icon: <Zap size={14} /> },
+                                                    { id: 'brainstorm', label: 'Brainstorm Approaches', icon: <Zap size={14} /> },
+                                                    { id: 'scrollUp', label: 'Scroll Up', icon: <ArrowUp size={14} /> },
+                                                    { id: 'scrollDown', label: 'Scroll Down', icon: <ArrowDown size={14} /> },
+                                                    { id: 'scrollLeft', label: 'Scroll Left (code block)', icon: <ArrowLeft size={14} /> },
+                                                    { id: 'scrollRight', label: 'Scroll Right (code block)', icon: <ArrowRight size={14} /> },
+                                                    { id: 'focusInput', label: 'Toggle Stealth Typing', icon: <MessageSquare size={14} /> },
+                                                ].map((item, i) => (
+                                                    <div key={i} className="flex items-center justify-between py-1.5 group">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-text-tertiary group-hover:text-text-primary transition-colors w-5 flex justify-center">{item.icon}</span>
+                                                            <span className="text-sm text-text-secondary font-medium group-hover:text-text-primary transition-colors">{item.label}</span>
+                                                        </div>
+                                                        <KeyRecorder
+                                                            currentKeys={shortcuts[item.id as keyof typeof shortcuts]}
+                                                            onSave={(keys) => updateShortcut(item.id as any, keys)}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Window Category */}
+                                        <div>
+                                            <h4 className="text-sm font-bold text-text-primary mb-3">Window</h4>
+                                            <div className="space-y-1">
+                                                {[
+                                                    { id: 'moveWindowUp', label: 'Move Window Up', icon: <ArrowUp size={14} /> },
+                                                    { id: 'moveWindowDown', label: 'Move Window Down', icon: <ArrowDown size={14} /> },
+                                                    { id: 'moveWindowLeft', label: 'Move Window Left', icon: <ArrowLeft size={14} /> },
+                                                    { id: 'moveWindowRight', label: 'Move Window Right', icon: <ArrowRight size={14} /> }
+                                                ].map((item, i) => (
+                                                    <div key={i} className="flex items-center justify-between py-1.5 group">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-text-tertiary group-hover:text-text-primary transition-colors w-5 flex justify-center">{item.icon}</span>
+                                                            <span className="text-sm text-text-secondary font-medium group-hover:text-text-primary transition-colors">{item.label}</span>
+                                                        </div>
+                                                        <KeyRecorder
+                                                            currentKeys={shortcuts[item.id as keyof typeof shortcuts]}
+                                                            onSave={(keys) => updateShortcut(item.id as any, keys)}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'audio' && (
+                                <div className="space-y-6 animated fadeIn">
+                                    {/* ── Speech Provedor Section ── */}
+                                    <div>
+                                        <h3 className="text-lg font-bold text-text-primary mb-1">Speech Provider</h3>
+                                        <p className="text-xs text-text-secondary mb-5">Choose the engine that transcribes audio to text.</p>
+
+                                        <div className="space-y-4">
+                                            <div className="bg-bg-card rounded-xl border border-border-subtle p-4 space-y-3">
+                                                <label className="text-xs font-medium text-text-secondary block">Speech Provider</label>
+                                                <div className="relative">
+                                                    <ProviderSelect
+                                                        value={sttProvider}
+                                                        onChange={(val) => handleSttProviderChange(val as any)}
+                                                        options={[
+                                                            ...(hasRefractKey ? [{ id: 'refract', label: 'Refract API', badge: 'Saved' as const, recommended: true, desc: 'Managed transcription via Refract backend', color: 'blue', icon: <Mic size={14} /> }] : []),
+                                                            { id: 'google', label: 'Google Cloud', badge: googleServiceAccountPath ? 'Saved' : null, recommended: true, desc: 'gRPC streaming via Service Account', color: 'blue', icon: <Mic size={14} /> },
+                                                            { id: 'groq', label: 'Groq Whisper', badge: hasStoredSttGroqKey ? 'Saved' : null, recommended: true, desc: 'Ultra-fast REST transcription', color: 'orange', icon: <Mic size={14} /> },
+                                                            { id: 'openai', label: 'OpenAI Whisper', badge: hasStoredSttOpenaiKey ? 'Saved' : null, desc: 'OpenAI-compatible Whisper API', color: 'green', icon: <Mic size={14} /> },
+                                                            { id: 'deepgram', label: 'Deepgram Nova-3', badge: hasStoredDeepgramKey ? 'Saved' : null, recommended: true, desc: 'High-accuracy REST transcription', color: 'purple', icon: <Mic size={14} /> },
+                                                            { id: 'elevenlabs', label: 'ElevenLabs Scribe', badge: hasStoredElevenLabsKey ? 'Saved' : null, desc: 'Scribe v2 Realtime API', color: 'teal', icon: <Mic size={14} /> },
+                                                            { id: 'azure', label: 'Azure Speech', badge: hasStoredAzureKey ? 'Saved' : null, desc: 'Microsoft Cognitive Services STT', color: 'cyan', icon: <Mic size={14} /> },
+                                                            { id: 'ibmwatson', label: 'IBM Watson', badge: hasStoredIbmWatsonKey ? 'Saved' : null, desc: 'IBM Watson cloud STT service', color: 'indigo', icon: <Mic size={14} /> },
+                                                            { id: 'soniox', label: 'Soniox', badge: hasStoredSonioxKey ? 'Saved' : null, recommended: true, desc: '60+ languages, multilingual, domain context', color: 'cyan', icon: <Mic size={14} /> },
+                                                            { id: 'local-whisper', label: 'Local Whisper', badge: null, desc: 'Privacy-first: runs 100% on your device', color: 'green', icon: <Cpu size={14} /> },
+                                                        ]}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Groq Modelo Selector */}
+                                            {sttProvider === 'groq' && (
+                                                <div className="bg-bg-card rounded-xl border border-border-subtle p-4">
+                                                    <label className="text-xs font-medium text-text-secondary mb-2.5 block">Whisper Model</label>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        {[
+                                                            { id: 'whisper-large-v3-turbo', label: 'V3 Turbo', desc: 'Fastest' },
+                                                            { id: 'whisper-large-v3', label: 'V3', desc: 'Most Accurate' },
+                                                        ].map((m) => (
+                                                            <button
+                                                                key={m.id}
+                                                                onClick={async () => {
+                                                                    setGroqSttModel(m.id);
+                                                                    try {
+                                                                        // @ts-ignore
+                                                                        await window.electronAPI?.setGroqSttModel?.(m.id);
+                                                                    } catch (e) {
+                                                                        console.error('Failed to set Groq model:', e);
+                                                                    }
+                                                                }}
+                                                                className={`rounded-lg px-3 py-2.5 text-left transition-all duration-200 ease-in-out active:scale-[0.98] ${groqSttModel === m.id
+                                                                    ? 'bg-blue-600 text-white shadow-md'
+                                                                    : 'bg-bg-input hover:bg-bg-elevated text-text-primary'
+                                                                    }`}
+                                                            >
+                                                                <span className="text-sm font-medium block">{m.label}</span>
+                                                                <span className={`text-[11px] transition-colors ${groqSttModel === m.id ? 'text-white/70' : 'text-text-tertiary'
+                                                                    }`}>{m.desc}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Google Cloud Serviço Account */}
+                                            {sttProvider === 'google' && (
+                                                <div className="bg-bg-card rounded-xl border border-border-subtle p-4">
+                                                    <label className="text-xs font-medium text-text-secondary mb-2 block">Service Account JSON</label>
+                                                    <div className="flex gap-2">
+                                                        <div className="flex-1 bg-bg-input border border-border-subtle rounded-lg px-3 py-2 text-xs text-text-secondary font-mono truncate">
+                                                            {googleServiceAccountPath
+                                                                ? <span className="text-text-primary">{googleServiceAccountPath.split('/').pop()}</span>
+                                                                : <span className="text-text-tertiary italic">No file selected</span>}
+                                                        </div>
+                                                        <button
+                                                            onClick={async () => {
+                                                                // @ts-ignore
+                                                                const result = await window.electronAPI?.selectServiceAccount?.();
+                                                                if (result?.success && result.path) {
+                                                                    setGoogleServiceAccountPath(result.path);
+                                                                }
+                                                            }}
+                                                            className="px-3 py-2 bg-bg-input hover:bg-bg-elevated border border-border-subtle rounded-lg text-xs font-medium text-text-primary transition-colors flex items-center gap-2"
+                                                        >
+                                                            <Upload size={14} /> Select File
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-[10px] text-text-tertiary mt-2">
+                                                        Required for Google Cloud Speech-to-Text.
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* API Chave Entrada (non-Google providers) */}
+                                            {sttProvider !== 'google' && sttProvider !== 'local-whisper' && sttProvider !== 'refract' && sttProvider !== 'none' && (
+                                                <div className="bg-bg-card rounded-xl border border-border-subtle p-4 space-y-3">
+                                                    <label className="text-xs font-medium text-text-secondary block">
+                                                        {sttProvider === 'groq' ? 'Groq' : sttProvider === 'openai' ? 'OpenAI STT' : sttProvider === 'elevenlabs' ? 'ElevenLabs' : sttProvider === 'azure' ? 'Azure' : sttProvider === 'ibmwatson' ? 'IBM Watson' : sttProvider === 'soniox' ? 'Soniox' : 'Deepgram'} API Key
+                                                    </label>
+                                                    {sttProvider === 'openai' && (
+                                                        <p className="text-[10px] text-text-tertiary mb-1.5">
+                                                            This key is separate from your main AI Provider key.
+                                                        </p>
+                                                    )}
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="password"
+                                                            value={
+                                                                sttProvider === 'groq' ? sttGroqKey
+                                                                    : sttProvider === 'openai' ? sttOpenaiKey
+                                                                        : sttProvider === 'elevenlabs' ? sttElevenLabsKey
+                                                                            : sttProvider === 'azure' ? sttAzureKey
+                                                                                : sttProvider === 'ibmwatson' ? sttIbmKey
+                                                                                    : sttProvider === 'soniox' ? sttSonioxKey
+                                                                                        : sttDeepgramKey
+                                                            }
+                                                            onChange={(e) => {
+                                                                if (sttProvider === 'groq') setSttGroqKey(e.target.value);
+                                                                else if (sttProvider === 'openai') setSttOpenaiKey(e.target.value);
+                                                                else if (sttProvider === 'elevenlabs') setSttElevenLabsKey(e.target.value);
+                                                                else if (sttProvider === 'azure') setSttAzureKey(e.target.value);
+                                                                else if (sttProvider === 'ibmwatson') setSttIbmKey(e.target.value);
+                                                                else if (sttProvider === 'soniox') setSttSonioxKey(e.target.value);
+                                                                else setSttDeepgramKey(e.target.value);
+                                                            }}
+                                                            placeholder={
+                                                                sttProvider === 'groq'
+                                                                    ? (hasStoredSttGroqKey ? '••••••••••••' : 'Enter Groq API key')
+                                                                    : sttProvider === 'openai'
+                                                                        ? (hasStoredSttOpenaiKey ? '••••••••••••' : 'Enter OpenAI STT API key')
+                                                                        : sttProvider === 'elevenlabs'
+                                                                            ? (hasStoredElevenLabsKey ? '••••••••••••' : 'Enter ElevenLabs API key')
+                                                                            : sttProvider === 'azure'
+                                                                                ? (hasStoredAzureKey ? '••••••••••••' : 'Enter Azure API key')
+                                                                                : sttProvider === 'ibmwatson'
+                                                                                    ? (hasStoredIbmWatsonKey ? '••••••••••••' : 'Enter IBM Watson API key')
+                                                                                    : sttProvider === 'soniox'
+                                                                                        ? (hasStoredSonioxKey ? '••••••••••••' : 'Enter Soniox API key')
+                                                                                        : (hasStoredDeepgramKey ? '••••••••••••' : 'Enter Deepgram API key')
+                                                            }
+                                                            className="flex-1 bg-bg-input border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent-primary transition-colors"
+                                                        />
+                                                        <button
+                                                            onClick={() => {
+                                                                const keyMap: Record<string, string> = {
+                                                                    groq: sttGroqKey, openai: sttOpenaiKey, deepgram: sttDeepgramKey,
+                                                                    elevenlabs: sttElevenLabsKey, azure: sttAzureKey, ibmwatson: sttIbmKey,
+                                                                    soniox: sttSonioxKey,
+                                                                };
+                                                                handleSttKeySubmit(sttProvider as any, keyMap[sttProvider] || '');
+                                                            }}
+                                                            disabled={sttSaving || !(() => {
+                                                                const keyMap: Record<string, string> = {
+                                                                    groq: sttGroqKey, openai: sttOpenaiKey, deepgram: sttDeepgramKey,
+                                                                    elevenlabs: sttElevenLabsKey, azure: sttAzureKey, ibmwatson: sttIbmKey,
+                                                                    soniox: sttSonioxKey,
+                                                                };
+                                                                return (keyMap[sttProvider] || '').trim();
+                                                            })()}
+                                                            className={`px-5 py-2.5 rounded-lg text-xs font-medium transition-colors ${sttSaved
+                                                                ? 'bg-green-500/20 text-green-400'
+                                                                : 'bg-bg-input hover:bg-bg-input/80 border border-border-subtle text-text-primary disabled:opacity-50'
+                                                                }`}
+                                                        >
+                                                            {sttSaving ? 'Saving...' : sttSaved ? 'Saved!' : 'Save'}
+                                                        </button>
+                                                        {(() => {
+                                                            const hasKeyMap: Record<string, boolean> = {
+                                                                groq: hasStoredSttGroqKey,
+                                                                openai: hasStoredSttOpenaiKey,
+                                                                deepgram: hasStoredDeepgramKey,
+                                                                elevenlabs: hasStoredElevenLabsKey,
+                                                                azure: hasStoredAzureKey,
+                                                                ibmwatson: hasStoredIbmWatsonKey,
+                                                                soniox: hasStoredSonioxKey,
+                                                            };
+                                                            return hasKeyMap[sttProvider] ? (
+                                                                <button
+                                                                    onClick={() => handleRemoveSttKey(sttProvider as any)}
+                                                                    className="px-2.5 py-2.5 rounded-lg text-xs font-medium text-text-tertiary hover:text-red-500 hover:bg-red-500/10 transition-all"
+                                                                    title="Remove API Key"
+                                                                >
+                                                                    <Trash2 size={16} strokeWidth={1.5} />
+                                                                </button>
+                                                            ) : null;
+                                                        })()}
+                                                    </div>
+
+                                                    {/* Azure Region Entrada */}
+                                                    {sttProvider === 'azure' && (
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-xs font-medium text-text-secondary block">Region</label>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    value={sttAzureRegion}
+                                                                    onChange={(e) => setSttAzureRegion(e.target.value)}
+                                                                    placeholder="e.g. eastus"
+                                                                    className="flex-1 bg-bg-input border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent-primary transition-colors"
+                                                                />
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (!sttAzureRegion.trim()) return;
+                                                                        // @ts-ignore
+                                                                        await window.electronAPI?.setAzureRegion?.(sttAzureRegion.trim());
+                                                                        setSttSaved(true);
+                                                                        setTimeout(() => setSttSaved(false), 2000);
+                                                                    }}
+                                                                    disabled={!sttAzureRegion.trim()}
+                                                                    className="px-5 py-2.5 rounded-lg text-xs font-medium bg-bg-input hover:bg-bg-input/80 border border-border-subtle text-text-primary disabled:opacity-50 transition-colors"
+                                                                >
+                                                                    Save
+                                                                </button>
+                                                            </div>
+                                                            <p className="text-[10px] text-text-tertiary">e.g. eastus, westeurope, westus2</p>
+                                                        </div>
+                                                    )}
+
+                                                    {/* OpenAI Custom Base URL — for self-hosted OpenAI-compatible servers (e.g. Speaches).
+                                                        When set, the WebSocket Realtime path is skipped and REST is used against the custom host. */}
+                                                    {sttProvider === 'openai' && (
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-xs font-medium text-text-secondary block">Custom Base URL <span className="text-text-tertiary">(optional)</span></label>
+                                                            <div className="flex gap-2">
+                                                                <input
+                                                                    type="text"
+                                                                    value={sttOpenaiBaseUrl}
+                                                                    onChange={(e) => setSttOpenaiBaseUrl(e.target.value)}
+                                                                    placeholder="https://api.openai.com (default)"
+                                                                    className="flex-1 bg-bg-input border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent-primary transition-colors"
+                                                                />
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        // @ts-ignore
+                                                                        await window.electronAPI?.setOpenAiSttBaseUrl?.(sttOpenaiBaseUrl.trim());
+                                                                        setSttSaved(true);
+                                                                        setTimeout(() => setSttSaved(false), 2000);
+                                                                    }}
+                                                                    className="px-5 py-2.5 rounded-lg text-xs font-medium bg-bg-input hover:bg-bg-input/80 border border-border-subtle text-text-primary transition-colors"
+                                                                >
+                                                                    Save
+                                                                </button>
+                                                            </div>
+                                                            <p className="text-[10px] text-text-tertiary">Point at any OpenAI-compatible server (e.g. Speaches). Custom servers use REST only — Realtime WebSocket is skipped. Leave blank for default.</p>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="flex items-center gap-3">
+                                                        <button
+                                                            onClick={handleTestSttConnection}
+                                                            disabled={sttTestStatus === 'testing'}
+                                                            className="text-xs bg-bg-input hover:bg-bg-elevated text-text-primary px-3 py-1.5 rounded-md transition-colors flex items-center gap-2 disabled:opacity-50"
+                                                        >
+                                                            {sttTestStatus === 'testing' ? (
+                                                                <><RefreshCw size={12} className="animate-spin" /> Testing...</>
+                                                            ) : sttTestStatus === 'success' ? (
+                                                                <><Check size={12} className="text-green-500" /> Connected</>
+                                                            ) : (
+                                                                <>Test Connection</>
+                                                            )}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                const urls: Record<string, string> = {
+                                                                    groq: 'https://console.groq.com/keys',
+                                                                    openai: 'https://platform.openai.com/api-keys',
+                                                                    deepgram: 'https://console.deepgram.com',
+                                                                    elevenlabs: 'https://elevenlabs.io/app/settings/api-keys',
+                                                                    azure: 'https://portal.azure.com/#create/Microsoft.CognitiveServicesSpeech',
+                                                                    ibmwatson: 'https://cloud.ibm.com/catalog/services/speech-to-text'
+                                                                };
+                                                                if (urls[sttProvider]) {
+                                                                    // @ts-ignore
+                                                                    window.electronAPI?.openExternal(urls[sttProvider]);
+                                                                }
+                                                            }}
+                                                            className="text-xs text-text-tertiary hover:text-text-primary flex items-center gap-1 transition-colors ml-1"
+                                                            title="Get API Key"
+                                                        >
+                                                            <ExternalLink size={12} />
+                                                        </button>
+                                                        {sttTestStatus === 'error' && (
+                                                            <span className="text-xs text-red-400">{sttTestError}</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Local Whisper Modelo Panel */}
+                                            {sttProvider === 'local-whisper' && (
+                                                <LocalWhisperModelPanel />
+                                            )}
+
+                                            {/* Recognition Language Family */}
+                                            <CustomSelect
+                                                label="Language"
+                                                icon={<Globe size={14} />}
+                                                value={selectedSttGroup}
+                                                options={languageGroups.map(g => ({
+                                                    deviceId: g,
+                                                    label: g,
+                                                    kind: 'audioinput' as MediaDeviceKind,
+                                                    groupId: '',
+                                                    toJSON: () => ({})
+                                                }))}
+                                                onChange={handleGroupChange}
+                                                placeholder="Select Language"
+                                            />
+
+                                            {/* Variant/Accent Selector (Conditional) */}
+                                            {currentGroupVariants.length > 1 && (
+                                                <div className="mt-3 animated fadeIn">
+                                                    <CustomSelect
+                                                        label="Accent / Region"
+                                                        icon={<MapPin size={14} />}
+                                                        value={recognitionLanguage}
+                                                        options={currentGroupVariants}
+                                                        onChange={handleLanguageChange}
+                                                        placeholder="Select Region"
+                                                    />
+                                                </div>
+                                            )}
+
+                                            <div className="flex gap-2 items-center mt-2 px-1">
+                                                <Info size={14} className="text-text-secondary shrink-0" />
+                                                <p className="text-xs text-text-secondary">
+                                                    {recognitionLanguage === 'auto'
+                                                        ? autoDetectedLanguage
+                                                            ? (() => {
+                                                                const label = Object.values(availableLanguages).find((l: any) =>
+                                                                    l.bcp47 === autoDetectedLanguage || l.iso639 === autoDetectedLanguage
+                                                                )?.label as string | undefined;
+                                                                return `Auto mode — detected: ${label ?? autoDetectedLanguage}`;
+                                                              })()
+                                                            : 'Auto mode — language will be detected from the first few seconds of audio.'
+                                                        : 'Select the primary language being spoken in the meeting.'
+                                                    }
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="h-px bg-border-subtle" />
+
+                                    {/* ── Audio Configuração Section ── */}
+                                    <div>
+                                        <h3 className="text-lg font-bold text-text-primary mb-1">Audio Configuration</h3>
+                                        <p className="text-xs text-text-secondary mb-5">Manage input and output devices.</p>
+
+                                        {/* Device-fallback banner: shown when main process couldn't
+                                            open the selected device and silently used the default. */}
+                                        {deviceFallbackNotice && (
+                                            <div className="mb-4 flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                                                <AlertCircle size={14} className="text-amber-400 shrink-0 mt-0.5" />
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-xs text-amber-200/90 leading-snug">
+                                                        Selected {deviceFallbackNotice.kind === 'input' ? 'microphone' : 'output device'}
+                                                        {deviceFallbackNotice.requested ? ` "${deviceFallbackNotice.requested}"` : ''} couldn't be opened
+                                                        — using <span className="font-medium">{deviceFallbackNotice.actual ?? 'no device'}</span> instead.
+                                                    </p>
+                                                    {deviceFallbackNotice.reason && (
+                                                        <p className="text-[11px] text-amber-200/60 mt-1 font-mono break-all">{deviceFallbackNotice.reason}</p>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        // Limpa stale localStorage então o próximo meeting inicia clean.
+                                                        if (deviceFallbackNotice.kind === 'input') {
+                                                            localStorage.removeItem('preferredInputDeviceId');
+                                                            setSelectedInput('default');
+                                                        } else {
+                                                            localStorage.removeItem('preferredOutputDeviceId');
+                                                            setSelectedOutput('default');
+                                                        }
+                                                        setDeviceFallbackNotice(null);
+                                                    }}
+                                                    className="shrink-0 text-[11px] font-medium text-amber-400 hover:text-amber-300 transition-colors px-2 py-0.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25"
+                                                >
+                                                    Reset
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-4">
+                                            <CustomSelect
+                                                label="Input Device"
+                                                icon={<Mic size={16} />}
+                                                value={selectedInput}
+                                                options={inputDevices}
+                                                onChange={(id) => {
+                                                    setSelectedInput(id);
+                                                    localStorage.setItem('preferredInputDeviceId', id);
+                                                }}
+                                                placeholder="Default Microphone"
+                                            />
+
+                                            <div>
+                                                <div className="flex justify-between text-xs text-text-secondary mb-2 px-1">
+                                                    <span>Input Level</span>
+                                                </div>
+                                                <div className="h-1.5 bg-bg-input rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-green-500 transition-all duration-100 ease-out"
+                                                        style={{ width: `${micLevel}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="h-px bg-border-subtle my-2" />
+
+                                            <CustomSelect
+                                                label="Output Device"
+                                                icon={<Speaker size={16} />}
+                                                value={selectedOutput}
+                                                options={outputDevices}
+                                                onChange={(id) => {
+                                                    setSelectedOutput(id);
+                                                    localStorage.setItem('preferredOutputDeviceId', id);
+                                                }}
+                                                placeholder="Default Speakers"
+                                            />
+
+                                            <div className="flex justify-end">
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+                                                            if (!AudioContext) {
+                                                                console.error("Web Audio API not supported");
+                                                                return;
+                                                            }
+
+                                                            const ctx = new AudioContext();
+
+                                                            if (ctx.state === 'suspended') {
+                                                                await ctx.resume();
+                                                            }
+
+                                                            const oscillator = ctx.createOscillator();
+                                                            const gainNode = ctx.createGain();
+
+                                                            oscillator.connect(gainNode);
+                                                            gainNode.connect(ctx.destination);
+
+                                                            oscillator.type = 'sine';
+                                                            oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);
+                                                            gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+                                                            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.0);
+
+                                                            if (selectedOutput && (ctx as any).setSinkId) {
+                                                                try {
+                                                                    await (ctx as any).setSinkId(selectedOutput);
+                                                                } catch (e) {
+                                                                    console.warn("Error setting sink for AudioContext", e);
+                                                                }
+                                                            }
+
+                                                            oscillator.start();
+                                                            oscillator.stop(ctx.currentTime + 1.0);
+                                                        } catch (e) {
+                                                            console.error("Error playing test sound", e);
+                                                        }
+                                                    }}
+                                                    className="text-xs bg-bg-input hover:bg-bg-elevated text-text-primary px-3 py-1.5 rounded-md transition-colors flex items-center gap-2"
+                                                >
+                                                    <Speaker size={12} /> Test Sound
+                                                </button>
+                                            </div>
+
+                                            {/* SCK Backend Toggle — macOS only. The ScreenCaptureKit
+                                                backend is a CoreAudio alternative implemented in the
+                                                Rust speaker module under #[cfg(target_os="macos")];
+                                                Windows audio runs via WASAPI loopback so the toggle
+                                                has no meaning there and routing "sck" as a device id
+                                                silently breaks system audio (issue #252 audit / F-003). */}
+                                            {isMac && (
+                                                <>
+                                                    <div className="h-px bg-border-subtle my-2" />
+                                                    <div className="bg-amber-500/5 rounded-xl border border-amber-500/20 p-4">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-start gap-3">
+                                                                <div className="mt-0.5 p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
+                                                                    <FlaskConical size={18} />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                                        <h3 className="text-sm font-bold text-text-primary">SCK Backend</h3>
+                                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-400 uppercase tracking-wide">Alternative</span>
+                                                                    </div>
+                                                                    <p className="text-xs text-text-secondary leading-relaxed max-w-[300px]">
+                                                                        Use the ScreenCaptureKit backend. An optimized alternative to CoreAudio if you experience any capture issues.
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div
+                                                                onClick={() => {
+                                                                    const newState = !useExperimentalSck;
+                                                                    setUseExperimentalSck(newState);
+                                                                    window.localStorage.setItem('useExperimentalSckBackend', newState ? 'true' : 'false');
+                                                                }}
+                                                                className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${useExperimentalSck ? 'bg-amber-500' : 'bg-bg-toggle-switch border border-border-muted'}`}
+                                                            >
+                                                                <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${useExperimentalSck ? 'translate-x-5' : 'translate-x-0'}`} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+
+                            {activeTab === 'calendar' && (
+                                <div className="space-y-6 animated fadeIn h-full">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-text-primary mb-2">Visible Calendars</h3>
+                                        <p className="text-xs text-text-secondary mb-4">Upcoming meetings are synchronized from these calendars</p>
+                                    </div>
+
+                                    <div className="bg-bg-card rounded-xl border border-border-subtle overflow-hidden">
+                                        {calendarStatus.connected ? (
+                                            <>
+                                                {/* Conexão cabeçalho */}
+                                                <div className="p-6 flex items-center justify-between">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-500">
+                                                            <Calendar size={20} />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-medium text-text-primary">Google Calendar</h4>
+                                                            <p className="text-xs text-text-secondary">Connected as {calendarStatus.email || 'User'}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        onClick={async () => {
+                                                            setIsCalendarsLoading(true);
+                                                            try {
+                                                                await window.electronAPI.calendarDisconnect();
+                                                                const status = await window.electronAPI.getCalendarStatus();
+                                                                setCalendarStatus(status);
+                                                                setCalendarEvents([]);
+                                                            } catch (e) {
+                                                                console.error(e);
+                                                            } finally {
+                                                                setIsCalendarsLoading(false);
+                                                            }
+                                                        }}
+                                                        disabled={isCalendarsLoading}
+                                                        className="px-3 py-1.5 bg-bg-input hover:bg-bg-elevated border border-border-subtle text-text-primary rounded-md text-xs font-medium transition-colors"
+                                                    >
+                                                        {isCalendarsLoading ? 'Disconnecting...' : 'Disconnect'}
+                                                    </button>
+                                                </div>
+
+                                                {/* Upcoming section — masterpiece treatment, mesmo parent card backdrop */}
+                                                <div className="relative border-t border-white/[0.05]">
+                                                    {/* Ambient mesh — soft cool radial atrás o llista pointer-events-none */}
+                                                    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                                                        <div className="absolute -top-20 -left-10 w-[260px] h-[260px] bg-blue-500/[0.06] blur-[90px]" />
+                                                        <div className="absolute -bottom-24 right-0 w-[220px] h-[220px] bg-violet-500/[0.04] blur-[80px]" />
+                                                    </div>
+
+                                                    {/* Section cabeçalho */}
+                                                    <div className="relative px-6 pt-5 pb-3 flex items-end justify-between">
+                                                        <div className="space-y-2">
+                                                            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 bg-white/[0.04] ring-1 ring-white/[0.06] text-[9px] font-medium tracking-[0.22em] text-text-secondary uppercase shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                                                <span className="w-1 h-1 rounded-full bg-emerald-400/80" />
+                                                                Upcoming
+                                                            </span>
+                                                            <p className="text-[11px] text-text-tertiary tracking-[0.01em]">
+                                                                {calendarEvents.length > 0
+                                                                    ? `${calendarEvents.length} ${calendarEvents.length === 1 ? 'meeting' : 'meetings'} · next 7 days`
+                                                                    : 'next 7 days from your primary calendar'}
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            onClick={async () => {
+                                                                if (!window.electronAPI?.calendarRefresh) return;
+                                                                setIsCalendarRefreshing(true);
+                                                                try {
+                                                                    await window.electronAPI.calendarRefresh();
+                                                                    const events = await window.electronAPI.getUpcomingEvents();
+                                                                    setCalendarEvents(events || []);
+                                                                } catch (e) {
+                                                                    console.error(e);
+                                                                } finally {
+                                                                    setIsCalendarRefreshing(false);
+                                                                }
+                                                            }}
+                                                            disabled={isCalendarRefreshing}
+                                                            aria-label="Refresh upcoming events"
+                                                            className="group h-8 w-8 rounded-full bg-white/[0.04] hover:bg-white/[0.08] ring-1 ring-white/[0.07] text-text-secondary hover:text-text-primary transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.92] flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                                                        >
+                                                            <RefreshCw
+                                                                size={12}
+                                                                className={`transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isCalendarRefreshing ? 'animate-spin' : 'group-hover:rotate-[60deg]'}`}
+                                                            />
+                                                        </button>
+                                                    </div>
+
+                                                    {calendarEvents.length === 0 ? (
+                                                        /* Empty estado — composed, não a placeholder */
+                                                        <div className="relative px-6 pt-2 pb-7">
+                                                            <div className="rounded-[1.25rem] p-[1px] bg-gradient-to-b from-white/[0.06] to-white/[0.02]">
+                                                                <div className="rounded-[calc(1.25rem-1px)] bg-bg-card/50 backdrop-blur-md ring-1 ring-white/[0.04] px-6 py-9 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                                                    <div className="mx-auto w-11 h-11 rounded-2xl bg-white/[0.04] ring-1 ring-white/[0.06] flex items-center justify-center mb-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                                                                        <Calendar size={18} className="text-text-tertiary" strokeWidth={1.5} />
+                                                                    </div>
+                                                                    <p className="text-[13px] text-text-primary tracking-[-0.01em]">Nothing scheduled.</p>
+                                                                    <p className="text-[11px] text-text-tertiary mt-1">Your week is clear for now.</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <ul className="relative px-3 pb-4 space-y-1.5">
+                                                            {calendarEvents.map(ev => {
+                                                                const start = new Date(ev.startTime);
+                                                                const end = new Date(ev.endTime);
+                                                                const now = new Date();
+                                                                const tomorrow = new Date(now.getTime() + 86400000);
+                                                                const isToday = start.toDateString() === now.toDateString();
+                                                                const isTomorrow = start.toDateString() === tomorrow.toDateString();
+
+                                                                const diffMs = start.getTime() - now.getTime();
+                                                                const diffMin = diffMs / 60000;
+                                                                const durationMin = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+                                                                const durationLabel = durationMin >= 60
+                                                                    ? `${Math.floor(durationMin / 60)}h${durationMin % 60 ? ` ${durationMin % 60}m` : ''}`
+                                                                    : `${durationMin}m`;
+
+                                                                // Urgency-tinted accent para o time chip
+                                                                let chipTone: { text: string; ring: string; bg: string };
+                                                                if (diffMin <= 30) chipTone = { text: 'text-red-300', ring: 'ring-red-400/25', bg: 'bg-red-500/[0.08]' };
+                                                                else if (diffMin <= 4 * 60) chipTone = { text: 'text-amber-200', ring: 'ring-amber-300/25', bg: 'bg-amber-400/[0.08]' };
+                                                                else chipTone = { text: 'text-text-secondary', ring: 'ring-white/[0.06]', bg: 'bg-white/[0.04]' };
+
+                                                                // Smart relative label
+                                                                let chipLabel: string;
+                                                                if (diffMin <= 0) chipLabel = 'Now';
+                                                                else if (diffMin < 60) chipLabel = `in ${Math.ceil(diffMin)}m`;
+                                                                else if (diffMin < 4 * 60) {
+                                                                    const h = Math.floor(diffMin / 60);
+                                                                    const m = Math.round(diffMin - h * 60);
+                                                                    chipLabel = m > 0 ? `in ${h}h ${m}m` : `in ${h}h`;
+                                                                } else if (isToday) chipLabel = 'Today';
+                                                                else if (isTomorrow) chipLabel = 'Tomorrow';
+                                                                else chipLabel = start.toLocaleDateString([], { weekday: 'short' });
+
+                                                                const timeRange = `${start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} – ${end.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+
+                                                                // Boarding-pass estilo date stub
+                                                                const dayNum = start.getDate();
+                                                                const monthAbbrev = start.toLocaleDateString([], { month: 'short' }).toUpperCase();
+
+                                                                // Provedor detection
+                                                                let provider: string | null = null;
+                                                                if (ev.link) {
+                                                                    const u = ev.link.toLowerCase();
+                                                                    if (u.includes('meet.google.com')) provider = 'Meet';
+                                                                    else if (u.includes('zoom.us')) provider = 'Zoom';
+                                                                    else if (u.includes('teams.microsoft.com')) provider = 'Teams';
+                                                                    else if (u.includes('webex.com')) provider = 'Webex';
+                                                                }
+
+                                                                return (
+                                                                    <li
+                                                                        key={ev.id}
+                                                                        className="group/row relative rounded-[1.1rem] p-[1px] bg-gradient-to-b from-white/[0.06] to-white/[0.015] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:from-white/[0.1] hover:to-white/[0.03]"
+                                                                    >
+                                                                        <div className="relative rounded-[calc(1.1rem-1px)] bg-bg-card/40 backdrop-blur-md ring-1 ring-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] flex items-stretch gap-3 pl-3 pr-3 py-3 transition-colors duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover/row:bg-bg-card/60">
+                                                                            {/* Date stub — boarding-pass style */}
+                                                                            <div className="shrink-0 w-12 flex flex-col items-center justify-center rounded-[0.85rem] bg-white/[0.03] ring-1 ring-white/[0.05] py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                                                                                <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-text-tertiary leading-none">
+                                                                                    {monthAbbrev}
+                                                                                </span>
+                                                                                <span className="text-[20px] font-semibold tracking-[-0.02em] text-text-primary tabular-nums leading-none mt-1">
+                                                                                    {dayNum}
+                                                                                </span>
+                                                                            </div>
+
+                                                                            {/* Corpo */}
+                                                                            <div className="min-w-0 flex-1 flex flex-col justify-center">
+                                                                                <div className="flex items-center gap-2 mb-1">
+                                                                                    <span className={`shrink-0 inline-flex items-center rounded-full px-1.5 py-[1px] text-[9px] font-medium tracking-[0.06em] ring-1 ${chipTone.bg} ${chipTone.text} ${chipTone.ring} tabular-nums`}>
+                                                                                        {chipLabel}
+                                                                                    </span>
+                                                                                    {provider && (
+                                                                                        <span className="shrink-0 inline-flex items-center rounded-full px-1.5 py-[1px] text-[9px] font-medium tracking-[0.06em] bg-white/[0.04] text-text-secondary ring-1 ring-white/[0.05]">
+                                                                                            {provider}
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                                <h4 className="text-[13.5px] font-medium text-text-primary tracking-[-0.01em] leading-snug truncate [text-wrap:balance]">
+                                                                                    {ev.title}
+                                                                                </h4>
+                                                                                <p className="text-[11px] text-text-tertiary tabular-nums mt-0.5">
+                                                                                    <span className="text-text-secondary">{timeRange}</span>
+                                                                                    <span className="mx-1.5 opacity-50">·</span>
+                                                                                    <span>{durationLabel}</span>
+                                                                                </p>
+                                                                            </div>
+
+                                                                            {/* Trailing ação — magnetic button */}
+                                                                            {ev.link ? (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => window.electronAPI?.openExternal(ev.link!)}
+                                                                                    title={ev.link}
+                                                                                    className="self-center shrink-0 group/btn inline-flex items-center gap-1.5 rounded-full pl-3 pr-1.5 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] ring-1 ring-white/[0.07] text-text-primary text-[11px] font-medium transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.97] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                                                                                >
+                                                                                    <span>Join</span>
+                                                                                    <span className="w-5 h-5 rounded-full bg-white/[0.08] ring-1 ring-white/[0.08] flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover/btn:translate-x-[1px] group-hover/btn:-translate-y-[1px]">
+                                                                                        <ExternalLink size={9} strokeWidth={2} />
+                                                                                    </span>
+                                                                                </button>
+                                                                            ) : (
+                                                                                <span
+                                                                                    aria-label="No meeting link"
+                                                                                    className="self-center shrink-0 inline-flex items-center justify-center w-2 h-2 rounded-full bg-white/[0.08] mr-3"
+                                                                                />
+                                                                            )}
+                                                                        </div>
+                                                                    </li>
+                                                                );
+                                                            })}
+                                                        </ul>
+                                                    )}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="w-full p-6">
+                                                <div className="mb-4">
+                                                    <Calendar size={24} className="text-text-tertiary mb-3" />
+                                                    <h4 className="text-sm font-bold text-text-primary mb-1">No calendars</h4>
+                                                    <p className="text-xs text-text-secondary">Get started by connecting a Google account.</p>
+                                                </div>
+
+                                                <button
+                                                    onClick={async () => {
+                                                        setIsCalendarsLoading(true);
+                                                        try {
+                                                            const res = await window.electronAPI.calendarConnect();
+                                                            if (res.success) {
+                                                                const status = await window.electronAPI.getCalendarStatus();
+                                                                setCalendarStatus(status);
+                                                            }
+                                                        } catch (e) {
+                                                            console.error(e);
+                                                        } finally {
+                                                            setIsCalendarsLoading(false);
+                                                        }
+                                                    }}
+                                                    disabled={isCalendarsLoading}
+                                                    className={`px-4 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2.5 ${isLight ? 'bg-bg-component hover:bg-bg-item-surface text-text-primary border border-border-subtle' : 'bg-[#303033] hover:bg-[#3A3A3D] text-white'}`}
+                                                >
+                                                    <svg viewBox="0 0 24 24" width="14" height="14" xmlns="http://www.w3.org/2000/svg">
+                                                        <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
+                                                            <path fill="#4285F4" d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z" />
+                                                            <path fill="#34A853" d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z" />
+                                                            <path fill="#FBBC05" d="M -21.484 53.529 C -21.734 52.809 -21.864 52.039 -21.864 51.239 C -21.864 50.439 -21.734 49.669 -21.484 48.949 L -21.484 45.859 L -25.464 45.859 C -26.284 47.479 -26.754 49.299 -26.754 51.239 C -26.754 53.179 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z" />
+                                                            <path fill="#EA4335" d="M -14.754 43.989 C -12.984 43.989 -11.404 44.599 -10.154 45.789 L -6.734 42.369 C -8.804 40.429 -11.514 39.239 -14.754 39.239 C -19.444 39.239 -23.494 41.939 -25.464 45.859 L -21.484 48.949 C -20.534 46.099 -17.884 43.989 -14.754 43.989 Z" />
+                                                        </g>
+                                                    </svg>
+                                                    {isCalendarsLoading ? 'Connecting...' : 'Connect Google'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'phone-mirror' && (
+                                <PhoneMirrorSettings />
+                            )}
+
+                            {activeTab === 'intelligence' && (
+                                <IntelligenceSettings />
+                            )}
+
+                            {activeTab === 'help' && (
+                                <HelpSettings onNavigate={setActiveTab} />
+                            )}
+
+                            {activeTab === 'about' && (
+                                <AboutSection />
+                            )}
+                        </div>
+                    </div>
+                    </motion.div>
+                </motion.div>
+            )
+            }
+
+
+            {/* ------------------------------------------------------------------ */}
+            {/* Live Preview — mockup sits abaixo o z-50 modal                    */}
+            {/* ------------------------------------------------------------------ */}
+            {/* ------------------------------------------------------------------ */}
+            {/* Live Preview — mockup sits abaixo o z-50 modal                    */}
+            {/* Sempre MOUNTED to prevenir React AnimatePresence lag spikes         */}
+            {/* ------------------------------------------------------------------ */}
+            <div
+                id="settings-mockup-wrapper"
+                className="fixed inset-0 z-[49] pointer-events-none transition-opacity duration-150"
+                style={{ opacity: isPreviewingOpacity ? 1 : 0 }}
+            >
+                <MockupRefractInterface opacity={previewOverlayOpacity} />
+            </div>
+        </AnimatePresence >
+    );
+};
+
+export default SettingsOverlay;

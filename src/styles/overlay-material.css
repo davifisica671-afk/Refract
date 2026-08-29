@@ -1,0 +1,114 @@
+/**
+ * Sistema de material do overlay — uma fonte de luz, uma receita, três níveis.
+ *
+ * POR QUE background-image + box-shadow, e nunca background-color:
+ * o overlayAppearance.ts emite backgroundColor/borderColor inline por elemento,
+ * interpolados pela opacidade que o usuário escolhe. Estilo inline vence CSS.
+ * Ao usar apenas propriedades que ele NÃO emite, o material coexiste com esse
+ * sistema — sem !important, sem refactor, e os temas default/modern herdam
+ * o material de graça.
+ *
+ * POR QUE nenhum backdrop-filter: a janela do overlay é transparent:true sem
+ * vibrancy (WindowHelper.ts:459-475 — o vibrancy que existe pertence à janela
+ * do launcher). Numa janela Electron transparente o backdrop-filter não amostra
+ * o desktop: o compositor do SO desenha o desktop depois do conteúdo web. Ele
+ * custa GPU e não produz refração.
+ *
+ * POR QUE nenhum border-radius: chips e quick actions são rounded-full. Forçar
+ * raio aqui os achataria. O raio pertence a quem já o define.
+ *
+ * Guardado por src/lib/__tests__/overlayMaterialCss.test.mjs.
+ */
+
+/* Permite interpolar o rim durante o streaming. Sem o registro, custom
+   properties animam de forma discreta e o efeito vira um piscar, não uma
+   respiração. */
+@property --mat-1-rim-top {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.22;
+}
+
+.overlay-workspace,
+.overlay-resize-toggle {
+  --light-angle: 135deg;
+
+  /* L1 — superfície: resposta, transcript, banners, tab picker, cards */
+  --mat-1-sheen-hi: 0.1;
+  --mat-1-sheen-lo: 0.04;
+  --mat-1-rim-top: 0.22;
+  --mat-1-rim: 0.07;
+  --mat-1-underside: 0.1;
+  --mat-1-contact: 0.18;
+  --mat-1-cast: 0.3;
+
+  /* L2 — controle: chips, quick actions, input, botões de ícone */
+  --mat-2-sheen-hi: 0.07;
+  --mat-2-sheen-lo: 0.03;
+  --mat-2-rim-top: 0.16;
+  --mat-2-rim: 0.06;
+  --mat-2-underside: 0.07;
+  --mat-2-contact: 0.12;
+  --mat-2-cast: 0.18;
+}
+
+/* Override de modo claro — compartilhado pelos três temas de interface.
+   No claro a luz lê como reflexo branco forte e a sombra é curta. */
+[data-theme='light'] .overlay-workspace,
+[data-theme='light'] .overlay-resize-toggle {
+  --mat-1-sheen-hi: 0.55;
+  --mat-1-sheen-lo: 0.22;
+  --mat-1-rim-top: 0.7;
+  --mat-1-rim: 0.05;
+  --mat-1-underside: 0.04;
+  --mat-1-contact: 0.06;
+  --mat-1-cast: 0.1;
+
+  --mat-2-sheen-hi: 0.38;
+  --mat-2-sheen-lo: 0.15;
+  --mat-2-rim-top: 0.55;
+  --mat-2-rim: 0.04;
+  --mat-2-underside: 0.03;
+  --mat-2-contact: 0.04;
+  --mat-2-cast: 0.07;
+}
+
+/* ── L1 — superfície ─────────────────────────────────────────────────── */
+.overlay-workspace .overlay-transcript-surface,
+.overlay-workspace .overlay-code-block-surface,
+.overlay-workspace .overlay-code-header-surface,
+.overlay-workspace .overlay-subtle-surface {
+  background-image: linear-gradient(
+    var(--light-angle),
+    rgb(255 255 255 / var(--mat-1-sheen-hi)) 0%,
+    rgb(255 255 255 / var(--mat-1-sheen-lo)) 38%,
+    transparent 72%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / var(--mat-1-rim-top)),
+    inset 0 0 0 1px rgb(255 255 255 / var(--mat-1-rim)),
+    inset 0 -1px 0 rgb(0 0 0 / var(--mat-1-underside)),
+    0 1px 2px rgb(0 0 0 / var(--mat-1-contact)),
+    0 6px 16px -6px rgb(0 0 0 / var(--mat-1-cast));
+}
+
+/* ── L2 — controle ───────────────────────────────────────────────────── */
+.overlay-workspace .overlay-chip-surface,
+.overlay-workspace .overlay-control-surface,
+.overlay-workspace .overlay-input-surface,
+.overlay-workspace .overlay-icon-surface,
+.overlay-workspace .overlay-status-pill,
+.overlay-resize-toggle .overlay-icon-surface {
+  background-image: linear-gradient(
+    var(--light-angle),
+    rgb(255 255 255 / var(--mat-2-sheen-hi)) 0%,
+    rgb(255 255 255 / var(--mat-2-sheen-lo)) 38%,
+    transparent 72%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / var(--mat-2-rim-top)),
+    inset 0 0 0 1px rgb(255 255 255 / var(--mat-2-rim)),
+    inset 0 -1px 0 rgb(0 0 0 / var(--mat-2-underside)),
+    0 1px 2px rgb(0 0 0 / var(--mat-2-contact)),
+    0 4px 10px -6px rgb(0 0 0 / var(--mat-2-cast));
+}

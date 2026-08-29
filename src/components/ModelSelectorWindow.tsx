@@ -1,0 +1,218 @@
+﻿/**
+ * ModelSelectorWindow.tsx
+ *
+ * Janela de seleção de modelo de IA exibida como popup.
+ * Lista todos os modelos disponíveis (nuvem, local, Codex CLI, Ollama, LiteLLM)
+ * e permite alternar o modelo ativo com atualização em tempo real.
+ */
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { Check, Loader2 } from 'lucide-react';
+import { CODEX_CLI_MODEL, CODEX_CLI_MODEL_PRESETS, codexCliSelectorId, getCodexCliModelDisplayName, STANDARD_CLOUD_MODELS, prettifyModelId } from '../utils/modelUtils';
+import { useResolvedTheme } from '../hooks/useResolvedTheme';
+
+// Define Modelo Types
+interface ModelOption {
+    id: string;
+    name: string;
+    type: 'cloud' | 'local' | 'custom' | 'ollama' | 'codex-cli';
+    provider?: string;
+}
+
+
+
+const ModelSelectorWindow = () => {
+    const isLight = useResolvedTheme() === 'light';
+    const [currentModel, setCurrentModel] = useState<string>(() => localStorage.getItem('cached-current-model') || '');
+    const [availableModels, setAvailableModels] = useState<ModelOption[]>(() => {
+        try {
+            const cached = localStorage.getItem('cached-models');
+            return cached ? JSON.parse(cached) : [];
+        } catch { return []; }
+    });
+    const [isLoading, setIsLoading] = useState<boolean>(() => availableModels.length === 0);
+
+
+
+
+
+    // Carrega Data
+    useEffect(() => {
+        const loadModels = async () => {
+            try {
+                // If we já ter models, don't mostrar loading para avoid flicker
+                if (availableModels.length === 0) {
+                    setIsLoading(true);
+                }
+                
+                // 1. Obtém Stored Credentials (to know que Cloud providers são active)
+                const creds = await window.electronAPI?.getStoredCredentials?.();
+
+                // 2. Custom Providers
+                const customProviders = await window.electronAPI?.getCustomProviders?.() || [];
+
+                // 3. Codex CLI
+                const codexCliConfig = await window.electronAPI?.getCodexCliConfig?.();
+
+                // 4. Ollama
+                let ollamaModels: string[] = [];
+                try {
+                    let oModels = await window.electronAPI?.getAvailableOllamaModels?.();
+
+                    // If não models found, tentar para fix/restart Ollama (servidor pode ser ser dabaixo
+                    if (!oModels || oModels.length === 0) {
+                        try {
+                            // @ts-ignore
+                            if (window.electronAPI?.forceRestartOllama) {
+                                // @ts-ignore
+                                await window.electronAPI.forceRestartOllama();
+                                // Aguardar a moment para servidor para come para cima
+                                await new Promise(resolve => setTimeout(resolve, 1500));
+                                // Tentar novamente busca
+                                oModels = await window.electronAPI?.getAvailableOllamaModels?.();
+                            }
+                        } catch (e) {
+                            console.warn("Retrying Ollama failed", e);
+                        }
+                    }
+
+                    if (oModels) ollamaModels = oModels;
+                } catch (e) {
+                    // Ignorar ollama errors aqui
+                }
+
+                // Build o lista
+                const models: ModelOption[] = [];
+
+                if (creds?.hasRefractKey) {
+                    models.push({ id: 'refract', name: 'Refract API', type: 'cloud', provider: 'refract' });
+                }
+
+                // Cloud Models — standard models + unique preferred models
+                for (const [prov, cfg] of Object.entries(STANDARD_CLOUD_MODELS)) {
+                    if (!cfg.hasKeyCheck(creds)) continue;
+                    cfg.ids.forEach((id, i) => {
+                        models.push({ id, name: cfg.names[i], type: 'cloud', provider: prov });
+                    });
+                    const pm = creds?.[cfg.pmKey];
+                    if (pm && !cfg.ids.includes(pm)) {
+                        models.push({ id: pm, name: prettifyModelId(pm), type: 'cloud', provider: prov });
+                    }
+                }
+
+                // Custom Providers
+                customProviders.forEach((p: any) => {
+                    models.push({ id: p.id, name: p.name, type: 'custom' });
+                });
+
+                // Codex CLI
+                if (codexCliConfig?.enabled) {
+                    models.push({ id: CODEX_CLI_MODEL.id, name: `${CODEX_CLI_MODEL.name} (${prettifyModelId(codexCliConfig.model)})`, type: 'codex-cli', provider: 'codex-cli' });
+                    CODEX_CLI_MODEL_PRESETS.forEach(model => {
+                        const id = codexCliSelectorId(model.id);
+                        models.push({ id, name: getCodexCliModelDisplayName(id) || model.name, type: 'codex-cli', provider: 'codex-cli' });
+                    });
+                }
+
+                // Ollama
+                ollamaModels.forEach((m: string) => {
+                    models.push({ id: `ollama-${m}`, name: `${m} (Local)`, type: 'ollama' });
+                });
+
+                // LiteLLM proxy — auto-discovered de o configured proxy's /v1/models.
+                // Wrapped em try/catch então a missing/offline proxy nunca blocks o llista
+                try {
+                    const litellmModels = await window.electronAPI?.getAvailableLiteLLMModels?.() || [];
+                    litellmModels.forEach((m: string) => {
+                        models.push({ id: `litellm/${m}`, name: `${m} (LiteLLM)`, type: 'cloud', provider: 'litellm' });
+                    });
+                } catch {
+                    // LiteLLM proxy pode não ser executando — iignorar
+                }
+
+                localStorage.setItem('cached-models', JSON.stringify(models));
+                setAvailableModels(models);
+
+                // 4. Obtém Current Active Modelo
+                const config = await window.electronAPI?.getCurrentLlmConfig?.(); // Obtém runtime modelo
+                if (config && config.model) {
+                    setCurrentModel(config.model);
+                    localStorage.setItem('cached-current-model', config.model);
+                }
+
+            } catch (err) {
+                console.error("Failed to load models:", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadModels();
+        window.addEventListener('focus', loadModels);
+
+        // Ouvir para changes
+        const unsubscribe = window.electronAPI?.onModelChanged?.((modelId: string) => {
+            setCurrentModel(modelId);
+        });
+        return () => {
+            unsubscribe?.();
+            window.removeEventListener('focus', loadModels);
+        };
+    }, []);
+
+    const handleSelectFn = (modelId: string) => {
+        setCurrentModel(modelId);
+        localStorage.setItem('cached-current-model', modelId);
+        
+        window.electronAPI?.setModel(modelId)
+            .catch((err: any) => console.error("Failed to set model:", err));
+    };
+
+    const panelClass = isLight
+        ? 'bg-[#F3F4F6]/92 border-black/10 shadow-black/10'
+        : 'bg-[#1E1E1E]/80 border-white/10 shadow-black/40';
+
+    return (
+        <div className="w-fit h-fit bg-transparent flex flex-col">
+            <div className={`w-[140px] h-[200px] backdrop-blur-md border rounded-[16px] overflow-hidden shadow-2xl p-2 flex flex-col animate-scale-in origin-top-left overlay-shell-surface ${panelClass}`}>
+                <div className="relative z-[1] flex-1 min-h-0 flex flex-col">
+                    {isLoading ? (
+                        <div className={`flex items-center justify-center py-4 overlay-text-muted ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            <span className="text-xs">Loading models...</span>
+                        </div>
+                    ) : (
+                        <div className="flex-1 overflow-y-auto scrollbar-hide flex flex-col gap-0.5">
+                            {availableModels.length === 0 ? (
+                                <div className={`px-4 py-3 text-center text-xs overlay-text-muted ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                                    No models connected.<br />Check Settings.
+                                </div>
+                            ) : (
+                                availableModels.map((model) => {
+                                    const isSelected = currentModel === model.id;
+                                    return (
+                                        <button
+                                            key={model.id}
+                                            onClick={() => handleSelectFn(model.id)}
+                                            className={`
+                                                w-full text-left px-3 py-2 flex items-center justify-between group transition-colors duration-200 rounded-lg model-selector-row
+                                                ${isSelected
+                                                    ? `model-selector-row-selected overlay-text-primary ${isLight ? 'bg-black/[0.07] text-slate-900' : 'bg-white/10 text-white'}`
+                                                    : `overlay-text-interactive ${isLight ? 'text-slate-500 hover:bg-black/[0.04] hover:text-slate-800' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}`
+                                                }
+                                            `}
+                                        >
+                                            <span className="text-[12px] font-medium truncate flex-1 min-w-0">{model.name}</span>
+                                            {isSelected && <Check className={`w-3.5 h-3.5 shrink-0 ml-2 ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`} />}
+                                        </button>
+                                    );
+                                })
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default ModelSelectorWindow;

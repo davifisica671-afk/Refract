@@ -1,0 +1,35 @@
+
+graph LR
+    User[Usuário]
+    
+    subgraph Frontend
+        Overlay[Launcher Overlay (UI)]
+        Dashboard[Dashboard (History/Notes)]
+    end
+
+    subgraph Backend_Electron
+        IPC[IPC Handlers]
+        IntEngine[IntelligenceEngine]
+        LLM[LLM Helper]
+        DB[DatabaseManager (SQLite)]
+        VecSearch[Vector Store (sqlite-vec)]
+    end
+
+    subgraph Native_Module_Rust
+        AudioCap[Audio Capture (WASAPI/CoreAudio)]
+        VAD[Voice Activity Detection]
+        Stealth[Stealth Keyboard Tap]
+    end
+
+    User -->|Teclado/Microfone| Native_Module_Rust
+    Native_Module_Rust -->|Audio Chunks| IPC
+    IPC -->|Seguro/Validado| IntEngine
+    
+    IntEngine <-->|Queries/Contexto| DB
+    IntEngine <-->|Embeddings| VecSearch
+    IntEngine -->|Prompt/Contexto| LLM
+    LLM -->|Comandos/Prompts| IPC
+    IPC -->|Resposta/Dica| Overlay
+    
+    Overlay <-->|Visualização/Edição| Dashboard
+

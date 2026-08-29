@@ -1,0 +1,20 @@
+{
+  "name": "refract-lemonsqueezy-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor standalone de checkout LemonSqueezy para o Refract Pro. Emite licenças assinadas Ed25519 no formato REFRACT-PRO.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@lemonsqueezy/lemonsqueezy.js": "^1.0.0",
+    "better-sqlite3": "^12.6.2",
+    "fastify": "^5.0.0"
+  }
+}
