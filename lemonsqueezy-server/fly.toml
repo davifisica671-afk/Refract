@@ -1,0 +1,41 @@
+# Fly.io — backend do Refract. Grátis-friendly: a máquina dorme quando ociosa
+# (min_machines_running = 0) e acorda no primeiro request/webhook.
+#
+# Antes do 1º deploy o `fly launch` pode reescrever o `app`/região. Se o nome
+# "refract-api" já existir globalmente no Fly, escolha outro (ex.: refract-api-SEUNOME).
+# Região gru = São Paulo (perto pro Pix/Brasil).
+app = "refract-api"
+primary_region = "gru"
+
+[build]
+
+[env]
+  PORT = "8787"
+  DB_PATH = "/data/refract-ls.db"
+
+# SEGREDOS (não vão aqui — set via `fly secrets set`):
+#   LEMONSQUEEZY_API_KEY, LEMONSQUEEZY_STORE_ID, LEMONSQUEEZY_WEBHOOK_SECRET,
+#   LEMONSQUEEZY_VARIANT_* , LICENSE_PRIVATE_KEY (Ed25519), e depois as do Pix.
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    timeout = "5s"
+
+# Volume persistente para o SQLite (licenças, checkouts, webhook_events).
+[[mounts]]
+  source = "refract_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
