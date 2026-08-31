@@ -4,7 +4,7 @@ import { execSync } from 'node:child_process';
 
 const distPath = path.resolve('dist');
 const manifestPath = path.join(distPath, 'manifest.json');
-const zipName = 'natively-companion-store.zip';
+const zipName = 'refract-companion-store.zip';
 const zipPath = path.resolve(zipName);
 
 console.log('--- Preparing Chrome Web Store Build ---');

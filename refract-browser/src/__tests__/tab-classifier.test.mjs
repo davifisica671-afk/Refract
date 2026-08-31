@@ -1,4 +1,4 @@
-// natively-browser/src/__tests__/tab-classifier.test.mjs
+// refract-browser/src/__tests__/tab-classifier.test.mjs
 //
 // Tests the local tab classifier, signal scorer, and sensitive-page detector.
 // Pure logic — no DOM/chrome stub. Imports compiled dist-test/ modules.

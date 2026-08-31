@@ -2,7 +2,7 @@
  * Smart Browser Contexto v2 — shared tipo vocabulary (DESKTOP mirror).
  *
  * Duplicated por design (o extensão pacote + renderer can't cross-import this
- * fiarquivo Canonical fonte é `natively-browser/src/capture/types.ts`; o
+ * fiarquivo Canonical fonte é `refract-browser/src/capture/types.ts`; o
  * renderer copiar lives em `src/types/electron.d.ts`. A drift-guard testar
  * (BrowserContextTypeParity.test.mjs) string-compares o union literals através
  * todos three copies. Keep BROWSER_CONTEXT_PARITY abaixo em sincronizar se you editar a union.

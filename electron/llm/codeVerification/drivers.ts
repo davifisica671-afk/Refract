@@ -174,7 +174,7 @@ def __nat_encode(v, hint):
     if hint == "tree": return __nat_from_tree(v)
     return v
 
-def __natively_main():
+def __refract_main():
     raw = os.environ.get(${JSON.stringify(TC_ENV)}, "[]")
     args = json.loads(raw)
     arg_types = __HINTS.get("argTypes", [])
@@ -197,7 +197,7 @@ def __natively_main():
     sys.stdout.write(${JSON.stringify(RESULT_SENTINEL_START)} + json.dumps(result, allow_nan=False) + ${JSON.stringify(RESULT_SENTINEL_END)})
 
 if __name__ == "__main__":
-    __natively_main()
+    __refract_main()
 `;
 
 // ── JavaScript ────────────────────────────────────────────────────────────────

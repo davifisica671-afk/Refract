@@ -13,7 +13,7 @@
  *      - assets/icon.icns, assets/icons/mac/icon.icns,
  *        src/icons/AppIcon.icns, assets/refract.icns (cria o que faltava)
  *      - src/icons/icon_*.png (cópias de assets/icons/png)
- *      - src/icons/natively.iconset/* (10 arquivos para iconutil)
+ *      - src/icons/refract.iconset/* (10 arquivos para iconutil)
  *   2. Logo da UI (símbolo branco transparente):
  *      - src/components/icon.png (644)
  *      - src/assets/logo.png (644)
@@ -229,7 +229,7 @@ async function main() {
   }
 
   // ---- 4. iconset (para iconutil no macOS) ---------------------------------
-  const iconsetDir = out('src/icons/natively.iconset');
+  const iconsetDir = out('src/icons/refract.iconset');
   fs.mkdirSync(iconsetDir, { recursive: true });
   const iconsetPairs = [
     ['icon_16x16.png', 16],
@@ -246,7 +246,7 @@ async function main() {
   for (const [name, size] of iconsetPairs) {
     const png = await composeAppIcon(size, darkSymbol);
     fs.writeFileSync(path.join(iconsetDir, name), png);
-    console.log(`✓ src/icons/natively.iconset/${name}`);
+    console.log(`✓ src/icons/refract.iconset/${name}`);
   }
 
   // ---- 5. Logo da UI (símbolo branco transparente) --------------------------

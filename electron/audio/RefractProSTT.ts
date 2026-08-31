@@ -1,5 +1,5 @@
 /**
- * NativelyProSTT (RefractProSTT) — Provedor de Speech-to-Text proprietário via WebSocket
+ * RefractProSTT — Provedor de Speech-to-Text proprietário via WebSocket
  *
  * Conecta ao endpoint de transcrição WebSocket da API Refract. Suporta dois
  * formatos de frame de autenticação: LEGACY (Railway) e RELAY (regional relay).

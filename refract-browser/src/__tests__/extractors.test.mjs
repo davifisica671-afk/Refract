@@ -1,4 +1,4 @@
-// natively-browser/src/__tests__/extractors.test.mjs
+// refract-browser/src/__tests__/extractors.test.mjs
 //
 // Tests the structured extractors: coding problem/editor, docs/notes (manual-
 // first), article, selection-only, and the blocked path. Uses a hand-rolled fake

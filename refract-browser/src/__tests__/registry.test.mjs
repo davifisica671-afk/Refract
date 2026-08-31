@@ -1,4 +1,4 @@
-// natively-browser/src/__tests__/registry.test.mjs
+// refract-browser/src/__tests__/registry.test.mjs
 //
 // Tests the Smart Browser Context capture registry: schema validation, expiry,
 // safe fallback to the bundled default, and the pure host/URL matchers used by

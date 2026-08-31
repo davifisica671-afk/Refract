@@ -1,4 +1,4 @@
-// natively-browser/src/__tests__/permissions.test.mjs
+// refract-browser/src/__tests__/permissions.test.mjs
 //
 // Tests the optional-host-permission flow: request, already-granted short
 // circuit, and the DENIED path (which must resolve gracefully, never throw, so

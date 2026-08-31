@@ -1,7 +1,7 @@
 // electron/services/__tests__/UrlSanitizeParity.test.mjs
 //
 // O URL privacy proteger é duplicated através o pacote blimite o extensão
-// primário (sanitizeUrl em natively-browser tab-classifier.ts) and o desktop
+// primário (sanitizeUrl em refract-browser tab-classifier.ts) and o desktop
 // defense-in-depth copy (reSanitizeUrl em BrowserMetadataClassifierService.ts).
 // They Precisa stay em lockstep ou o desktop re-sanitizer poderia pass através a
 // secret o extensão iria ter redacted. This feeds a shared fixture define
@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../../');
-const extRoot = path.join(repoRoot, 'natively-browser');
+const extRoot = path.join(repoRoot, 'refract-browser');
 
 const desktopPath = path.resolve(repoRoot, 'dist-electron/electron/services/browser-context/BrowserMetadataClassifierService.js');
 const extPath = path.resolve(extRoot, 'dist-test/capture/classifier/tab-classifier.js');

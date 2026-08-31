@@ -154,7 +154,7 @@ export class ModelSelectorWindowHelper {
             // e clicar no seletor de modelo ainda roubava o foco do app em primeiro plano.
             //
             // Fechar ao clicar fora é tratado pelo manipulador de mousedown
-            // do renderer (NativelyInterface.tsx) que despacha o IPC
+            // do renderer (RefractInterface.tsx) que despacha o IPC
             // `model-selector:close-if-open`, protegido contra o botão de
             // alternância via `data-model-selector-toggle`.
             ...(isMac ? { type: 'panel' as const } : {}),
@@ -225,7 +225,7 @@ export class ModelSelectorWindowHelper {
         // do botão de alternância e produziu o bug histórico "primeiro clique
         // não faz nada, segundo clique abre". Três caminhos de fechamento
         // ortogonais cobrem os casos legítimos:
-        //   • manipulador de captura de mousedown do renderer em NativelyInterface.tsx
+        //   • manipulador de captura de mousedown do renderer em RefractInterface.tsx
         //     despacha `model-selector:close-if-open` para cliques externos
         //     dentro da sobreposição (protegido por data-model-selector-toggle).
         //   • main.ts se inscreve em app.on('did-resign-active') (macOS) /

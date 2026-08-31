@@ -26,7 +26,7 @@ export default defineConfig({
                 '**/.code-review-graph/**',
                 '**/dist-electron/**',
                 '**/release/**',
-                '**/natively-browser/**',
+                '**/refract-browser/**',
             ],
         },
     },

@@ -1,4 +1,4 @@
-// natively-browser/src/__tests__/smart-capture.test.mjs
+// refract-browser/src/__tests__/smart-capture.test.mjs
 //
 // Tests the in-page smart-capture orchestrator: it classifies, enforces the
 // blocked floor, and runs the structured extractor. Verifies the just-in-time

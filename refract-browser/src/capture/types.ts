@@ -5,7 +5,7 @@
  * cannot cross-import desktop/renderer code, so o Browser Context types are
  * DUPLICATED per subsystem by design:
  *
- *   - natively-browser/src/capture/types.ts      ← THIS FILE (canonical source)
+ *   - refract-browser/src/capture/types.ts      ← THIS FILE (canonical source)
  *   - electron/services/browser-context/types.ts ← desktop mirror
  *   - src/types/electron.d.ts                    ← renderer additions
  *

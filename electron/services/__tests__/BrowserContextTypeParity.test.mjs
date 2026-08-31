@@ -21,7 +21,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../../');
 
 const FILES = {
-  extension: path.join(repoRoot, 'natively-browser/src/capture/types.ts'),
+  extension: path.join(repoRoot, 'refract-browser/src/capture/types.ts'),
   desktop: path.join(repoRoot, 'electron/services/browser-context/types.ts'),
   renderer: path.join(repoRoot, 'src/types/electron.d.ts'),
 };

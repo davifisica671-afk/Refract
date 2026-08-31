@@ -1,4 +1,4 @@
-// natively-browser/src/__tests__/extract.test.mjs
+// refract-browser/src/__tests__/extract.test.mjs
 //
 // Unit tests for the pure DOM->clean-text extractor. Imports the compiled
 // module from dist-test/ (built by esbuild.test.mjs), matching the main repo's
