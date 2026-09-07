@@ -26,6 +26,7 @@ const EXPECTED_MODE_TYPES = [
   'competitive',
   'coding',
   'work-daily',
+  'clinical',
 ];
 
 const BASE_TIME = '2026-05-14T00:00:00.000Z';
@@ -158,6 +159,7 @@ test('all mode prompts start with a shared prefix so duplicate-token stripping w
     'looking-for-work': promptsMod.MODE_LOOKING_FOR_WORK_PROMPT,
     'technical-interview': promptsMod.MODE_TECHNICAL_INTERVIEW_PROMPT,
     lecture: promptsMod.MODE_LECTURE_PROMPT,
+    clinical: promptsMod.MODE_CLINICAL_PROMPT,
   };
 
   for (const [modeType, prompt] of Object.entries(promptByMode)) {
@@ -299,6 +301,9 @@ test('isPremiumKnowledgeInterceptAllowed gates the whole premium intercept by ac
     'technical-interview', 'team-meet', 'lecture',
     // Mesma classe do issue #272 — escopo código/formato fixo, intercept sempre off-topic.
     'leetcode', 'language-learning', 'competitive', 'coding',
+    // clinical: conteúdo externo não solicitado num atendimento pode virar
+    // dado clínico falso num documento legal — bloqueado por segurança.
+    'clinical',
   ]);
 
   // Todo production modo precisa land em one side de o gate — guards contra

@@ -9,13 +9,19 @@
 
 import { EventEmitter } from 'events';
 import { RECOGNITION_LANGUAGES } from '../config/languages';
+import type { DiarizableSTT } from './diarizableSTT';
 
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30000;
 const RECONNECT_MAX_ATTEMPTS = 10;
 const KEEPALIVE_INTERVAL_MS = 8000;
 
-export class DeepgramStreamingSTT extends EventEmitter {
+/**
+ * `implements DiarizableSTT` é declarado explicitamente (em vez de confiar apenas
+ * no type guard estrutural) para que uma futura mudança de assinatura quebre o
+ * build aqui, e não silenciosamente em runtime no main.
+ */
+export class DeepgramStreamingSTT extends EventEmitter implements DiarizableSTT {
     private apiKey: string;
     private live: any = null;
     private isActive = false;

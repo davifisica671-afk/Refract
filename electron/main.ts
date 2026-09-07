@@ -57,6 +57,8 @@ import path from "path"                  // Manipulação de caminhos de arquivo
 import fs from "fs"                      // Sistema de arquivos (leitura/escrita de logs)
 import dns from "dns"                    // Resolução DNS (hack global abaixo)
 import { SystemAudioHealthClassifier } from "./audio/systemAudioHealthClassifier.mjs" // Classificador de saúde do áudio do sistema
+import { SpeakerIdRegistry, captureChannelFor } from "./audio/speakerIdRegistry" // IDs canônicos de locutor por reunião
+import { isDiarizableSTT } from "./audio/diarizableSTT" // Capacidade opcional de diarização
 import { autoUpdater } from "electron-updater" // Atualizador automático do app
 
 /**
@@ -643,7 +645,19 @@ export class AppState {
    * reunião são descartados porque a geração mudou.
    */
   private _meetingGeneration = 0;
-  
+
+  /**
+   * REGISTRY DE LOCUTORES DA REUNIÃO
+   *
+   * Traduz (canal de captura, índice do provedor) em um id canônico `speaker_<n>`
+   * único na reunião. Existe porque os provedores numeram locutores por *conexão*:
+   * o speaker 0 do microfone e o speaker 0 do sistema são pessoas diferentes, e a
+   * numeração recomeça a cada reconexão.
+   *
+   * Resetado em startMeeting() para que a numeração não vaze entre reuniões.
+   */
+  private readonly speakerIdRegistry = new SpeakerIdRegistry();
+
   /**
    * PROMESSA DE INICIALIZAÇÃO DE ÁUDIO:
    * Uma única promessa que串烧 toda a cadeia de inicialização de áudio.
@@ -1891,9 +1905,19 @@ export class AppState {
         return;
       }
 
+      // Diarização: o provedor numera locutores por CONEXÃO, não por reunião — o
+      // speaker_1 do microfone e o speaker_1 do sistema são pessoas diferentes, e a
+      // numeração recomeça em cada reconexão. Traduzir para o id canônico da reunião
+      // ANTES de qualquer consumidor ver o segmento, senão duas pessoas distintas
+      // colapsam num único "Speaker 1" nas notas e nos action items.
+      const diarizedSpeakerId = this.speakerIdRegistry.resolveFromProviderId(
+        captureChannelFor(speaker),
+        segment.speakerId,
+      );
+
       this.intelligenceManager.handleTranscript({
         speaker: speaker,
-        ...(segment.speakerId ? { speakerId: segment.speakerId } : {}),
+        ...(diarizedSpeakerId ? { speakerId: diarizedSpeakerId } : {}),
         text: segment.text,
         timestamp: Date.now(),
         final: segment.isFinal,
@@ -1911,7 +1935,7 @@ export class AppState {
 
       const payload = {
         speaker: speaker,
-        ...(segment.speakerId ? { speakerId: segment.speakerId } : {}),
+        ...(diarizedSpeakerId ? { speakerId: diarizedSpeakerId } : {}),
         text: segment.text,
         timestamp: Date.now(),
         final: segment.isFinal,
@@ -2103,6 +2127,32 @@ export class AppState {
       provider: sttProvider,
       channel: speaker,
     } as SttStatusPayload);
+
+    // ─── Diarização presencial (opt-in) ─────────────────────────────────────
+    // Em chamada remota o canal equivale ao locutor: microfone = eu, sistema =
+    // eles. Em reunião PRESENCIAL (consultório, escritório, visita domiciliar)
+    // não existe canal de sistema — médico e paciente dividem o mesmo microfone
+    // e, sem diarizar, os dois colapsam no rótulo "Me".
+    //
+    // Por isso a diarização do canal remoto (bloco do Deepgram acima) é
+    // insuficiente: ela só separa quem está do OUTRO LADO da chamada.
+    //
+    // Usa a capacidade estrutural (isDiarizableSTT) em vez de um cast concreto,
+    // para que qualquer provedor que implemente setDiarization() participe —
+    // inclusive um diarizador local, que é o caminho para manter a promessa
+    // on-device.
+    if (speaker === 'user') {
+      try {
+        if (isIntelligenceFlagEnabled('inPersonDiarizationV1') && isDiarizableSTT(stt)) {
+          stt.setDiarization(true);
+          console.log('[Main] In-person diarization enabled on the microphone channel.');
+        }
+      } catch (err) {
+        // Falha não-fatal: sem diarização o comportamento volta ao de antes
+        // (microfone = "Me"). Nunca derruba o pipeline de transcrição.
+        console.warn('[Main] In-person diarization unavailable:', err);
+      }
+    }
 
     return stt;
   }
@@ -4122,6 +4172,9 @@ export class AppState {
     this.windowHelper.setWindowMode('overlay');
 
     const meetingGeneration = ++this._meetingGeneration;
+    // Nova reunião, novos locutores: sem isso a numeração do registry vazaria
+    // da reunião anterior e dois locutores distintos herdariam o mesmo id.
+    this.speakerIdRegistry.reset();
     this.isMeetingActive = true;
     this.broadcastMeetingState()
     if (metadata) {

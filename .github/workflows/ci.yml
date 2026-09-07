@@ -10,15 +10,19 @@
 #    sharp na cadeia de imports de electron/llm, electron/intelligence e
 #    src/lib).
 #
-# 2. Blocking vs advisory — estado validado localmente (Windows, Node 24):
-#      renderer tier ........ 119/119 ✅  → blocking
-#      llm tier ............. 2259/2296, 21 falhas pré-existentes → advisory
-#      intelligence tier .... 426/454, 28 falhas pré-existentes → advisory
-#      typecheck:electron ... 14 erros pré-existentes → advisory
-#    As falhas pré-existentes incluem testes que dependem de g++ no PATH,
+# 2. Blocking vs advisory — estado medido em 2026-09-05 (Linux, Node 22):
+#      renderer typecheck ... 0 erros ✅            → blocking
+#      typecheck:electron ... 0 erros ✅            → blocking
+#      renderer tier ........ 135/135 ✅            → blocking
+#      llm tier ............. ~20 falhas conhecidas → advisory
+#      intelligence tier .... 28 falhas conhecidas  → advisory
+#    typecheck:electron foi promovido a blocking: a nota antiga de "14 erros
+#    pré-existentes" não se sustenta mais (medido: 0 erros). Se voltar a
+#    falhar, é regressão real e deve ser corrigida, não silenciada.
+#    As falhas dos tiers advisory incluem testes que dependem de g++ no PATH,
 #    mutação de process.env entre arquivos e fixtures sensíveis a data —
 #    nada relacionado a mudanças recentes. Promoção para blocking acontece
-#    tier a tier quando zeradas. Nota: contagens podem diferir no Linux.
+#    tier a tier quando zeradas. Nota: contagens podem diferir no Windows.
 #
 # 3. A suíte completa de services (npm test) NÃO roda: contém testes que
 #    sobem subsistemas inteiros (ex.: IntelligenceEngineScreenContext
@@ -26,8 +30,18 @@
 #
 # 4. Node 24 para casar com o ambiente de dev onde os tiers foram validados.
 #
-# Próximos passos naturais: zerar as falhas pré-existentes e promover os
-# tiers a blocking, matrix windows-latest, tier de services com timeout.
+# 5. `premium/` é um submódulo proprietário e está AUSENTE em checkouts
+#    públicos (o remote Natively-AI-assistant/natively-premium não existe
+#    mais). scripts/build-electron.js marca os requires relativos
+#    (`../premium/…`, `../../premium/…`) como externos no esbuild, então o
+#    build passa com ou sem o submódulo: com ele, os arquivos compilam para
+#    dist-electron/premium/… e resolvem normalmente; sem ele, o require
+#    lança em tempo de execução e cai no try/catch que todo call site já
+#    tem. Ver docs/ANALISE_TECNICA_2026-09-04.md.
+#
+# Próximos passos naturais: zerar as falhas conhecidas e promover os tiers
+# a blocking, matrix windows-latest/macos-latest, tier de services com
+# timeout por arquivo (hoje ele pendura o runner).
 # =============================================================================
 name: CI
 
@@ -63,12 +77,10 @@ jobs:
       - name: Typecheck renderer
         run: npx tsc --noEmit
 
-      # Advisory: 14 erros pré-existentes (TS7011/TS2341 em IntelligenceEngine,
-      # ipcHandlers, WindowHelper, SessionTracker, premium/*). Promover a
-      # blocking quando zerados.
-      - name: Typecheck electron (advisory)
+      # Blocking desde 2026-09-05: medido em 0 erros. A nota antiga de "14
+      # erros pré-existentes" estava desatualizada.
+      - name: Typecheck electron
         run: npm run typecheck:electron
-        continue-on-error: true
 
       - name: Build electron (esbuild)
         run: npm run build:electron

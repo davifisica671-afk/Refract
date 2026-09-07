@@ -15,7 +15,8 @@ export type DetectableTemplateType =
   | 'team-meet'
   | 'looking-for-work'
   | 'technical-interview'
-  | 'lecture';
+  | 'lecture'
+  | 'clinical';
 
 export interface ModeDetectionInput {
   transcript: TranscriptSegment[];
@@ -72,6 +73,16 @@ const SIGNALS: Record<Exclude<DetectableTemplateType, 'general'>, Array<{ re: Re
     { re: /\b(this role|the team|the company|the position|interview process)\b/i, w: 1, label: 'opportunity' },
     { re: /\b(my background|i worked on|i led|i built|my strengths)\b/i, w: 2, label: 'self-presentation' },
   ],
+  // Sinais clínicos. Peso maior nos termos de registro (prontuário) porque são
+  // quase exclusivos; "session"/"client" aparecem em vendas e aula, então entram
+  // com peso menor ou ficam de fora para não roubar detecção dos modos vizinhos.
+  clinical: [
+    { re: /\b(symptom|pain|ache|nausea|dizzy|fatigue|fever|cough|headache|migraine)\b/i, w: 2, label: 'symptoms' },
+    { re: /\b(medication|prescription|dosage|refill|allerg)\b/i, w: 2, label: 'medication' },
+    { re: /\b(patient|chief complaint|vital signs|blood pressure|history of present illness)\b/i, w: 3, label: 'clinical record' },
+    { re: /\b(anxiety|depress|mood|panic|sleep|stress|trauma|therap)\b/i, w: 2, label: 'mental health' },
+    { re: /\b(referral|lab result|test result|intake|follow[- ]?up appointment)\b/i, w: 1, label: 'care pathway' },
+  ],
 };
 
 const TITLE_HINTS: Array<{ re: RegExp; type: DetectableTemplateType; w: number }> = [
@@ -80,10 +91,11 @@ const TITLE_HINTS: Array<{ re: RegExp; type: DetectableTemplateType; w: number }
   { re: /\b(standup|stand-up|sprint|sync|retro|planning|1:1|one on one|team)\b/i, type: 'team-meet', w: 3 },
   { re: /\b(lecture|class|seminar|course|tutorial)\b/i, type: 'lecture', w: 3 },
   { re: /\b(coding|technical|system design|whiteboard)\b/i, type: 'technical-interview', w: 3 },
+  { re: /\b(patient|clinic|clinical|consultation|therapy|psych|soap)\b/i, type: 'clinical', w: 3 },
 ];
 
 function emptyScores(): Record<DetectableTemplateType, number> {
-  return { general: 0, sales: 0, recruiting: 0, 'team-meet': 0, 'looking-for-work': 0, 'technical-interview': 0, lecture: 0 };
+  return { general: 0, sales: 0, recruiting: 0, 'team-meet': 0, 'looking-for-work': 0, 'technical-interview': 0, lecture: 0, clinical: 0 };
 }
 
 export class MeetingModeDetector {

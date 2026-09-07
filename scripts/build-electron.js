@@ -32,8 +32,42 @@ if (fs.existsSync(electronDir)) {
 
 // Also include premium electron files if they exist
 const premiumDir = path.resolve(rootDir, 'premium/electron');
-if (fs.existsSync(premiumDir)) {
+const premiumPresent = fs.existsSync(premiumDir);
+if (premiumPresent) {
   entryPoints.push(...findTs(premiumDir).map(f => path.relative(rootDir, f)));
+}
+
+/**
+ * The `premium/` submodule holds the proprietary Edition and is absent in
+ * public checkouts. Every call site already guards its require with a
+ * try/catch and falls back to open-source behaviour, so a missing module is
+ * handled at runtime — but esbuild would still fail the *build* by resolving
+ * those paths statically.
+ *
+ * Marking them external keeps the require verbatim in the output: it resolves
+ * normally when the submodule is present (its files still compile to
+ * dist-electron/premium/... via the entryPoints above, so the relative paths
+ * line up) and throws into the existing try/catch when it is not.
+ *
+ * The filter deliberately matches only the relative requires issued from
+ * inside electron/ (`../premium/…`, `../../premium/…`). Root-level entry
+ * points (`premium/electron/…`) must still be compiled, not externalised.
+ */
+const premiumExternal = {
+  name: 'premium-external',
+  setup(build) {
+    build.onResolve({ filter: /^\.\.(\/\.\.)?\/premium\/electron\// }, (args) => ({
+      path: args.path,
+      external: true,
+    }));
+  },
+};
+
+if (!premiumPresent) {
+  console.log(
+    '[build-electron] premium/ submodule absent — building open-source core. ' +
+    'Premium requires stay external and are guarded at runtime.'
+  );
 }
 
 const start = Date.now();
@@ -57,6 +91,7 @@ build({
     '.js': 'js',
   },
   logLevel: 'warning',
+  plugins: [premiumExternal],
 }).then(() => {
   console.log(`[build-electron] Done in ${Date.now() - start}ms`);
 }).catch((err) => {

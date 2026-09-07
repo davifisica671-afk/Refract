@@ -33,6 +33,7 @@ import {
     MODE_WORK_DAILY_PROMPT,
     SHARED_MODE_PREFIX,
     SHARED_MODE_PREFIX_SHORT,
+    MODE_CLINICAL_PROMPT,
 } from '../llm/prompts';
 
 export type ModeTemplateType =
@@ -47,7 +48,11 @@ export type ModeTemplateType =
     | 'leetcode'
     | 'competitive'
     | 'coding'
-    | 'work-daily';
+    | 'work-daily'
+    // Atendimento clínico presencial (médico, psicólogo, enfermagem).
+    // Primeiro template vertical — o que transforma a transcrição em um
+    // documento que o profissional é obrigado a arquivar (no caso, SOAP).
+    | 'clinical';
 
 export interface Mode {
     id: string;
@@ -94,6 +99,7 @@ export const MODE_TEMPLATES: Array<{
     { type: 'competitive',          label: 'Competitive',          description: 'Contest-speed solving for Codeforces, ICPC, and timed competitions.' },
     { type: 'coding',               label: 'Coding',               description: 'Pair programming on real code — debugging, reviews, and implementation.' },
     { type: 'work-daily',           label: 'Work Day',             description: 'Always-on companion tracking commitments and follow-ups across your workday.' },
+    { type: 'clinical',             label: 'Clinical',             description: 'In-person encounters (consultation, therapy, nursing). Produces a SOAP note with explicit gaps — never invents findings.' },
 ];
 
 // ── Split free/premium dos modos ──────────────────────────────────
@@ -217,6 +223,16 @@ export const TEMPLATE_NOTE_SECTIONS: Record<ModeTemplateType, Array<{ title: str
         { title: 'People context', description: 'Personal or situational details about colleagues worth remembering (new project, PTO, preferences).' },
         { title: 'Day summary', description: 'Concise recap of the workday: what moved, what stalled, what changed.' },
     ],
+    // SOAP — o registro clínico padrão. A quinta seção ("Not documented") existe
+    // de propósito: num prontuário, declarar uma lacuna é infinitamente mais
+    // seguro do que preenchê-la com um achado plausível porém inventado.
+    clinical: [
+        { title: 'Subjective', description: "What the patient reported in their own words: presenting concern, symptoms, history, and their own account. Never convert lay wording into clinical terminology and present it as the patient's statement. Omit anything not actually said rather than inferring it." },
+        { title: 'Objective', description: 'What was observed or measured in the room: vitals, exam findings, observed behaviour, results mentioned. Include a number ONLY if it was actually spoken. If nothing objective was captured, say so explicitly.' },
+        { title: 'Assessment', description: "The professional's clinical impression. Attribute it as impression or working hypothesis — never state a diagnosis as established fact. Preserve differential language when the encounter was inconclusive." },
+        { title: 'Plan', description: 'Treatment, medication, referrals, patient education, investigations ordered, and follow-up — with intervals or dates only when stated.' },
+        { title: 'Not documented', description: 'What a note of this kind would normally contain but the encounter did not capture. Flag it so the professional can complete it by hand. An honest gap is safer than an invented finding.' },
+    ],
 };
 
 const TEMPLATE_SYSTEM_PROMPTS: Record<ModeTemplateType, string> = {
@@ -234,6 +250,7 @@ const TEMPLATE_SYSTEM_PROMPTS: Record<ModeTemplateType, string> = {
     'competitive': MODE_COMPETITIVE_PROMPT,
     'coding': MODE_CODING_PROMPT,
     'work-daily': MODE_WORK_DAILY_PROMPT,
+    clinical: MODE_CLINICAL_PROMPT,
 };
 
 // Startup invariant: todo MODE_*_PROMPT precisa começa com one de o two shared
@@ -403,6 +420,11 @@ export class ModesManager {
         'language-learning',
         'competitive',
         'coding',
+        // clinical: aqui o intercept não seria apenas off-topic — conteúdo
+        // externo injetado sem pedido num atendimento pode virar dado clínico
+        // falso dentro de um documento legal. Bloqueado por segurança, não só
+        // por relevância.
+        'clinical',
     ]);
 
     /**
