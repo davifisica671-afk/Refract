@@ -38,7 +38,8 @@ export type ModeTemplateType =
     | 'leetcode'
     | 'competitive'
     | 'coding'
-    | 'work-daily';
+    | 'work-daily'
+    | 'clinical';
 
 /** O slice de o ativo modo o planner needs. Built por
  *  ModesManager.getActiveModeInfo() (cached) e threaded através
@@ -119,6 +120,10 @@ export const MODE_CONTEXT_PROFILES: Record<ModeTemplateType, ModeContextProfile>
         fallbackLiveAnswerType: 'general_meeting_answer',
         fallbackManualAnswerType: 'general_meeting_answer',
     },
+    // clinical: NEUTRAL de propósito. O valor deste modo está na DOCUMENTAÇÃO
+    // pós-atendimento (nota SOAP), não na resposta ao vivo — forçar um tipo de
+    // resposta aqui só atrapalharia quem faz uma pergunta clínica pontual.
+    'clinical': NEUTRAL,
 };
 
 /** O two floor types o classification chain pode fall através to. O modo

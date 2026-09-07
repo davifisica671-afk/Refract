@@ -11,7 +11,8 @@ export type RecipeType =
   | 'lecture-study-notes'
   | 'technical-interview-feedback'
   | 'sales-meddic'
-  | 'customer-feedback';
+  | 'customer-feedback'
+  | 'soap-note';
 
 export const BUILT_IN_RECIPES: Array<{ id: RecipeType; label: string; modes?: string[] }> = [
   { id: 'follow-up-email', label: 'Follow-up email' },
@@ -24,6 +25,7 @@ export const BUILT_IN_RECIPES: Array<{ id: RecipeType; label: string; modes?: st
   { id: 'technical-interview-feedback', label: 'Technical interview feedback', modes: ['technical-interview'] },
   { id: 'sales-meddic', label: 'Sales MEDDIC summary', modes: ['sales'] },
   { id: 'customer-feedback', label: 'Customer feedback', modes: ['sales', 'general'] },
+  { id: 'soap-note', label: 'SOAP clinical note', modes: ['clinical'] },
 ];
 
 export function generateRecipe(summary: MeetingSummaryV3, recipe: RecipeType): string {
@@ -38,6 +40,7 @@ export function generateRecipe(summary: MeetingSummaryV3, recipe: RecipeType): s
     case 'technical-interview-feedback': return technicalInterviewFeedback(summary);
     case 'sales-meddic': return salesMeddic(summary);
     case 'customer-feedback': return customerFeedback(summary);
+    case 'soap-note': return soapNote(summary);
   }
 }
 
@@ -53,6 +56,37 @@ export function generateBuiltInRecipes(summary: MeetingSummaryV3, mode?: string 
 
 function list(items: string[], empty = 'None captured'): string {
   return items.length ? items.map(item => `- ${item}`).join('\n') : `- ${empty}`;
+}
+
+/**
+ * Nota SOAP — o registro clínico padrão.
+ *
+ * Ao contrário das outras receitas, a seção final ("Not documented") não é
+ * enfeite: num prontuário, declarar explicitamente o que NÃO foi capturado é o
+ * que impede o profissional de assinar um registro com lacuna invisível. Por
+ * isso ela nunca é omitida, mesmo vazia.
+ */
+function soapNote(summary: MeetingSummaryV3): string {
+  return [
+    '# SOAP Note',
+    '',
+    `## S — Subjective`,
+    list(sectionBullets(summary, /subjective/i), 'Not reported'),
+    '',
+    '## O — Objective',
+    list(sectionBullets(summary, /objective/i), 'Not measured / not recorded'),
+    '',
+    '## A — Assessment',
+    list(sectionBullets(summary, /assessment/i), 'No impression recorded'),
+    '',
+    '## P — Plan',
+    list(sectionBullets(summary, /plan/i), 'No plan recorded'),
+    '',
+    '## Not documented',
+    list(sectionBullets(summary, /not documented/i), 'Nothing flagged as missing'),
+    '',
+    '_Draft generated from the encounter transcript. Requires review and sign-off by the responsible professional before it enters the record._',
+  ].join('\n');
 }
 
 function slackUpdate(summary: MeetingSummaryV3): string {
