@@ -1,0 +1,70 @@
+# =============================================================================
+# Release — Refract
+# Builds and publishes to GitHub Releases on tags (v*, alpha, beta, rc*)
+# =============================================================================
+name: Release
+
+on:
+  push:
+    tags: ['v*', 'alpha*', 'beta*', 'rc*']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write  # needed to create/update releases and upload artifacts
+      packages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        # O pós-install do repo rebuild native modules e baixa modelos Whisper (~300MB).
+        # Mantemos ignore-scripts apenas para o CI de typecheck/tests;
+        # para o release build, executamos o build:native depois.
+        run: npm install --ignore-scripts
+
+      - name: Typecheck renderer
+        run: npx tsc --noEmit
+
+      - name: Build Electron (esbuild)
+        run: npm run build:electron
+
+      - name: Build Renderer (Vite)
+        run: npx vite build
+
+      - name: Build Native Modules
+        # Rebuilds os módulos nativos (Rust + better-sqlite3 + onnxruntime)
+        # Isso é necessário para o electron-builder criar instaladores completos.
+        run: npm run build:native
+
+      - name: Ensure macOS Sharp Deps (optional)
+        # Só afeta macOS; em Linux este passo é ignorado/skipped gracefully.
+        # Garante que os binários Sharp funcionem na plataforma de build.
+        run: node scripts/ensure-sharp-mac-deps.js || echo "Sharp mac deps step skipped or not applicable on Linux"
+
+      - name: Build and Publish to GitHub Release
+        # electron-builder ler a config de "publish" do package.json:
+        #   provider: github, owner: davifisica671-afk, repo: Refract, releaseType: release
+        # --publish always: publica/atualiza a release a cada tag push.
+        # O build configurado no package.json gera:
+        #   - Windows: NSIS installer + portable (x64, ia32)
+        #   - macOS: zip + dmg (x64, arm64)
+        #   - Linux: AppImage + deb (x64)
+        run: cross-env REFRACT_BUILD_ALL_MAC_ARCHES=1 npx electron-builder --publish always
