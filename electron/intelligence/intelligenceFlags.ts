@@ -73,6 +73,10 @@ export type IntelligenceFlagKey =
   | 'meetingNotesStructuredOutput' // Meeting Notes V3 — provider-native JSON onde available
   | 'meetingSummaryLlmPolish'      // Meeting Notes V3 — constrained LLM polish de o Summary
   | 'speakerDiarizationV1'         // Meeting Notes V3 — provedor (Deepgram) diarization, opt-in
+  // Diariza o canal do MICROFONE em vez de assumir que ele é sempre "eu".
+  // Necessário para reuniões presenciais (consultório, escritório, visita),
+  // onde não há canal de sistema e todos falam no mesmo microfone.
+  | 'inPersonDiarizationV1'
   | 'globalSearchV2'               // Fase 11
   | 'inMeetingSearchV2'            // Fase 12
   | 'conversationMemoryV2'         // Fase 13 (same-session follow-ups)
@@ -139,6 +143,12 @@ const FLAGS: Record<IntelligenceFlagKey, FlagSpec> = {
   meetingSummaryLlmPolish: { env: 'REFRACT_MEETING_SUMMARY_LLM_POLISH', setting: 'meetingSummaryLlmPolishEnabled', default: true },
   // Provedor diarization (Deepgram) — opt-in; touches o realtime STT caminho então padrão OFora
   speakerDiarizationV1: { env: 'REFRACT_SPEAKER_DIARIZATION_V1', setting: 'speakerDiarizationV1Enabled', default: false },
+  // Diarização presencial: liga a diarização no canal do microfone para que duas
+  // pessoas na mesma sala recebam rótulos distintos em vez de colapsarem em "Me".
+  // Padrão desligado: mexe no caminho de STT em tempo real e todo provedor ganha
+  // numeração própria, então os ids passam pelo SpeakerIdRegistry antes de chegar
+  // à transcrição.
+  inPersonDiarizationV1: { env: 'REFRACT_IN_PERSON_DIARIZATION_V1', setting: 'inPersonDiarizationV1Enabled', default: false },
   globalSearchV2: { env: 'REFRACT_GLOBAL_SEARCH_V2', setting: 'globalSearchV2Enabled', default: false },
   inMeetingSearchV2: { env: 'REFRACT_IN_MEETING_SEARCH_V2', setting: 'inMeetingSearchV2Enabled', default: false },
   conversationMemoryV2: { env: 'REFRACT_CONVERSATION_MEMORY_V2', setting: 'conversationMemoryV2Enabled', default: false },

@@ -8,24 +8,24 @@ import {
   isDurableMemoryWindowEnabled,
   isIntelligenceOsEnabled,
   intelligenceFlagSnapshot,
+  intelligenceFlagKeys,
+  intelligenceFlagMeta,
   __resetIntelligenceFlagsCache,
 } from '../../../dist-electron/electron/intelligence/intelligenceFlags.js';
 
-const ENV_KEYS = [
-  'NATIVELY_INTELLIGENCE_TRACE', 'NATIVELY_DURABLE_MEMORY_WINDOW', 'NATIVELY_INTELLIGENCE_OS',
-  'NATIVELY_PROFILE_TREE_V2', 'NATIVELY_CONTEXT_ROUTER_V2', 'NATIVELY_LIVE_TRANSCRIPT_BRAIN',
-  'NATIVELY_PROMPT_ASSEMBLER_V2', 'NATIVELY_ANSWER_DIVERSITY_GUARD', 'NATIVELY_MEETING_MEMORY_V2',
-  'NATIVELY_MEETING_SUMMARY_V3', 'NATIVELY_MEETING_MODE_AUTODETECT', 'NATIVELY_FOLLOWUP_DRAFT_V2',
-  'NATIVELY_SPEAKER_LABELS_V1', 'NATIVELY_MEETING_NOTES_STRUCTURED_OUTPUT',
-  'NATIVELY_MEETING_SUMMARY_LLM_POLISH', 'NATIVELY_SPEAKER_DIARIZATION_V1',
-  'NATIVELY_GLOBAL_SEARCH_V2', 'NATIVELY_IN_MEETING_SEARCH_V2', 'NATIVELY_CONVERSATION_MEMORY_V2',
-  'NATIVELY_LECTURE_INTELLIGENCE_V2', 'NATIVELY_DIAGRAM_INTELLIGENCE', 'NATIVELY_HINDSIGHT_MEMORY',
-  'NATIVELY_HINDSIGHT_LIVE_RECALL', 'NATIVELY_HINDSIGHT_POST_MEETING_RETAIN',
-];
+// Nomes de env derivados do módulo, não hardcodados. A lista anterior usava o
+// prefixo NATIVELY_* enquanto intelligenceFlagMeta reporta REFRACT_*, então
+// clearEnv() não estava limpando as variáveis que os flags de fato leem.
+const ENV_KEYS = intelligenceFlagKeys().map((k) => intelligenceFlagMeta(k).env);
 
-// O completo flag define — Meeting Notes V3 product flags intentionally ship default OEm
-// o rest remain additive/opt-in default OFora
-const ALL_FLAG_KEYS = [
+// A lista completa de flags é derivada do módulo. Congelá-la aqui fazia o teste
+// quebrar a cada flag nova (chegou a 11 de diferença antes desta correção), o que
+// treina quem revisa a ignorar falhas vermelhas.
+const ALL_FLAG_KEYS = intelligenceFlagKeys();
+
+// Guarda de regressão: um flag que existia não deve ser renomeado nem removido
+// sem que este teste seja atualizado de propósito.
+const HISTORIC_FLAG_KEYS = [
   'trace', 'durableMemoryWindow', 'intelligenceOsEnabled', 'profileTreeV2', 'contextRouterV2',
   'liveTranscriptBrain', 'promptAssemblerV2', 'answerDiversityGuard', 'meetingMemoryV2',
   'meetingSummaryV3', 'meetingModeAutoDetect', 'followUpDraftV2', 'speakerLabelsV1',
@@ -34,7 +34,12 @@ const ALL_FLAG_KEYS = [
   'hindsightMemory', 'hindsightLiveRecall', 'hindsightPostMeetingRetain',
 ];
 
+// Flags que a especificação declara default ON (Meeting Notes V3 + proatividade
+// ship habilitados por decisão de produto). `proactiveMode` e `personalMemory`
+// estavam ausentes aqui, o que fazia o teste de defaults falhar para eles.
 const DEFAULT_ON_KEYS = new Set([
+  'personalMemory',
+  'proactiveMode',
   'meetingSummaryV3',
   'meetingModeAutoDetect',
   'followUpDraftV2',
@@ -43,6 +48,11 @@ const DEFAULT_ON_KEYS = new Set([
 ]);
 
 const expectedDefault = (key) => DEFAULT_ON_KEYS.has(key) ? true : false;
+
+// Nomes de env resolvidos a partir do módulo. Os literais NATIVELY_* que este
+// arquivo usava ficaram obsoletos quando o prefixo mudou para REFRACT_*: os
+// testes "setavam" variáveis que nenhum flag lê, e passavam a falhar.
+const envFor = (key) => intelligenceFlagMeta(key).env;
 
 function clearEnv() {
   for (const k of ENV_KEYS) delete process.env[k];
@@ -72,8 +82,17 @@ describe('intelligenceFlags', () => {
     assert.equal(Object.keys(snap).length, ALL_FLAG_KEYS.length);
   });
 
+  test('nenhum flag historicamente existente foi renomeado ou removido', () => {
+    // Protege contra remoção acidental: ALL_FLAG_KEYS agora é derivado do módulo,
+    // então sem este guarda um flag deletado passaria despercebido.
+    const snap = intelligenceFlagSnapshot();
+    for (const key of HISTORIC_FLAG_KEYS) {
+      assert.ok(key in snap, `flag removido ou renomeado: ${key}`);
+    }
+  });
+
   test('a newly-added flag can be toggled by env independently', () => {
-    process.env.NATIVELY_CONTEXT_ROUTER_V2 = 'on';
+    process.env[envFor('contextRouterV2')] = 'on';
     __resetIntelligenceFlagsCache();
     assert.equal(isIntelligenceFlagEnabled('contextRouterV2'), true);
     // Others stay ofora
@@ -81,14 +100,14 @@ describe('intelligenceFlags', () => {
   });
 
   test('env override turns a flag ON', () => {
-    process.env.NATIVELY_INTELLIGENCE_TRACE = '1';
+    process.env[envFor('trace')] = '1';
     __resetIntelligenceFlagsCache();
     assert.equal(isIntelligenceTraceEnabled(), true);
   });
 
   test('env override accepts on/true/enabled/yes', () => {
     for (const v of ['on', 'true', 'enabled', 'yes', '1']) {
-      process.env.NATIVELY_DURABLE_MEMORY_WINDOW = v;
+      process.env[envFor('durableMemoryWindow')] = v;
       __resetIntelligenceFlagsCache();
       assert.equal(isDurableMemoryWindowEnabled(), true, `value ${v} should enable`);
     }
@@ -96,14 +115,14 @@ describe('intelligenceFlags', () => {
 
   test('env override OFF wins even if default were ON', () => {
     for (const v of ['off', 'false', '0', 'disabled', 'no']) {
-      process.env.NATIVELY_INTELLIGENCE_TRACE = v;
+      process.env[envFor('trace')] = v;
       __resetIntelligenceFlagsCache();
       assert.equal(isIntelligenceTraceEnabled(), false, `value ${v} should disable`);
     }
   });
 
   test('unknown env value falls through to default OFF', () => {
-    process.env.NATIVELY_INTELLIGENCE_TRACE = 'maybe';
+    process.env[envFor('trace')] = 'maybe';
     __resetIntelligenceFlagsCache();
     assert.equal(isIntelligenceTraceEnabled(), false);
   });
@@ -111,7 +130,7 @@ describe('intelligenceFlags', () => {
   test('snapshot reflects resolved state', () => {
     const snap0 = intelligenceFlagSnapshot();
     for (const [key, val] of Object.entries(snap0)) assert.equal(val, expectedDefault(key));
-    process.env.NATIVELY_INTELLIGENCE_TRACE = 'on';
+    process.env[envFor('trace')] = 'on';
     __resetIntelligenceFlagsCache();
     const snap1 = intelligenceFlagSnapshot();
     assert.equal(snap1.trace, true);

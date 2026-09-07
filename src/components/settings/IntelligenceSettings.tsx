@@ -51,6 +51,7 @@ const FLAG_META: Record<string, { label: string; desc: string; group: string; ti
   lectureIntelligenceV2: { label: 'Lecture notes', desc: 'Turns a lecture into structured notes, flashcards, and practice questions.', group: 'Lecture & diagrams', tier: 'advanced' },
   diagramIntelligence: { label: 'Diagrams', desc: 'Draws a diagram to explain a concept during a lecture.', group: 'Lecture & diagrams', tier: 'advanced' },
   speakerDiarizationV1: { label: 'Automatic speaker diarization', desc: 'Identifies separate speakers in live audio stream (requires supported provider).', group: 'Memory', tier: 'advanced' },
+  inPersonDiarizationV1: { label: 'In-person speaker diarization', desc: 'Separates voices sharing one microphone — for meetings in a room rather than on a call. Without this, everyone present is labelled "Me" (requires supported provider).', group: 'Memory', tier: 'advanced' },
   meetingNotesStructuredOutput: { label: 'Structured JSON output', desc: 'Uses provider-native structured JSON generation for meeting notes when available.', group: 'Meeting notes', tier: 'advanced' },
   meetingSummaryLlmPolish: { label: 'LLM summary polishing', desc: 'Applies an extra LLM pass to clean up and format final meeting summaries.', group: 'Meeting notes', tier: 'advanced' },
 
