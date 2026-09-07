@@ -81,7 +81,15 @@ Para um psicólogo: 25 sessões/semana × 10 min de nota = **~16 h/mês** de vid
 
 ## Parte 3 — Os 6 gargalos que impedem alguém de pagar
 
-### 🔴 G1. Não existe diarização real — e isso trava o mercado presencial
+### 🔴 G1. Diarização não cobre reunião presencial — e é aí que está o dinheiro
+
+> **✅ CORRIGIDO em 2026-09-05 (commit `f04e3c3`).** O texto abaixo descreve o
+> problema corretamente, mas **a minha afirmação anterior de que "não existe
+> diarização" estava errada** — eu havia lido o plano e não o código. O que existe
+> de verdade, verificado no fonte: `SpeakerLabelService`, `TranscriptSegment.speakerId`,
+> IDs canônicos e **diarização do Deepgram já implementada** (`setDiarization` +
+> `dominantSpeakerIndex`), atrás da flag `speakerDiarizationV1`. O que faltava era
+> outra coisa — ver o fim desta seção.
 
 `docs/speaker-diarization-plan.md` é explícito:
 
@@ -91,11 +99,51 @@ Hoje vocês rodam **dois streams de STT separados**: mic → `user`, áudio do s
 
 **Mas quebra completamente no consultório, no escritório e na visita domiciliar** — que é exatamente onde está o dinheiro. Médico e paciente estão na mesma sala, no mesmo microfone, e tudo cai num locutor só. Uma nota SOAP sem saber quem falou o quê é inutilizável.
 
-**É o item de engenharia mais valioso do projeto.** Custo estimado: 2–3 semanas (pyannote via ONNX, ou diarização nativa do Deepgram/Google no modo cloud). O plano já está escrito em `docs/speaker-diarization-plan.md` — falta implementar.
+**É o item de engenharia mais valioso do projeto.**
+
+#### O que o commit `f04e3c3` entrega
+
+Lendo o código em vez do plano, o gap real era outro — e havia um bug latente junto:
+
+1. **A diarização só era ligada no canal remoto.** `main.ts` habilitava
+   `setDiarization` apenas quando `speaker === 'interviewer'`, com o comentário
+   *"o canal mic é sempre o usuário local, então diarizá-lo adiciona custo sem
+   benefício"*. Em chamada isso é verdade. **Em reunião presencial é justamente o
+   contrário**: não existe canal de sistema, logo o microfone contém todos. Agora a
+   flag `inPersonDiarizationV1` liga a diarização no microfone.
+
+2. **Bug latente de colisão de locutores.** Provedores numeram locutores por
+   *conexão*, não por reunião. Jogar esses números direto na transcrição fazia o
+   speaker 0 do microfone e o speaker 0 do sistema colapsarem num único
+   "Speaker 1" — duas pessoas diferentes virando uma nas notas e nos action
+   items — e permitia que uma reconexão renumerasse a mesma voz.
+   `SpeakerIdRegistry` chaveia por (canal, índice) e entrega ids `speaker_<n>` sem
+   colisão, no formato que `SpeakerLabelService` e `TranscriptNormalizer` já
+   entendem (nenhum código a jusante muda).
+
+3. **Desacoplado do Deepgram.** Nova interface estrutural `DiarizableSTT` +
+   type guard, para que qualquer provedor que implemente `setDiarization()`
+   participe — inclusive um diarizador local.
+
+#### O que ainda falta
+
+- **A diarização continua sendo de nuvem.** O único provedor que a implementa
+  hoje é o Deepgram, o que conflita com a tese de compliance on-device.
+  **Um diarizador local (VAD + embeddings + clustering) é o trabalho grande que
+  resta** — estimativa 2–3 semanas, e é o que fecha o argumento de "nenhum elo
+  na cadeia".
+- A flag `inPersonDiarizationV1` está **default OFF**: ninguém testou com áudio
+  real de duas pessoas numa sala. Precisa de validação antes de ligar.
+- Em reunião presencial nenhuma voz é rotulada "Me" (não há como saber qual é a
+  do usuário) — o usuário renomeia depois, via `SpeakerLabelService`.
 
 ### 🔴 G2. O repositório não compila, e o CI está vermelho
 
-`npm run build:electron` falha porque o submódulo `premium/` aponta para `Natively-AI-assistant/natively-premium` (inexistente). **Confirmado no GitHub Actions**: o job do PR #1 parou no passo 7, "Build electron (esbuild)".
+> **✅ CORRIGIDO em 2026-09-05 (commit `b0d1c7a`).** Build e CI estão verdes.
+> O que permanece: `LicenseManager` continua não existindo, então **o billing
+> segue sem funcionar de verdade**.
+
+`npm run build:electron` falhava porque o submódulo `premium/` aponta para `Natively-AI-assistant/natively-premium` (inexistente). **Confirmado no GitHub Actions**: o job do PR #1 parou no passo 7, "Build electron (esbuild)".
 
 Consequência direta: **o tier bloqueante do CI nem chega a rodar**. Hoje o CI valida quase nada, e todo PR nasce vermelho.
 
@@ -167,7 +215,8 @@ Tudo é por usuário individual. Mas quem tem orçamento é a **clínica de 5 te
 
 | # | Item | Esforço | Dor |
 |---|---|---|---|
-| 4 | **Diarização real** (G1) | 2–3 sem | 🔴 Destrava mercado presencial |
+| 4 | **Diarizador LOCAL** (G1) — VAD + embeddings + clustering on-device | 2–3 sem | 🔴 Fecha o argumento de compliance; hoje só existe via Deepgram (nuvem) |
+| 4b | ~~Diarização no canal do microfone + ids sem colisão~~ | — | ✅ **feito** em `f04e3c3` (flag `inPersonDiarizationV1`, default OFF) |
 | 5 | **5 templates verticais** no `ModesManager` (G4) | 2 sem | Transforma transcrição em documento arquivável |
 | 6 | **"Copiar como..."** com formatos estruturados (G5) | 2 d | Elimina a redigitação |
 | 7 | **Painel "Prove"** — contador de bytes que saíram da máquina + relatório de auditoria exportável | 1 sem | Transforma privacidade em documento de compra |
@@ -236,8 +285,8 @@ Hoje existem `api.refract.software` (18 referências) e PostHog no produto. Cada
 |---|---|
 | Motor técnico | ✅ 90% pronto — áudio nativo, STT local, RAG, modos, dashboard |
 | Empacotamento | ❌ ~10% — templates de entrevista, setup técnico, sem plano de equipe |
-| Bloqueio absoluto | 🔴 Submódulo `premium` inexistente → build quebrado → **billing quebrado** |
-| Maior lacuna técnica | 🔴 Diarização real (bloqueia reuniões presenciais) |
+| Bloqueio absoluto | 🔴 Submódulo `premium` inexistente → **billing quebrado** (build: ✅ corrigido em `b0d1c7a`) |
+| Maior lacuna técnica | 🔴 Diarizador **local** (o de nuvem existe; o mic-channel foi corrigido em `f04e3c3`) |
 | Maior alavancagem | 🎯 Templates verticais no `ModesManager` — 2 semanas, reusa 80% do que existe |
 | Mercado-alvo | 🎯 Profissional impedido de usar nuvem (clínico, jurídico) |
 | Preço-alvo | 🎯 R$ 99–349/mês — 1/15 do líder, self-serve para quem ele não atende |
