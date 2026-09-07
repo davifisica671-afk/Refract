@@ -111,7 +111,7 @@ Satélites:
 | `tsc --noEmit` (renderer, `strict: true`) | ✅ **0 erros** |
 | `npm run typecheck:electron` | ✅ **0 erros** — mas o tsconfig do electron **não é `strict`** (só `noImplicitAny`) |
 | `npx vite build` | ✅ 11,4 s — chunk principal **2,11 MB** (600 kB gzip), sem code-splitting |
-| `npm run build:electron` | ❌ **FALHA** (ver §5.1) |
+| `npm run build:electron` | ✅ 7,6 s — **após o commit `b0d1c7a`** (antes: ❌ falha, ver §5.1) |
 | Testes renderer | ✅ **135/135** |
 | Testes LLM | 2.304 → ✅ 2.263 / ❌ 22 / 16 skip / 3 cancelados |
 | Testes intelligence | 508 → ✅ 471 / ❌ 28 / 9 todo |
@@ -126,6 +126,14 @@ Satélites:
 ### P0 — Bloqueantes
 
 #### 5.1 O repositório publicado não compila
+
+> **✅ RESOLVIDO em 2026-09-05 (commit `b0d1c7a`).** `scripts/build-electron.js`
+> agora marca os requires relativos de `premium/` como externos no esbuild, então o
+> build passa com ou sem o submódulo. Os efeitos colaterais descritos abaixo
+> (CI vermelho, tier bloqueante nunca executando, billing quebrado) também foram
+> resolvidos — o CI está verde. **O que permanece:** os módulos proprietários em si
+> (licenciamento, busca em conhecimento, pesquisa de empresa) continuam inexistentes,
+> então as features premium seguem degradando para o fallback open-source. Ver §5.1.1.
 
 ```
 ✘ [ERROR] Could not resolve "../../premium/electron/services/LicenseManager"
@@ -147,21 +155,55 @@ Impacto medido:
 
 **Isso corrói diretamente a promessa central do README**: "o código é publicado para você auditar". Justamente os módulos de licenciamento e de conhecimento/perfil — os mais sensíveis do ponto de vista de privacidade — estão fora do que é auditável.
 
+##### 5.1.1 O que a correção resolve e o que deixa em aberto
+
+O commit `b0d1c7a` adiciona um plugin `onResolve` ao esbuild que marca os requires
+relativos (`../premium/…`, `../../premium/…`) como externos. O `require()` é emitido
+literalmente no bundle e resolvido em tempo de execução:
+
+| Cenário | Comportamento | Verificado |
+|---|---|---|
+| Submódulo **presente** | Os arquivos compilam para `dist-electron/premium/…`, os caminhos relativos casam, `isPremiumAvailable()` → `true` | ✅ com árvore stub |
+| Submódulo **ausente** | O `require()` lança e cai no `try/catch` que todos os 34 call sites já têm, `isPremiumAvailable()` → `false` | ✅ |
+
+**Resolvido:** build quebrado, CI vermelho, tier bloqueante do CI que nunca executava,
+e o bloqueio mecânico sobre o billing.
+
+**Ainda em aberto** — e é o que realmente importa:
+
+- Os **9 módulos continuam sem existir**. Licenciamento, `KnowledgeOrchestrator`,
+  pesquisa de empresa e provedores de busca seguem degradando para o fallback
+  open-source. O produto compila; as features premium não funcionam.
+- `PurchaseActivationService` e `LemonSqueezyManager` dependem de `LicenseManager`.
+  Compilar não é o mesmo que conseguir ativar uma licença — **é necessário decidir se
+  o `LicenseManager` volta a existir, onde, e sob qual licença.**
+- ~10 arquivos de teste do tier `services` (incluindo `InterviewerPerspectiveEval`,
+  90 falhas) dependem do `KnowledgeOrchestrator` real e seguem falhando.
+- A pergunta de auditoria do parágrafo acima continua de pé.
+
 #### 5.2 O CI é majoritariamente decorativo
+
+> **🟡 PARCIALMENTE RESOLVIDO em 2026-09-05 (commit `b0d1c7a`).** `typecheck:electron`
+> foi promovido a blocking (mede 0 erros, a nota antiga de "14 erros" estava
+> desatualizada) e o build não quebra mais, então **o tier bloqueante do renderer
+> finalmente executa** — o CI está verde. **O que permanece:** os tiers de LLM e
+> intelligence seguem `continue-on-error` (têm falhas reais), o tier de services não
+> roda, e continua sendo Linux-only.
 
 `.github/workflows/ci.yml`:
 
-| Tier | Status |
-|---|---|
-| Renderer typecheck + testes | ✅ blocking |
-| `typecheck:electron` | ⚠️ `continue-on-error` |
-| Testes LLM | ⚠️ `continue-on-error` |
-| Testes intelligence | ⚠️ `continue-on-error` |
-| Testes services | ❌ **não roda** |
+| Tier | Status (antes) | Status (2026-09-05) |
+|---|---|---|
+| Renderer typecheck + testes | ✅ blocking | ✅ blocking |
+| `typecheck:electron` | ⚠️ `continue-on-error` | ✅ **blocking** |
+| Build electron | ❌ quebrava o job | ✅ ok |
+| Testes LLM | ⚠️ `continue-on-error` | ⚠️ `continue-on-error` |
+| Testes intelligence | ⚠️ `continue-on-error` | ⚠️ `continue-on-error` |
+| Testes services | ❌ **não roda** | ❌ **não roda** |
 
-- 3 de 4 tiers de teste não podem reprovar um PR.
+- 2 de 3 tiers de teste não podem reprovar um PR.
 - **Só roda em `ubuntu-latest`** — sendo um app desktop cujo core é Rust + APIs nativas de macOS/Windows, não há matriz de plataforma.
-- O cabeçalho do CI diz "typecheck:electron = 14 erros pré-existentes". Medido hoje: **0 erros**. O comentário está desatualizado e induz quem revisa a ignorar um gate que hoje funciona.
+- O cabeçalho do CI dizia "typecheck:electron = 14 erros pré-existentes". Medido: **0 erros**. O comentário estava desatualizado e induzia quem revisa a ignorar um gate que funciona — corrigido e promovido a blocking.
 - O próprio cabeçalho admite que o tier de services "pendura o runner" — confirmei: `IntelligenceEngineScreenContext` não termina.
 
 ### P1 — Qualidade e risco técnico
@@ -267,12 +309,15 @@ Pontos **a verificar/corrigir**:
 
 ### Imediatas (esta semana)
 
-1. **Resolver o bloqueio do build.** Três caminhos, em ordem de preferência:
-   - **(a)** Mover o mínimo necessário de `premium/` para o repo público (stubs tipados + interfaces), mantendo a implementação proprietária atrás de carregamento dinâmico opcional;
-   - **(b)** Tornar **todos** os 34 `require('.../premium/...')` verdadeiramente opcionais e tolerantes à ausência (vários já estão em `try/catch`, mas `PurchaseActivationService.ts:422` derruba o esbuild porque o caminho é resolvido estaticamente);
-   - **(c)** Se nada for publicado, remover o submódulo e documentar que o repo é uma **versão parcial**.
-   Até isso, a promessa de "auditável" do README é falsa.
-2. **Tornar o CI honesto**: promover `typecheck:electron` a blocking (hoje passa com 0 erros — o comentário "14 erros" é obsoleto) e adicionar matrix `macos-latest` + `windows-latest`.
+1. ~~**Resolver o bloqueio do build.**~~ — ✅ **FEITO** (`b0d1c7a`), via opção **(b)**: os 34
+   `require('.../premium/...')` agora são externos no esbuild e tolerantes à ausência.
+   **Restam as decisões de produto:** as opções (a) e (c) seguem abertas — é preciso
+   decidir se o `LicenseManager` volta a existir e onde, porque compilar não é o mesmo
+   que conseguir ativar uma licença. Até lá, o billing não funciona de verdade e a
+   promessa de "auditável" do README continua parcial.
+2. ~~**Tornar o CI honesto**: promover `typecheck:electron` a blocking~~ — ✅ **FEITO**
+   (`b0d1c7a`). Falta: matrix `macos-latest` + `windows-latest`, e promover os tiers de
+   LLM e intelligence quando as falhas conhecidas forem zeradas.
 3. **Corrigir as contradições de licença**: decidir se `refract-browser/` é AGPL ou segue a licença da raiz, e alinhar `CONTRIBUTING.md`.
 
 ### Curto prazo (1 mês)
@@ -296,6 +341,11 @@ Pontos **a verificar/corrigir**:
 
 O Refract é um projeto **substancial e competentemente construído** — 142 mil linhas de TypeScript, 5 mil de Rust, arquitetura de áudio nativa genuína, disciplina de feature flags e uma cultura de testes e medição acima da média para projetos desse porte.
 
-Mas ele tem uma **fratura estrutural na proposta**: vende-se como "auditável e privado" enquanto (a) não compila sem um submódulo privado inacessível, e (b) tem 3 de 4 suítes de teste marcadas como `continue-on-error` num CI que só roda Linux para um app desktop multiplataforma. Somado a 8 mil linhas num único arquivo de IPC, ausência total de lint e 83 MB de binários duplicados, o resultado é um código que **inspira menos confiança do que merece** — exatamente o oposto do que o posicionamento exige.
+Mas ele tem uma **fratura estrutural na proposta**: vende-se como "auditável e privado" enquanto (a) os módulos mais sensíveis — licenciamento e conhecimento/perfil — vivem num submódulo inacessível, e (b) tem 3 de 4 suítes de teste marcadas como `continue-on-error` num CI que só roda Linux para um app desktop multiplataforma. Somado a 8 mil linhas num único arquivo de IPC, ausência total de lint e 83 MB de binários duplicados, o resultado é um código que **inspira menos confiança do que merece** — exatamente o oposto do que o posicionamento exige.
 
-Os três primeiros itens da lista de recomendações (build, CI, licença) são baratos e destravam todo o resto.
+**Atualização 2026-09-05 (commit `b0d1c7a`):** o build quebrado e o `typecheck:electron`
+em modo advisory foram corrigidos, e o CI está verde pela primeira vez — o tier
+bloqueante agora executa. Dois dos três itens "imediatos" acima estão resolvidos no
+aspecto mecânico. O que **não** mudou: o `LicenseManager` continua não existindo, então
+o billing segue sem funcionar de verdade, e a pergunta de auditoria continua de pé.
+Build verde é pré-requisito, não solução.
