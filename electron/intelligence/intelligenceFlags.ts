@@ -55,7 +55,8 @@ export type IntelligenceFlagKey =
   | 'trace'
   // Point o live long-range follow-up memory at o DURABLE transcript armazenamento
   // (fullTranscript) em vez disso de o 120s-evicted contextItems window. Fixes o
-  // verified "2h janela silently capped para 120s" bug. Default Fora → atual pcaminho
+  // verified "2h janela silently capped para 120s" bug. Ships ON by default
+  // (product decision 2026-09-06); REFRACT_DURABLE_MEMORY_WINDOW=0 reverts to o legacy window.
   | 'durableMemoryWindow'
   // ── Completo Intelligence OS rollout define (Fase 3). Todo entry padrão Fora então o
   //    atual behavior é preserved até a caller é wired AND o flag é oem
@@ -113,7 +114,7 @@ const FLAGS: Record<IntelligenceFlagKey, FlagSpec> = {
   durableMemoryWindow: {
     env: 'REFRACT_DURABLE_MEMORY_WINDOW',
     setting: 'intelligenceDurableMemoryWindow',
-    default: false,
+    default: true,
   },
   intelligenceOsEnabled: { env: 'REFRACT_INTELLIGENCE_OS', setting: 'intelligenceOsEnabled', default: false },
   profileTreeV2: { env: 'REFRACT_PROFILE_TREE_V2', setting: 'profileTreeV2Enabled', default: false },
@@ -121,7 +122,13 @@ const FLAGS: Record<IntelligenceFlagKey, FlagSpec> = {
   liveTranscriptBrain: { env: 'REFRACT_LIVE_TRANSCRIPT_BRAIN', setting: 'liveTranscriptBrainEnabled', default: false },
   promptAssemblerV2: { env: 'REFRACT_PROMPT_ASSEMBLER_V2', setting: 'promptAssemblerV2Enabled', default: false },
   answerDiversityGuard: { env: 'REFRACT_ANSWER_DIVERSITY_GUARD', setting: 'answerDiversityGuardEnabled', default: false },
-  meetingMemoryV2: { env: 'REFRACT_MEETING_MEMORY_V2', setting: 'meetingMemoryV2Enabled', default: false },
+  meetingMemoryV2: {
+    env: 'REFRACT_MEETING_MEMORY_V2',
+    setting: 'meetingMemoryV2Enabled',
+    // Ships ON by default (product decision 2026-09-06): pure/deterministic post-meeting
+    // enrichment of summary_json.meetingMemory — never touches o live answer path.
+    default: true,
+  },
   // Meeting Notes V3 ships Em por padrão (product decision 2026-06-20). Cada remains
   // env/settings-overridable; define REFRACT_MEETING_SUMMARY_V3=0 para revert para o legacy
   // single-pass summary pcaminho Todos paths keep a deterministic alternativa e honor o
@@ -139,7 +146,14 @@ const FLAGS: Record<IntelligenceFlagKey, FlagSpec> = {
   meetingSummaryLlmPolish: { env: 'REFRACT_MEETING_SUMMARY_LLM_POLISH', setting: 'meetingSummaryLlmPolishEnabled', default: true },
   // Provedor diarization (Deepgram) — opt-in; touches o realtime STT caminho então padrão OFora
   speakerDiarizationV1: { env: 'REFRACT_SPEAKER_DIARIZATION_V1', setting: 'speakerDiarizationV1Enabled', default: false },
-  globalSearchV2: { env: 'REFRACT_GLOBAL_SEARCH_V2', setting: 'globalSearchV2Enabled', default: false },
+  globalSearchV2: {
+    env: 'REFRACT_GLOBAL_SEARCH_V2',
+    setting: 'globalSearchV2Enabled',
+    // Ships ON by default (product decision 2026-09-06): cross-meeting semantic search
+    // over the LOCAL sqlite-vec store (no network). Wiring proven by SearchOrchestrator
+    // tests + RolloutFallback. REFRACT_GLOBAL_SEARCH_V2=0 reverts to legacy search.
+    default: true,
+  },
   inMeetingSearchV2: { env: 'REFRACT_IN_MEETING_SEARCH_V2', setting: 'inMeetingSearchV2Enabled', default: false },
   conversationMemoryV2: { env: 'REFRACT_CONVERSATION_MEMORY_V2', setting: 'conversationMemoryV2Enabled', default: false },
   lectureIntelligenceV2: { env: 'REFRACT_LECTURE_INTELLIGENCE_V2', setting: 'lectureIntelligenceV2Enabled', default: false },

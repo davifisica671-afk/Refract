@@ -16,37 +16,44 @@ const DEFAULT_ON_KEYS = new Set([
   'followUpDraftV2',
   'speakerLabelsV1',
   'meetingSummaryLlmPolish',
+  // Ships ON by default (product decision 2026-09-06) — see intelligenceFlags.ts comments:
+  'durableMemoryWindow',
+  'meetingMemoryV2',
+  'globalSearchV2',
+  // Pre-existing default-ON flags that were missing from this pin set (drift fixed 2026-09-06):
+  'proactiveMode',
+  'personalMemory',
 ]);
 
 const expectedDefault = (key) => DEFAULT_ON_KEYS.has(key) ? true : false;
 
 const FLAG_ENV = {
-  intelligenceOsEnabled: 'NATIVELY_INTELLIGENCE_OS',
-  profileTreeV2: 'NATIVELY_PROFILE_TREE_V2',
-  contextRouterV2: 'NATIVELY_CONTEXT_ROUTER_V2',
-  liveTranscriptBrain: 'NATIVELY_LIVE_TRANSCRIPT_BRAIN',
-  promptAssemblerV2: 'NATIVELY_PROMPT_ASSEMBLER_V2',
-  answerDiversityGuard: 'NATIVELY_ANSWER_DIVERSITY_GUARD',
-  meetingMemoryV2: 'NATIVELY_MEETING_MEMORY_V2',
-  globalSearchV2: 'NATIVELY_GLOBAL_SEARCH_V2',
-  inMeetingSearchV2: 'NATIVELY_IN_MEETING_SEARCH_V2',
-  lectureIntelligenceV2: 'NATIVELY_LECTURE_INTELLIGENCE_V2',
-  diagramIntelligence: 'NATIVELY_DIAGRAM_INTELLIGENCE',
-  hindsightMemory: 'NATIVELY_HINDSIGHT_MEMORY',
-  hindsightLiveRecall: 'NATIVELY_HINDSIGHT_LIVE_RECALL',
-  hindsightPostMeetingRetain: 'NATIVELY_HINDSIGHT_POST_MEETING_RETAIN',
-  trace: 'NATIVELY_INTELLIGENCE_TRACE',
-  durableMemoryWindow: 'NATIVELY_DURABLE_MEMORY_WINDOW',
+  intelligenceOsEnabled: 'REFRACT_INTELLIGENCE_OS',
+  profileTreeV2: 'REFRACT_PROFILE_TREE_V2',
+  contextRouterV2: 'REFRACT_CONTEXT_ROUTER_V2',
+  liveTranscriptBrain: 'REFRACT_LIVE_TRANSCRIPT_BRAIN',
+  promptAssemblerV2: 'REFRACT_PROMPT_ASSEMBLER_V2',
+  answerDiversityGuard: 'REFRACT_ANSWER_DIVERSITY_GUARD',
+  meetingMemoryV2: 'REFRACT_MEETING_MEMORY_V2',
+  globalSearchV2: 'REFRACT_GLOBAL_SEARCH_V2',
+  inMeetingSearchV2: 'REFRACT_IN_MEETING_SEARCH_V2',
+  lectureIntelligenceV2: 'REFRACT_LECTURE_INTELLIGENCE_V2',
+  diagramIntelligence: 'REFRACT_DIAGRAM_INTELLIGENCE',
+  hindsightMemory: 'REFRACT_HINDSIGHT_MEMORY',
+  hindsightLiveRecall: 'REFRACT_HINDSIGHT_LIVE_RECALL',
+  hindsightPostMeetingRetain: 'REFRACT_HINDSIGHT_POST_MEETING_RETAIN',
+  trace: 'REFRACT_INTELLIGENCE_TRACE',
+  durableMemoryWindow: 'REFRACT_DURABLE_MEMORY_WINDOW',
 };
 
 const EXTRA_FLAG_ENV = [
-  'NATIVELY_MEETING_SUMMARY_V3',
-  'NATIVELY_MEETING_MODE_AUTODETECT',
-  'NATIVELY_FOLLOWUP_DRAFT_V2',
-  'NATIVELY_SPEAKER_LABELS_V1',
-  'NATIVELY_MEETING_NOTES_STRUCTURED_OUTPUT',
-  'NATIVELY_MEETING_SUMMARY_LLM_POLISH',
-  'NATIVELY_SPEAKER_DIARIZATION_V1',
+  'REFRACT_MEETING_SUMMARY_V3',
+  'REFRACT_MEETING_MODE_AUTODETECT',
+  'REFRACT_FOLLOWUP_DRAFT_V2',
+  'REFRACT_SPEAKER_LABELS_V1',
+  'REFRACT_MEETING_NOTES_STRUCTURED_OUTPUT',
+  'REFRACT_MEETING_SUMMARY_LLM_POLISH',
+  'REFRACT_SPEAKER_DIARIZATION_V1',
 ];
 
 function clearAll() {
@@ -82,16 +89,18 @@ describe('Rollout — enabled mode (per-flag, independent)', () => {
       process.env[env] = 'on';
       __resetIntelligenceFlagsCache();
       assert.equal(isIntelligenceFlagEnabled(key), true, `${key} should enable via ${env}`);
-      // Não sibling leaked oem
+      // Não sibling muda quando um é toggled: cada outro resolve para SEU default documentado
+      // (com todos os três flags de memória ON por padrão desde 2026-09-06, "não vazou" significa
+      // permanecer no padrão, não necessariamente falso).
       const others = Object.keys(FLAG_ENV).filter((k) => k !== key);
-      for (const o of others) assert.equal(isIntelligenceFlagEnabled(o), false, `${o} leaked on when only ${key} set`);
+      for (const o of others) assert.equal(isIntelligenceFlagEnabled(o), expectedDefault(o), `${o} changed when only ${key} set`);
     }
   });
 
   test('the recommended rollout order is all independently gated (no hard coupling)', () => {
     // Habilitar o primeiro poucos em o spec's recommended oordenar depois ones stay ofora
-    process.env.NATIVELY_INTELLIGENCE_TRACE = 'on';
-    process.env.NATIVELY_PROFILE_TREE_V2 = 'on';
+    process.env.REFRACT_INTELLIGENCE_TRACE = 'on';
+    process.env.REFRACT_PROFILE_TREE_V2 = 'on';
     __resetIntelligenceFlagsCache();
     assert.equal(isIntelligenceFlagEnabled('trace'), true);
     assert.equal(isIntelligenceFlagEnabled('profileTreeV2'), true);
@@ -104,7 +113,7 @@ describe('Rollout — instant rollback', () => {
   afterEach(clearAll);
 
   test('an explicit OFF overrides everything (instant kill)', () => {
-    process.env.NATIVELY_DIAGRAM_INTELLIGENCE = 'off';
+    process.env.REFRACT_DIAGRAM_INTELLIGENCE = 'off';
     __resetIntelligenceFlagsCache();
     assert.equal(isIntelligenceFlagEnabled('diagramIntelligence'), false);
   });

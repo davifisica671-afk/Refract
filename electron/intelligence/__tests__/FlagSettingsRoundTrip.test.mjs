@@ -6,7 +6,7 @@
 //
 // O que Fase 14 SHIPS: a backend contract então a flag pode ser toggled por PERSISTING its
 // SettingsManager chave — não env edit / redeploy needed. O flags já resolve em o
-// precedence: env sobrescrever (NATIVELY_*) → SettingsManager.get(<settingKey>) → default(false).
+// precedence: env sobrescrever (REFRACT_*) → SettingsManager.get(<settingKey>) → default(false).
 // This testar pins o parts de that contract that são EXECUTABLE headless (sob plain
 // node:test, não Electron) and é explicit sobre o one part that é NNão
 //
@@ -17,7 +17,7 @@
 //   • setIntelligenceFlag()   — DEFENSIVE: Retorna false (nunca throws) quando
 //                               SettingsManager é unavailable (headless), porque its
 //                               constructor calls Electron's app.isReady().
-//   • o ENV-OVERRIDE resolution chain — define NATIVELY_*=1 → enabled tverdadeiro unset → false.
+//   • o ENV-OVERRIDE resolution chain — define REFRACT_*=1 → enabled tverdadeiro unset → false.
 //     This é o Primário mechanism o resolution chain shares com o settings pcaminho
 //
 // READ-VERIFIED Apenas (Não executable aqui — documented, não asserted):
@@ -73,9 +73,21 @@ const EXPECTED_KEYS = [
   'hindsightMemory',
   'hindsightLiveRecall',
   'hindsightPostMeetingRetain',
+  // Coding Assistant + Competitive Edge flags (added to FLAGS without updating this
+  // pin list — drift fixed 2026-09-06):
+  'repoIndexer',
+  'codeExplain',
+  'codeGenerate',
+  'codeReview',
+  'codeRefactor',
+  'testGeneration',
+  'sandboxExec',
+  'opencodeIntegration',
+  'proactiveMode',
+  'personalMemory',
 ];
 
-// Todos NATIVELY_* env vars these flags lê — cleared before/after então a leaked env de o
+// Todos REFRACT_* env vars these flags lê — cleared before/after então a leaked env de o
 // host (ou outro ttestar can't make an assertion pass/fail spuriously.
 const DEFAULT_ON_KEYS = new Set([
   'meetingSummaryV3',
@@ -83,33 +95,40 @@ const DEFAULT_ON_KEYS = new Set([
   'followUpDraftV2',
   'speakerLabelsV1',
   'meetingSummaryLlmPolish',
+  // Ships ON by default (product decision 2026-09-06) — see intelligenceFlags.ts comments:
+  'durableMemoryWindow',
+  'meetingMemoryV2',
+  'globalSearchV2',
+  // Pre-existing default-ON flags that were missing from this pin set (drift fixed 2026-09-06):
+  'proactiveMode',
+  'personalMemory',
 ]);
 
 const ALL_ENV_VARS = [
-  'NATIVELY_INTELLIGENCE_TRACE',
-  'NATIVELY_DURABLE_MEMORY_WINDOW',
-  'NATIVELY_INTELLIGENCE_OS',
-  'NATIVELY_PROFILE_TREE_V2',
-  'NATIVELY_CONTEXT_ROUTER_V2',
-  'NATIVELY_LIVE_TRANSCRIPT_BRAIN',
-  'NATIVELY_PROMPT_ASSEMBLER_V2',
-  'NATIVELY_ANSWER_DIVERSITY_GUARD',
-  'NATIVELY_MEETING_MEMORY_V2',
-  'NATIVELY_MEETING_SUMMARY_V3',
-  'NATIVELY_MEETING_MODE_AUTODETECT',
-  'NATIVELY_FOLLOWUP_DRAFT_V2',
-  'NATIVELY_SPEAKER_LABELS_V1',
-  'NATIVELY_MEETING_NOTES_STRUCTURED_OUTPUT',
-  'NATIVELY_MEETING_SUMMARY_LLM_POLISH',
-  'NATIVELY_SPEAKER_DIARIZATION_V1',
-  'NATIVELY_GLOBAL_SEARCH_V2',
-  'NATIVELY_IN_MEETING_SEARCH_V2',
-  'NATIVELY_CONVERSATION_MEMORY_V2',
-  'NATIVELY_LECTURE_INTELLIGENCE_V2',
-  'NATIVELY_DIAGRAM_INTELLIGENCE',
-  'NATIVELY_HINDSIGHT_MEMORY',
-  'NATIVELY_HINDSIGHT_LIVE_RECALL',
-  'NATIVELY_HINDSIGHT_POST_MEETING_RETAIN',
+  'REFRACT_INTELLIGENCE_TRACE',
+  'REFRACT_DURABLE_MEMORY_WINDOW',
+  'REFRACT_INTELLIGENCE_OS',
+  'REFRACT_PROFILE_TREE_V2',
+  'REFRACT_CONTEXT_ROUTER_V2',
+  'REFRACT_LIVE_TRANSCRIPT_BRAIN',
+  'REFRACT_PROMPT_ASSEMBLER_V2',
+  'REFRACT_ANSWER_DIVERSITY_GUARD',
+  'REFRACT_MEETING_MEMORY_V2',
+  'REFRACT_MEETING_SUMMARY_V3',
+  'REFRACT_MEETING_MODE_AUTODETECT',
+  'REFRACT_FOLLOWUP_DRAFT_V2',
+  'REFRACT_SPEAKER_LABELS_V1',
+  'REFRACT_MEETING_NOTES_STRUCTURED_OUTPUT',
+  'REFRACT_MEETING_SUMMARY_LLM_POLISH',
+  'REFRACT_SPEAKER_DIARIZATION_V1',
+  'REFRACT_GLOBAL_SEARCH_V2',
+  'REFRACT_IN_MEETING_SEARCH_V2',
+  'REFRACT_CONVERSATION_MEMORY_V2',
+  'REFRACT_LECTURE_INTELLIGENCE_V2',
+  'REFRACT_DIAGRAM_INTELLIGENCE',
+  'REFRACT_HINDSIGHT_MEMORY',
+  'REFRACT_HINDSIGHT_LIVE_RECALL',
+  'REFRACT_HINDSIGHT_POST_MEETING_RETAIN',
 ];
 
 function clearAllEnv() {
@@ -139,7 +158,7 @@ describe('Phase 14 — intelligence flag settings contract (key + meta surface)'
       const meta = intelligenceFlagMeta(key);
       assert.equal(typeof meta.setting, 'string', `${key}.setting is a string`);
       assert.ok(meta.setting.length > 0, `${key}.setting non-empty`);
-      assert.ok(meta.env.startsWith('NATIVELY_'), `${key}.env follows NATIVELY_ convention (${meta.env})`);
+      assert.ok(meta.env.startsWith('REFRACT_'), `${key}.env follows REFRACT_ convention (${meta.env})`);
       const expectedDefault = DEFAULT_ON_KEYS.has(key) ? true : false;
       assert.equal(meta.default, expectedDefault, `${key}.default matches documented rollout posture`);
     }
@@ -147,17 +166,17 @@ describe('Phase 14 — intelligence flag settings contract (key + meta surface)'
 
   test('intelligenceFlagMeta exact values for several named flags', () => {
     assert.deepEqual(intelligenceFlagMeta('trace'),
-      { setting: 'intelligenceTraceEnabled', env: 'NATIVELY_INTELLIGENCE_TRACE', default: false });
+      { setting: 'intelligenceTraceEnabled', env: 'REFRACT_INTELLIGENCE_TRACE', default: false });
     assert.deepEqual(intelligenceFlagMeta('durableMemoryWindow'),
-      { setting: 'intelligenceDurableMemoryWindow', env: 'NATIVELY_DURABLE_MEMORY_WINDOW', default: false });
+      { setting: 'intelligenceDurableMemoryWindow', env: 'REFRACT_DURABLE_MEMORY_WINDOW', default: true });
     assert.deepEqual(intelligenceFlagMeta('conversationMemoryV2'),
-      { setting: 'conversationMemoryV2Enabled', env: 'NATIVELY_CONVERSATION_MEMORY_V2', default: false });
+      { setting: 'conversationMemoryV2Enabled', env: 'REFRACT_CONVERSATION_MEMORY_V2', default: false });
     assert.deepEqual(intelligenceFlagMeta('lectureIntelligenceV2'),
-      { setting: 'lectureIntelligenceV2Enabled', env: 'NATIVELY_LECTURE_INTELLIGENCE_V2', default: false });
+      { setting: 'lectureIntelligenceV2Enabled', env: 'REFRACT_LECTURE_INTELLIGENCE_V2', default: false });
     assert.deepEqual(intelligenceFlagMeta('diagramIntelligence'),
-      { setting: 'diagramIntelligenceEnabled', env: 'NATIVELY_DIAGRAM_INTELLIGENCE', default: false });
+      { setting: 'diagramIntelligenceEnabled', env: 'REFRACT_DIAGRAM_INTELLIGENCE', default: false });
     assert.deepEqual(intelligenceFlagMeta('hindsightMemory'),
-      { setting: 'hindsightMemoryEnabled', env: 'NATIVELY_HINDSIGHT_MEMORY', default: false });
+      { setting: 'hindsightMemoryEnabled', env: 'REFRACT_HINDSIGHT_MEMORY', default: false });
   });
 
   test('flag setting-keys are UNIQUE (no two flags share a SettingsManager key)', () => {
@@ -217,47 +236,47 @@ describe('Phase 14 — ENV override resolution chain (the mechanism the UI/IPC r
 
   test('trace: env=1 → true, then unset → false (fresh read each call, no cache)', () => {
     assert.equal(isIntelligenceFlagEnabled('trace'), false, 'starts false');
-    process.env.NATIVELY_INTELLIGENCE_TRACE = '1';
+    process.env.REFRACT_INTELLIGENCE_TRACE = '1';
     __resetIntelligenceFlagsCache();
     assert.equal(isIntelligenceFlagEnabled('trace'), true, 'env=1 → true');
     assert.equal(isIntelligenceTraceEnabled(), true, 'helper agrees');
-    delete process.env.NATIVELY_INTELLIGENCE_TRACE;
+    delete process.env.REFRACT_INTELLIGENCE_TRACE;
     __resetIntelligenceFlagsCache();
     assert.equal(isIntelligenceFlagEnabled('trace'), false, 'unset → false (fresh read)');
   });
 
   test('env accepts on/true/yes/enabled and off/false/no/disabled, case-insensitive', () => {
     for (const on of ['1', 'true', 'TRUE', 'on', 'On', 'yes', 'enabled']) {
-      process.env.NATIVELY_CONVERSATION_MEMORY_V2 = on;
+      process.env.REFRACT_CONVERSATION_MEMORY_V2 = on;
       __resetIntelligenceFlagsCache();
       assert.equal(isIntelligenceFlagEnabled('conversationMemoryV2'), true, `"${on}" → true`);
     }
     for (const off of ['0', 'false', 'FALSE', 'off', 'no', 'disabled']) {
-      process.env.NATIVELY_CONVERSATION_MEMORY_V2 = off;
+      process.env.REFRACT_CONVERSATION_MEMORY_V2 = off;
       __resetIntelligenceFlagsCache();
       assert.equal(isIntelligenceFlagEnabled('conversationMemoryV2'), false, `"${off}" → false`);
     }
-    delete process.env.NATIVELY_CONVERSATION_MEMORY_V2;
+    delete process.env.REFRACT_CONVERSATION_MEMORY_V2;
   });
 
   test('env override is PER-FLAG (toggling one does not affect another)', () => {
-    process.env.NATIVELY_LECTURE_INTELLIGENCE_V2 = '1';
+    process.env.REFRACT_LECTURE_INTELLIGENCE_V2 = '1';
     __resetIntelligenceFlagsCache();
     assert.equal(isIntelligenceFlagEnabled('lectureIntelligenceV2'), true);
     assert.equal(isIntelligenceFlagEnabled('diagramIntelligence'), false, 'sibling unaffected');
-    delete process.env.NATIVELY_LECTURE_INTELLIGENCE_V2;
+    delete process.env.REFRACT_LECTURE_INTELLIGENCE_V2;
   });
 
   test('intelligenceFlagSnapshot() reflects the resolved state of the env override', () => {
     let snap = intelligenceFlagSnapshot();
     assert.equal(snap.trace, false, 'snapshot default false');
-    process.env.NATIVELY_INTELLIGENCE_TRACE = 'on';
+    process.env.REFRACT_INTELLIGENCE_TRACE = 'on';
     __resetIntelligenceFlagsCache();
     snap = intelligenceFlagSnapshot();
     assert.equal(snap.trace, true, 'snapshot tracks env=on');
     // Snapshot covers Todo chave (então o diagnostics surface pode nunca silently soltar one).
     assert.deepEqual(Object.keys(snap).sort(), [...EXPECTED_KEYS].sort());
-    delete process.env.NATIVELY_INTELLIGENCE_TRACE;
+    delete process.env.REFRACT_INTELLIGENCE_TRACE;
   });
 });
 
