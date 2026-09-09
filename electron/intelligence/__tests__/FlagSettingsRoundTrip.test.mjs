@@ -73,6 +73,18 @@ const EXPECTED_KEYS = [
   'hindsightMemory',
   'hindsightLiveRecall',
   'hindsightPostMeetingRetain',
+  // Coding Assistant + Competitive Edge flags (added to FLAGS without updating this
+  // pin list — drift fixed 2026-09-06):
+  'repoIndexer',
+  'codeExplain',
+  'codeGenerate',
+  'codeReview',
+  'codeRefactor',
+  'testGeneration',
+  'sandboxExec',
+  'opencodeIntegration',
+  'proactiveMode',
+  'personalMemory',
 ];
 
 // Todos REFRACT_* env vars these flags lê — cleared before/after então a leaked env de o
@@ -83,6 +95,13 @@ const DEFAULT_ON_KEYS = new Set([
   'followUpDraftV2',
   'speakerLabelsV1',
   'meetingSummaryLlmPolish',
+  // Ships ON by default (product decision 2026-09-06) — see intelligenceFlags.ts comments:
+  'durableMemoryWindow',
+  'meetingMemoryV2',
+  'globalSearchV2',
+  // Pre-existing default-ON flags that were missing from this pin set (drift fixed 2026-09-06):
+  'proactiveMode',
+  'personalMemory',
 ]);
 
 const ALL_ENV_VARS = [
@@ -149,7 +168,7 @@ describe('Phase 14 — intelligence flag settings contract (key + meta surface)'
     assert.deepEqual(intelligenceFlagMeta('trace'),
       { setting: 'intelligenceTraceEnabled', env: 'REFRACT_INTELLIGENCE_TRACE', default: false });
     assert.deepEqual(intelligenceFlagMeta('durableMemoryWindow'),
-      { setting: 'intelligenceDurableMemoryWindow', env: 'REFRACT_DURABLE_MEMORY_WINDOW', default: false });
+      { setting: 'intelligenceDurableMemoryWindow', env: 'REFRACT_DURABLE_MEMORY_WINDOW', default: true });
     assert.deepEqual(intelligenceFlagMeta('conversationMemoryV2'),
       { setting: 'conversationMemoryV2Enabled', env: 'REFRACT_CONVERSATION_MEMORY_V2', default: false });
     assert.deepEqual(intelligenceFlagMeta('lectureIntelligenceV2'),

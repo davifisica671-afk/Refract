@@ -54,8 +54,9 @@ class FakeSession {
 }
 
 function enableDurable(on) {
+  // '0' força OFF explicitamente (o default agora é ON — product decision 2026-09-06).
   if (on) process.env.REFRACT_DURABLE_MEMORY_WINDOW = '1';
-  else delete process.env.REFRACT_DURABLE_MEMORY_WINDOW;
+  else process.env.REFRACT_DURABLE_MEMORY_WINDOW = '0';
   __resetIntelligenceFlagsCache();
 }
 

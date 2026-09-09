@@ -16,6 +16,13 @@ const DEFAULT_ON_KEYS = new Set([
   'followUpDraftV2',
   'speakerLabelsV1',
   'meetingSummaryLlmPolish',
+  // Ships ON by default (product decision 2026-09-06) — see intelligenceFlags.ts comments:
+  'durableMemoryWindow',
+  'meetingMemoryV2',
+  'globalSearchV2',
+  // Pre-existing default-ON flags that were missing from this pin set (drift fixed 2026-09-06):
+  'proactiveMode',
+  'personalMemory',
 ]);
 
 const expectedDefault = (key) => DEFAULT_ON_KEYS.has(key) ? true : false;
@@ -82,9 +89,11 @@ describe('Rollout — enabled mode (per-flag, independent)', () => {
       process.env[env] = 'on';
       __resetIntelligenceFlagsCache();
       assert.equal(isIntelligenceFlagEnabled(key), true, `${key} should enable via ${env}`);
-      // Não sibling leaked oem
+      // Não sibling muda quando um é toggled: cada outro resolve para SEU default documentado
+      // (com todos os três flags de memória ON por padrão desde 2026-09-06, "não vazou" significa
+      // permanecer no padrão, não necessariamente falso).
       const others = Object.keys(FLAG_ENV).filter((k) => k !== key);
-      for (const o of others) assert.equal(isIntelligenceFlagEnabled(o), false, `${o} leaked on when only ${key} set`);
+      for (const o of others) assert.equal(isIntelligenceFlagEnabled(o), expectedDefault(o), `${o} changed when only ${key} set`);
     }
   });
 

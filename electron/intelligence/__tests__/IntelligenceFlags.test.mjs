@@ -32,6 +32,10 @@ const ALL_FLAG_KEYS = [
   'meetingNotesStructuredOutput', 'meetingSummaryLlmPolish', 'speakerDiarizationV1',
   'globalSearchV2', 'inMeetingSearchV2', 'conversationMemoryV2', 'lectureIntelligenceV2', 'diagramIntelligence',
   'hindsightMemory', 'hindsightLiveRecall', 'hindsightPostMeetingRetain',
+  // Coding Assistant + Competitive Edge flags (added to FLAGS without updating this
+  // list — drift fixed 2026-09-06):
+  'repoIndexer', 'codeExplain', 'codeGenerate', 'codeReview', 'codeRefactor',
+  'testGeneration', 'sandboxExec', 'opencodeIntegration', 'proactiveMode', 'personalMemory',
 ];
 
 const DEFAULT_ON_KEYS = new Set([
@@ -40,6 +44,13 @@ const DEFAULT_ON_KEYS = new Set([
   'followUpDraftV2',
   'speakerLabelsV1',
   'meetingSummaryLlmPolish',
+  // Ships ON by default (product decision 2026-09-06) — see intelligenceFlags.ts comments:
+  'durableMemoryWindow',
+  'meetingMemoryV2',
+  'globalSearchV2',
+  // Pre-existing default-ON flags that were missing from this pin set (drift fixed 2026-09-06):
+  'proactiveMode',
+  'personalMemory',
 ]);
 
 const expectedDefault = (key) => DEFAULT_ON_KEYS.has(key) ? true : false;
@@ -55,7 +66,7 @@ describe('intelligenceFlags', () => {
 
   test('every flag resolves to its documented default', () => {
     assert.equal(isIntelligenceTraceEnabled(), false);
-    assert.equal(isDurableMemoryWindowEnabled(), false);
+    assert.equal(isDurableMemoryWindowEnabled(), true); // ships ON (product decision 2026-09-06)
     assert.equal(isIntelligenceOsEnabled(), false);
     for (const key of ALL_FLAG_KEYS) {
       assert.equal(isIntelligenceFlagEnabled(key), expectedDefault(key), `flag ${key} default mismatch`);
@@ -115,7 +126,7 @@ describe('intelligenceFlags', () => {
     __resetIntelligenceFlagsCache();
     const snap1 = intelligenceFlagSnapshot();
     assert.equal(snap1.trace, true);
-    assert.equal(snap1.durableMemoryWindow, false);
+    assert.equal(snap1.durableMemoryWindow, true); // default ON; env only flipped trace
   });
 
   test('reads defensively — never throws when settings unavailable', () => {

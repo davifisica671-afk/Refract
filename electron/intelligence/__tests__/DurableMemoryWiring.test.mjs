@@ -134,19 +134,19 @@ describe('SessionTracker: durable vs evicted memory window (source-level)', () =
   });
 });
 
-describe('durableMemoryWindow flag: flips the source, defaults OFF, fresh read', () => {
+describe('durableMemoryWindow flag: flips the source, ships ON, fresh read', () => {
   beforeEach(clearEnv);
   afterEach(clearEnv);
 
-  test('defaults OFF (current getContext path preserved until opted in)', () => {
-    assert.equal(isDurableMemoryWindowEnabled(), false);
+  test('defaults ON (product decision 2026-09-06 — fixes the 120s follow-up eviction bug)', () => {
+    assert.equal(isDurableMemoryWindowEnabled(), true);
   });
 
-  test('REFRACT_DURABLE_MEMORY_WINDOW=1 enables it (fresh env read, no cache)', () => {
-    process.env.REFRACT_DURABLE_MEMORY_WINDOW = '1';
-    assert.equal(isDurableMemoryWindowEnabled(), true, 'env=1 must enable the durable window');
+  test('REFRACT_DURABLE_MEMORY_WINDOW=0 disables it (fresh env read, no cache)', () => {
+    process.env.REFRACT_DURABLE_MEMORY_WINDOW = '0';
+    assert.equal(isDurableMemoryWindowEnabled(), false, 'env=0 must disable the durable window');
     delete process.env.REFRACT_DURABLE_MEMORY_WINDOW;
-    assert.equal(isDurableMemoryWindowEnabled(), false, 'removing the env var must flip back OFF without any cache reset');
+    assert.equal(isDurableMemoryWindowEnabled(), true, 'removing the env var must flip back to the ON default without any cache reset');
   });
 
   test('END-TO-END (source-level): the flag genuinely selects which method the engine ternary would call', () => {
@@ -158,11 +158,12 @@ describe('durableMemoryWindow flag: flips the source, defaults OFF, fresh read',
     const pickSource = () =>
       isDurableMemoryWindowEnabled() ? s.getDurableContext(WINDOW) : s.getContext(WINDOW);
 
-    // Flag Fora → getContext → entity Não recalled (today's behavior).
-    assert.equal(pickSource().some((i) => i.text.includes(PROJECT)), false, 'flag OFF must reproduce the bug (no long-range recall)');
+    // Legacy path (flag OFF via env) → getContext → entity não recalled (o bug histórico).
+    process.env.REFRACT_DURABLE_MEMORY_WINDOW = '0';
+    assert.equal(pickSource().some((i) => i.text.includes(PROJECT)), false, 'legacy path (flag off) must reproduce the bug (no long-range recall)');
 
-    // Flag Em → getDurableContext → entity recalled (o fix).
-    process.env.REFRACT_DURABLE_MEMORY_WINDOW = '1';
-    assert.equal(pickSource().some((i) => i.text.includes(PROJECT)), true, 'flag ON must recall the long-range entity');
+    // Default (flag ON) → getDurableContext → entity recalled (o fix).
+    delete process.env.REFRACT_DURABLE_MEMORY_WINDOW;
+    assert.equal(pickSource().some((i) => i.text.includes(PROJECT)), true, 'default (durable) must recall the long-range entity');
   });
 });
