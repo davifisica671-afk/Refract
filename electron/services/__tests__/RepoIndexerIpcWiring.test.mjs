@@ -35,8 +35,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../../..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('get-setting / set-setting / dialog:selectFolder handlers are registered in ipcHandlers.ts', () => {
-  const source = read('electron/ipcHandlers.ts');
+test('get-setting / set-setting / dialog:selectFolder handlers are registered in settingsPassthroughHandlers.ts', () => {
+  const source = read('electron/ipc/settingsPassthroughHandlers.ts');
 
   assert.ok(findSafeHandle(source, 'get-setting') >= 0, 'get-setting handler must be registered');
   assert.ok(findSafeHandle(source, 'set-setting') >= 0, 'set-setting handler must be registered');
@@ -44,7 +44,7 @@ test('get-setting / set-setting / dialog:selectFolder handlers are registered in
 });
 
 test('get-setting / set-setting are whitelist-guarded to repoIndexerPath', () => {
-  const source = read('electron/ipcHandlers.ts');
+  const source = read('electron/ipc/settingsPassthroughHandlers.ts');
 
   // The generic settings passthrough must never expose arbitrary keys. The only
   // key allowed today is the coding-assistant repo path.
@@ -65,7 +65,7 @@ test('get-setting / set-setting are whitelist-guarded to repoIndexerPath', () =>
 });
 
 test('dialog:selectFolder opens a directory picker and returns a single path', () => {
-  const block = sliceSafeHandleBlock(read('electron/ipcHandlers.ts'), 'dialog:selectFolder');
+  const block = sliceSafeHandleBlock(read('electron/ipc/settingsPassthroughHandlers.ts'), 'dialog:selectFolder');
 
   assert.match(block, /dialog\.showOpenDialog\(/, 'must use the native open dialog');
   assert.match(block, /properties:\s*\[\s*['"]openDirectory['"]\s*\]/, 'must be a folder (openDirectory) picker');
