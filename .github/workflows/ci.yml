@@ -86,6 +86,20 @@ jobs:
       - name: IPC contract drift gate (blocking)
         run: npm run ipc:registry:check
 
+      # Lint + format the clean surface (electron/ipc/ contract modules and the
+      # registry/stub scripts) as a blocking gate. New code that lands in these
+      # paths must be lint-clean; legacy code elsewhere is grandfather-cheated
+      # via the advisory full-repo lint below.
+      - name: Lint & format — clean surface (blocking)
+        run: npm run lint:contracts && npm run format:contracts:check
+
+      # Advisory: full-repo lint baseline. Reports the legacy error count; does
+      # not fail the build until the baseline is paid down. New warnings/errors
+      # should not be introduced in reviews.
+      - name: Lint — full repo (advisory)
+        run: npm run lint
+        continue-on-error: true
+
       # Advisory: 21 falhas pré-existentes (validado em Windows/Node 24) —
       # ver cabeçalho do arquivo. Verificar se o número cresce em reviews.
       - name: Unit tests — LLM tier (advisory)

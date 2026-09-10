@@ -81,7 +81,7 @@ export function collect(src, re) {
 /** List every electron TS/MJS source file (excluding tests, dist, node_modules). */
 export function listElectronFiles() {
   const out = [];
-  const walk = dir => {
+  const walk = (dir) => {
     const entries = fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name));
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
@@ -106,7 +106,10 @@ export function scanIpcSurface() {
   const mainOn = new Map();
   const mainSend = new Map();
 
-  const handleRe = new RegExp(`(?:safeHandle|ipcMain\\.handle|registerStealthHandler)\\s*\\(\\s*['"](${CHANNEL})['"]`, 'g');
+  const handleRe = new RegExp(
+    `(?:safeHandle|ipcMain\\.handle|registerStealthHandler)\\s*\\(\\s*['"](${CHANNEL})['"]`,
+    'g',
+  );
   const onRe = new RegExp(`(?:safeOn|ipcMain\\.on)\\s*\\(\\s*['"](${CHANNEL})['"]`, 'g');
   const sendRe = new RegExp(`\\.send\\(\\s*['"](${CHANNEL})['"]`, 'g');
 

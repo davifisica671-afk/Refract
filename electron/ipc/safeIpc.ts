@@ -18,7 +18,4 @@ export type SafeHandle = (
 ) => void;
 
 /** Narrow, idempotent ipcMain.on wrapper (remove-all-listeners-then-listen). */
-export type SafeOn = (
-  channel: IpcSendChannel,
-  listener: (event: any, ...args: any[]) => void,
-) => void;
+export type SafeOn = (channel: IpcSendChannel, listener: (event: any, ...args: any[]) => void) => void;

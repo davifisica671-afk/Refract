@@ -22,14 +22,23 @@ export function registerGitHandlers(safeHandle: SafeHandle): void {
     try {
       return await gitService.getStatus();
     } catch (err: any) {
-      return { error: err?.message || 'Git status failed', branch: '', ahead: 0, behind: 0, files: [], isDirty: false, isRebase: false, isMerge: false };
+      return {
+        error: err?.message || 'Git status failed',
+        branch: '',
+        ahead: 0,
+        behind: 0,
+        files: [],
+        isDirty: false,
+        isRebase: false,
+        isMerge: false,
+      };
     }
   });
 
   safeHandle('git:diff', async (_event, filePath?: string) => {
     try {
       return await gitService.getDiff(filePath);
-    } catch (err: any) {
+    } catch {
       return [];
     }
   });
@@ -37,7 +46,7 @@ export function registerGitHandlers(safeHandle: SafeHandle): void {
   safeHandle('git:log', async (_event, count?: number) => {
     try {
       return await gitService.getLog(count || 20);
-    } catch (err: any) {
+    } catch {
       return [];
     }
   });
@@ -49,7 +58,7 @@ export function registerGitHandlers(safeHandle: SafeHandle): void {
   safeHandle('git:branches', async () => {
     try {
       return await gitService.getBranches();
-    } catch (err: any) {
+    } catch {
       return [];
     }
   });
@@ -85,7 +94,7 @@ export function registerGitHandlers(safeHandle: SafeHandle): void {
   safeHandle('git:repo-name', async () => {
     try {
       return await gitService.getRepoName();
-    } catch (err: any) {
+    } catch {
       return 'unknown';
     }
   });
