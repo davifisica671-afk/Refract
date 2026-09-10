@@ -79,6 +79,13 @@ jobs:
       - name: Unit tests — renderer tier (blocking)
         run: node --test "src/lib/__tests__/**/*.test.mjs"
 
+      # Pure source-scanning tests (no build, no deps): enforce the canonical
+      # IPC channel registry against the live code and pin the repo-indexer
+      # wiring. Fails if a channel is added/removed without regenerating
+      # electron/ipc/ipcChannels.mjs (node scripts/gen-ipc-registry.mjs).
+      - name: IPC contract drift gate (blocking)
+        run: npm run ipc:registry:check
+
       # Advisory: 21 falhas pré-existentes (validado em Windows/Node 24) —
       # ver cabeçalho do arquivo. Verificar se o número cresce em reviews.
       - name: Unit tests — LLM tier (advisory)
