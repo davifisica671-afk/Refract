@@ -98,10 +98,17 @@ import { InterviewCoachLLM } from './llm/InterviewCoachLLM';
 import { LanguageLearningLLM } from './llm/LanguageLearningLLM';
 import { isAssistantIdentityQuestion, profileFactsReady } from './llm/manualProfileIntelligence';
 import { buildManualProfileBackendAnswer } from './llm/profileAnswerBackend';
+import type { IpcInvokeChannel, IpcSendChannel } from './ipc/ipcChannels';
 
 export function initializeIpcHandlers(appState: AppState): void {
+  // safeHandle / safeOn are the typed gateway for every channel this file
+  // registers. Their channel parameters are constrained to the generated
+  // IpcInvokeChannel / IpcSendChannel unions (electron/ipc/ipcChannels.ts),
+  // so a typo'd channel name fails typecheck instead of registering a handler
+  // the renderer can never reach. Keep the unions in sync with the code by
+  // running `npm run ipc:registry:gen` after adding/renaming a channel.
   const safeHandle = (
-    channel: string,
+    channel: IpcInvokeChannel,
     listener: (event: any, ...args: any[]) => Promise<any> | any,
   ) => {
     ipcMain.removeHandler(channel);
@@ -109,7 +116,7 @@ export function initializeIpcHandlers(appState: AppState): void {
   };
 
   const safeOn = (
-    channel: string,
+    channel: IpcSendChannel,
     listener: (event: any, ...args: any[]) => void,
   ) => {
     ipcMain.removeAllListeners(channel);

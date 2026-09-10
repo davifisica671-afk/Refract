@@ -22,9 +22,16 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { IPC_CHANNELS } from '../../ipc/ipcChannels.mjs';
 import { scanIpcSurface, buildRegistryRecords } from '../../ipc/ipcScan.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(__dirname, '../../..');
+const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 
 const REGEN_HINT = '\nRun `node scripts/gen-ipc-registry.mjs` to regenerate the registry.';
 
@@ -78,4 +85,40 @@ test('every non-orphan invoke channel has a registered handler', () => {
   // explicitly so a NEW missing handler cannot hide behind it.
   assert.deepStrictEqual(missingHandlers, ['toggle-advanced-settings'],
     `invoke channels with no handler (beyond the known toggle-advanced-settings): ${missingHandlers.join(', ')}`);
+});
+
+// ---------------------------------------------------------------------------
+// Compile-time contracts (electron/ipc/ipcChannels.ts)
+// ---------------------------------------------------------------------------
+
+/** Extract the string-literal members of a named union type from ipcChannels.ts. */
+function unionMembersOf(tsSource, typeName) {
+  const m = tsSource.match(new RegExp(`export type ${typeName} =\\n([\\s\\S]*?);`));
+  if (!m) return [];
+  return [...m[1].matchAll(/["']([a-zA-Z0-9:./_-]+)["']/g)].map(x => x[1]).sort();
+}
+
+test('ipcChannels.ts type unions exactly match the registry names', () => {
+  const tsSource = read('electron/ipc/ipcChannels.ts');
+
+  for (const [typeName, kind] of [['IpcInvokeChannel', 'invoke'], ['IpcSendChannel', 'send'], ['IpcEventChannel', 'event']]) {
+    const inTs = unionMembersOf(tsSource, typeName);
+    const inRegistry = IPC_CHANNELS.filter(r => r.kind === kind).map(r => r.name).sort();
+    assert.deepStrictEqual(inTs, inRegistry,
+      `${typeName} differs from the registry '${kind}' names (run \`node scripts/gen-ipc-registry.mjs\`)`);
+  }
+});
+
+test('safeHandle / safeOn / registerStealthHandler are typed against the generated unions', () => {
+  const ipc = read('electron/ipcHandlers.ts');
+  const main = read('electron/main.ts');
+
+  assert.match(ipc, /import type \{[^}]*IpcInvokeChannel[^}]*IpcSendChannel[^}]*\} from ['"]\.\/ipc\/ipcChannels['"]/,
+    'ipcHandlers must import the invoke/send channel types');
+  assert.match(ipc, /const safeHandle = \(\s*channel: IpcInvokeChannel,/, 'safeHandle must type its channel param');
+  assert.match(ipc, /const safeOn = \(\s*channel: IpcSendChannel,/, 'safeOn must type its channel param');
+
+  assert.match(main, /import type \{ IpcInvokeChannel \} from ['"]\.\/ipc\/ipcChannels['"]/,
+    'main must import the invoke channel type');
+  assert.match(main, /const registerStealthHandler = \(channel: IpcInvokeChannel,/, 'registerStealthHandler must type its channel param');
 });

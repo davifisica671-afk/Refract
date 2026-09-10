@@ -58,6 +58,7 @@ import fs from "fs"                      // Sistema de arquivos (leitura/escrita
 import dns from "dns"                    // Resolução DNS (hack global abaixo)
 import { SystemAudioHealthClassifier } from "./audio/systemAudioHealthClassifier.mjs" // Classificador de saúde do áudio do sistema
 import { autoUpdater } from "electron-updater" // Atualizador automático do app
+import type { IpcInvokeChannel } from "./ipc/ipcChannels" // Contrato de canais IPC (gerado)
 
 /**
  * HACK CRÍTICO: Sobrescrever dns.lookup global para resolver problemas do resolvedor
@@ -822,7 +823,7 @@ export class AppState {
     // lançamento em instância única — o `ipcMain.handle` lança erro em registro
     // duplicado, que se propagaria como rejeição IPC do renderer e
     // silenciosamente deixaria isCgEventTapAvailableRef não padrão seguro-falso.
-    const registerStealthHandler = (channel: string, fn: (...args: any[]) => any) => {
+    const registerStealthHandler = (channel: IpcInvokeChannel, fn: (...args: any[]) => any) => {
       ipcMain.removeHandler(channel);
       ipcMain.handle(channel, fn);
       this._registeredHandlerChannels.push(channel);
