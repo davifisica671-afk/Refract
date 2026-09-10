@@ -1,4 +1,4 @@
-﻿import { app } from 'electron';
+import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
@@ -19,6 +19,11 @@ export interface AppSettings {
     codexCliSandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access';
     codexCliServiceTier?: 'default' | 'fast' | 'flex';
     codexCliModelReasoningEffort?: 'low' | 'medium' | 'high' | 'xhigh';
+    // Local repository path chosen in the Dev Dashboard for the coding-assistant
+    // repo indexer (repo-index:scan / repo-index:query). Persisted so the folder
+    // selection survives restarts. Read/written via the get-setting / set-setting
+    // IPC handlers below (whitelisted settings surface exposed to the renderer).
+    repoIndexerPath?: string;
     // Hindsight long-term memory servidor (optional, user-provisioned sidecar — Cloud Ou
     // local). baseUrl vazio por padrão → feature ofora Env (HINDSIGHT_BASE_URL) sobrescreve
     // these para dev. apiKey apenas para Hindsight Cloud. autoStart/serverCommand reserved para
