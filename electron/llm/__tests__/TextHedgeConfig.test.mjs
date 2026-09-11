@@ -95,7 +95,7 @@ describe('Gemini text cascade (replaces the old flash→flash-lite hedge)', () =
     assert.equal(selectStartIndex(FLASH), 1);
     assert.equal(selectStartIndex(PRO), 2);
     // Default / unknown / non-Gemini fall-through → completo ladder (inicia 0).
-    assert.equal(selectStartIndex('natively'), 0);
+    assert.equal(selectStartIndex('refract'), 0);
     assert.equal(selectStartIndex(undefined), 0);
   });
 

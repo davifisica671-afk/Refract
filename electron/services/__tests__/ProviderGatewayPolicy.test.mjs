@@ -69,7 +69,7 @@ test('LLMHelper guards every outbound provider with assertOutboundScopes', () =>
     "this.assertOutboundScopes('openai'",
     "this.assertOutboundScopes('claude'",
     "this.assertOutboundScopes('gemini'",
-    "this.assertOutboundScopes('natively'",
+    "this.assertOutboundScopes('refract'",
     "this.assertOutboundScopes('custom_curl'",
     "this.assertOutboundScopes('custom_provider'",
   ]) {

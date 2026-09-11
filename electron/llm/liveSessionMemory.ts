@@ -13,7 +13,7 @@
 // unit tests (LiveSessionMemory2026_06_07c) pin this.
 //
 // Pure logic sobre o dados o caller já tem — não I/O, não LLM. Privacy: logs
-// (quando NATIVELY_SESSION_MEMORY_DEBUG=true) são MARKER-ONLY (kinds + counts), nunca
+// (quando REFRACT_SESSION_MEMORY_DEBUG=true) são MARKER-ONLY (kinds + counts), nunca
 // raw entity/transcript content.
 
 import { SessionMemory, type MemoryMode } from './SessionMemory';

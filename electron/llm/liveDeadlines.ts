@@ -25,7 +25,7 @@ export const LIVE_FIRST_USEFUL_BUDGET_MS = {
  * Hard cap em o Primeiro útil token de o provedor antes we aabortar
  *
  * 7000ms, Não 3500ms. MiniMax (o forte alternativa quando o Gemini chain é abaixo —
- * see natively-api lib/minimaxProvider.js) tem a 4-6s first-token latency; a 3500ms
+ * see refract-api lib/minimaxProvider.js) tem a 4-6s first-token latency; a 3500ms
  * cap aborted todo MiniMax stream antes it produced a ttoken então o alternativa poderia
  * nunca serve a live answer. Raising o cap é near-free em healthy responses: this
  * deadline apenas FIRES quando a provedor é genuinely lento para first-token — a healthy

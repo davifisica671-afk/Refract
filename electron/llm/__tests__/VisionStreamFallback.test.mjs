@@ -312,7 +312,7 @@ describe('runStreamingVisionFallback — commit point + fallback', () => {
     // Provedor takes ~80ms to primeiro ttoken cfg default é 40ms (iria ababortar
     // mas o provedor declares its próprio 5000ms budget → precisa commit, não fail osobre
     const slowButAllowed = okProvider('gemini_pro', ['pro-answer'], { firstDelayMs: 80, ttftTimeoutMs: 5_000 });
-    const backup = okProvider('natively', ['backup']);
+    const backup = okProvider('refract', ['backup']);
     const cfg = { ...CFG, maxAttempts: 1, ttftTimeoutMs: 40 };
     // real timers então o 80ms atrasar actually elapses contra o 5000ms budget
     const out = await collect(runStreamingVisionFallback([slowButAllowed, backup], cfg, new Map(),

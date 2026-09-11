@@ -14,7 +14,7 @@ spaces returns semantically random similarity with no error.
 
 | System | Stores vectors? | Re-embedding needed? |
 |---|---|---|
-| **Server** (`natively-api`) | **No** — `/v1/embed` is a stateless proxy | **None.** Switching the server model has no stored-vector consequences. |
+| **Server** (`refract-api`) | **No** — `/v1/embed` is a stateless proxy | **None.** Switching the server model has no stored-vector consequences. |
 | **Desktop app** | Yes — local SQLite per install | Handled automatically & lazily (below). |
 
 → **There is no server-side re-embedding task.** The only vectors that exist are in
@@ -54,9 +54,9 @@ The desktop "rollout" is per-install and self-pacing — no fleet coordination n
 
 ## Rollback strategy
 
-- **Desktop:** set `NATIVELY_GEMINI_EMBED_MODEL=gemini-embedding-001` (+ `NATIVELY_GEMINI_EMBED_DIMS=768`).
+- **Desktop:** set `REFRACT_GEMINI_EMBED_MODEL=gemini-embedding-001` (+ `REFRACT_GEMINI_EMBED_DIMS=768`).
   The active space flips back to v1; the index re-aligns to v1 the same lazy way. No rebuild.
-- **Server:** set `NATIVELY_EMBED_PRIMARY=gemini-embedding-001` (fallback already 001), or
+- **Server:** set `REFRACT_EMBED_PRIMARY=gemini-embedding-001` (fallback already 001), or
   set `ENABLE_LEGACY_TEXT_EMBEDDING_004=true` if Google re-enables 004. No redeploy needed
   for the env flip; revert the commit for a full rollback. Server stores nothing, so rollback
   is instant and consequence-free.

@@ -6,7 +6,7 @@
 `docs/00b-pre-migration-review-findings.md` (MUST-PRESERVE §1–12, MUST-FIX F1–F17),
 `docs/01-target-stt-relay-architecture.md` (§3 relay responsibilities, §7 token, §9 health, §11 cost guards),
 `docs/02-stt-core-extraction.md` (the core modules this service consumes — used, not re-implemented),
-`natively-api/server.js` `/v1/transcribe` handler (~4186–6564) — orchestration semantics replicated.
+`refract-api/server.js` `/v1/transcribe` handler (~4186–6564) — orchestration semantics replicated.
 
 **One-sentence summary:** A deployable Node ≥20 Fastify + `ws` relay that verifies a
 short-lived HMAC session token offline, runs the exact `/v1/transcribe` client
@@ -22,7 +22,7 @@ SIGTERM drain — installable and runnable independently of the Railway monolith
 services/stt-relay/
 ├── package.json            # deps: fastify^4, @fastify/websocket^9, ws^8,
 │                           #       @supabase/supabase-js^2, undici^8, dotenv;
-│                           #       @natively/stt-relay-core via file:../../packages/…
+│                           #       @refract/stt-relay-core via file:../../packages/…
 │                           #       @google-cloud/speech optional
 ├── .env.example            # every env var, commented, placeholders, NO secrets
 ├── README.md               # run instructions

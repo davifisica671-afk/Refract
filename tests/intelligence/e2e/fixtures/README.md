@@ -3,7 +3,7 @@
 ## Profile-owner fixture (the 1000-question + per-mode runs)
 
 The real-backend harness (`benchmarks/profile-intelligence/harness.cjs`) opens a **safe copy** of
-the live `natively.db` (the real uploaded résumé + JD, structured by the production
+the live `refract.db` (the real uploaded résumé + JD, structured by the production
 `KnowledgeOrchestrator`). This is the faithful single-profile fixture: the answer path grounds on the
 same profile a real user would have after uploading. The benchmark never mutates the live DB (it works
 on a temp copy) and never persists raw PII (answers are redacted before disk; leak checks run

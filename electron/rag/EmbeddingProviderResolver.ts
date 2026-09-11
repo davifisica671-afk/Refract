@@ -72,11 +72,11 @@ export class EmbeddingProviderResolver {
     if (config.geminiKey) {
       try {
         assertProviderDataScopes('gemini_embeddings', ['embeddings'], config.providerDataScopes);
-        // Rollback lever: NATIVELY_GEMINI_EMBED_MODEL / _DIMS env vars pin o modelo
+        // Rollback lever: REFRACT_GEMINI_EMBED_MODEL / _DIMS env vars pin o modelo
         // sem a rebuild (e.g. voltar para 'gemini-embedding-001' @ 768 em an incident).
         // Explicit configuração sobrescreve take precedence sobre env, que sobrescreve o v2 default.
-        const envModel = process.env.NATIVELY_GEMINI_EMBED_MODEL;
-        const envDims = process.env.NATIVELY_GEMINI_EMBED_DIMS ? Number(process.env.NATIVELY_GEMINI_EMBED_DIMS) : undefined;
+        const envModel = process.env.REFRACT_GEMINI_EMBED_MODEL;
+        const envDims = process.env.REFRACT_GEMINI_EMBED_DIMS ? Number(process.env.REFRACT_GEMINI_EMBED_DIMS) : undefined;
         candidates.push(new GeminiEmbeddingProvider(
           config.geminiKey,
           config.geminiEmbeddingModel ?? envModel,

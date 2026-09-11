@@ -34,7 +34,7 @@ import { HindsightTagBuilder } from '../../../dist-electron/electron/intelligenc
 // (esbuild bundle:true), and that módulo lê env FRESH em todo call (não cache to reinicia
 // através bundle boundaries). Então an env sobrescrever é o reliable, bundle-agnostic way to
 // flip o hindsightMemory flag para o compiled serviço sob ttestar
-const HINDSIGHT_MEMORY_ENV = 'NATIVELY_HINDSIGHT_MEMORY';
+const HINDSIGHT_MEMORY_ENV = 'REFRACT_HINDSIGHT_MEMORY';
 function clearFlag() { delete process.env[HINDSIGHT_MEMORY_ENV]; }
 
 describe('Phase 13 — fromFlags is Noop unless flag ON + baseUrl + client installed', () => {

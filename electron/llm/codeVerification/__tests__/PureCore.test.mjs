@@ -127,7 +127,7 @@ describe('buildDriver + parseDriverResult', () => {
     assert.equal(d.localCmd, 'python3');
     assert.equal(d.ext, 'py');
     assert.match(d.source, /def f\(x\)/);
-    assert.match(d.source, /NATIVELY_TC/);
+    assert.match(d.source, /REFRACT_TC/);
     assert.match(d.source, new RegExp(RESULT_SENTINEL_START.replace(/\$/g, '\\$')));
   });
   test('javascript driver supports bare fn and Solution class', () => {

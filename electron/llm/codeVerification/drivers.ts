@@ -8,16 +8,16 @@
 // introduce bugs dentro de o thing sob ttestar
 //
 // Design choices:
-//   - Args come via an env var (NATIVELY_TC), Não interpolated dentro de sfonte então a
+//   - Args come via an env var (REFRACT_TC), Não interpolated dentro de sfonte então a
 //     testar entrada pode nunca break fora dentro de código (não injection, não quoting bugs).
 //   - O result é printed entre RESULT_SENTINEL markers então arbitrary user
 //     prints (depurar osaída don't confuse o judge.
 
 import type { TestCase, VerifyLanguage } from './types';
 
-export const RESULT_SENTINEL_START = '__NATIVELY_RESULT_START__';
-export const RESULT_SENTINEL_END = '__NATIVELY_RESULT_END__';
-export const TC_ENV = 'NATIVELY_TC';
+export const RESULT_SENTINEL_START = '__REFRACT_RESULT_START__';
+export const RESULT_SENTINEL_END = '__REFRACT_RESULT_END__';
+export const TC_ENV = 'REFRACT_TC';
 
 export interface Driver {
   /** Completo fonte para escreve para a temp arquivo e eexecuta */
@@ -63,7 +63,7 @@ export const isLocallyRunnable = (lang: VerifyLanguage): boolean => LOCAL_LANGUA
 
 /**
  * Build a driver que executa `entry` contra o SINGLE case cujo `input` array
- * é supplied para o processo via o NATIVELY_TC env var (JSON-encoded). One
+ * é supplied para o processo via o REFRACT_TC env var (JSON-encoded). One
  * processo por case keeps a crashing/looping case de poisoning o others and
  * makes o tempo limite per-case.
  */
@@ -226,7 +226,7 @@ function __natFromTree(root){ const out=[]; const q=root?[root]:[]; while(q.leng
 function __natDecode(v,h){ return h==='list'?__natToList(v):h==='tree'?__natToTree(v):v; }
 function __natEncode(v,h){ return h==='list'?__natFromList(v):h==='tree'?__natFromTree(v):v; }
 
-(function __nativelyMain() {
+(function __refractMain() {
   let args = JSON.parse(process.env[${JSON.stringify(TC_ENV)}] || '[]');
   const at = __HINTS.argTypes || [];
   args = args.map((a,i) => __natDecode(a, at[i] || 'value'));

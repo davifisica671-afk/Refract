@@ -17,7 +17,7 @@ vectors protected from being compared against new-model query vectors?
 
 ## Where 768 / 3072 appear
 
-### Server (`natively-api/server.js`)
+### Server (`refract-api/server.js`)
 | Location | Value | Role |
 |---|---|---|
 | `callEmbedModel` body | `outputDimensionality: 768` | All server embeds truncated to 768 |
@@ -58,5 +58,5 @@ are caught structurally, but the `outputDimensionality: 768` parameter must rema
 This is enforced in the server fix (Phase 4) and is already explicit in the desktop provider.
 
 ## Affected files (for migration)
-- **Server:** `natively-api/server.js` (`getEmbedding`, `callEmbedModel`) — model name only; dims stay 768.
+- **Server:** `refract-api/server.js` (`getEmbedding`, `callEmbedModel`) — model name only; dims stay 768.
 - **Desktop:** already migrated (default `gemini-embedding-2 @ 768`); no dimension change.

@@ -90,7 +90,7 @@ const electronStub = {
   app: {
     isReady: () => true,
     getPath: name => (name === 'userData' ? tmpUserData : os.tmpdir()),
-    getName: () => 'natively-test',
+    getName: () => 'refract-test',
     getVersion: () => '0.0.0-test',
   },
   shell: { openPath: async () => '' },

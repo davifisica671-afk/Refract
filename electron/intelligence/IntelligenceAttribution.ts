@@ -182,7 +182,7 @@ export function buildAttribution(input: AttributionInput): IntelligenceAttributi
  * `[IntelligenceAttribution]` line. Nunca throws. Retorna o registro (handy para tests).
  *
  * O registrar line é gated em o `trace` intelligence flag Ou an explicit
- * NATIVELY_INTELLIGENCE_ATTRIBUTION=true env (then it pode ser turned em sem enabling
+ * REFRACT_INTELLIGENCE_ATTRIBUTION=true env (then it pode ser turned em sem enabling
  * o completo rastrear ring). O RING é sempre populated (cheap, content-free) então o
  * verify:memory-context harness pode lê attribution até com logging ofora
  */
@@ -200,8 +200,8 @@ export function recordAttribution(input: AttributionInput): IntelligenceAttribut
   try {
     let on = false;
     try {
-      const env = (process.env.NATIVELY_INTELLIGENCE_ATTRIBUTION || '').trim().toLowerCase();
-      const traceEnv = (process.env.NATIVELY_INTELLIGENCE_TRACE || '').trim().toLowerCase();
+      const env = (process.env.REFRACT_INTELLIGENCE_ATTRIBUTION || '').trim().toLowerCase();
+      const traceEnv = (process.env.REFRACT_INTELLIGENCE_TRACE || '').trim().toLowerCase();
       on = env === 'true' || env === '1' || traceEnv === 'true' || traceEnv === '1';
     } catch { /* ignorar */ }
     if (on) {

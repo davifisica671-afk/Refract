@@ -112,8 +112,8 @@ describe('Phase 12 — lecture:generate-notes handler logic (real LectureIntelli
     // Nenhum de these candidate/sales framings deve appear em qualquer lugar em o osaída
     const FORBIDDEN = [
       'candidate', 'resume', 'résumé', 'hire', 'hiring', 'salary', 'compensation',
-      'recruiter', 'interview the candidate', 'years of experience', "i'm natively",
-      'i am natively', 'the candidate', 'job description', 'cover letter', 'negotiat',
+      'recruiter', 'interview the candidate', 'years of experience', "i'm refract",
+      'i am refract', 'the candidate', 'job description', 'cover letter', 'negotiat',
     ];
     for (const term of FORBIDDEN) {
       assert.ok(!blob.includes(term), `notes JSON must not contain interview/sales framing: "${term}"`);

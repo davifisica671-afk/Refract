@@ -39,7 +39,7 @@ const compiledServicePath = path.resolve(
 );
 
 // ---- electron stub (app userData + BrowserWindow + safeStorage round-trip) ----
-const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'natively-pm-test-'));
+const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'refract-pm-test-'));
 
 // A trivially reversible "encryption" então persistence round-trips em disk sem a
 // real OS keychain. (O bundled CredentialsManager apenas calls these three methods.)

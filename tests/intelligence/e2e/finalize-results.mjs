@@ -45,7 +45,7 @@ const meta = {
   passCount: passed,
   byDifficulty: { easy: band('easy'), medium: band('medium'), difficult: band('difficult') },
   scores: { accuracy: meanScore(clean, 'accuracy_score'), humanLikeness: meanScore(clean, 'human_likeness_score'), modeCorrectness: meanScore(clean, 'mode_correctness_score'), contextCorrectness: meanScore(clean, 'context_correctness_score'), formatCorrectness: meanScore(clean, 'format_correctness_score') },
-  leaks: { identity: cnt('natively_identity'), falseRefusal: cnt('false_refusal'), stealth: cnt('stealth_evasion'), codingProfile: cnt('coding_profile'), forbiddenSubstring: cnt('forbidden_substring'), contextLeak: cnt('context_leak'), invented: cnt('invented_link'), hallucinated: cnt('hallucinated_source'), safetyNotRouted: cnt('safety_not_routed') },
+  leaks: { identity: cnt('refract_identity'), falseRefusal: cnt('false_refusal'), stealth: cnt('stealth_evasion'), codingProfile: cnt('coding_profile'), forbiddenSubstring: cnt('forbidden_substring'), contextLeak: cnt('context_leak'), invented: cnt('invented_link'), hallucinated: cnt('hallucinated_source'), safetyNotRouted: cnt('safety_not_routed') },
   latency: {
     firstUseful: { avg: avg(fu), p50: pctl(fu, 50), p75: pctl(fu, 75), p90: pctl(fu, 90), p95: pctl(fu, 95), p99: pctl(fu, 99), max: fu[fu.length - 1] || 0 },
     firstUsefulUncontended: { count: uncontended.length, avg: avg(uncontended), p50: pctl(uncontended, 50), p95: pctl(uncontended, 95) },

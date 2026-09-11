@@ -15,11 +15,11 @@ isn't justified yet. The relay infrastructure is a future investment that stays 
 
 | File | Change |
 |------|--------|
-| `natively-api/server.js` | **Additive only (726 insertions, 0 deletions).** Added the `STT_EXTERNAL_RELAY_ENABLED` master flag, seeded it into `sttRelayRuntime`, gated `selectRelay` behind it (OFF → forced `target:'railway'`), gated background `/healthz` probing behind it, exposed it in `/v1/stt/relays` + `/admin/stt-relays`, and made it runtime-flippable via `/admin/stt-relays/control`. |
-| `natively-api/tests/stt-external-relay-bypass.test.mjs` | **NEW** — 11 tests proving the bypass (offline source checks + live integration: OFF→Railway, ON→relay). |
-| `natively-api/tests/stt-session-endpoint.test.mjs` | `RELAY_ENV` now sets `STT_EXTERNAL_RELAY_ENABLED:'true'` (these tests exercise relay routing). |
-| `natively-api/tests/stt-relays-routes.test.mjs` | Same `RELAY_ENV` addition + updated the admin-shape + source assertions for the new flag. |
-| `natively-api/tests/stt-quota-lease.test.mjs` | Same `RELAY_ENV` addition (the lease only applies to relay sessions). |
+| `refract-api/server.js` | **Additive only (726 insertions, 0 deletions).** Added the `STT_EXTERNAL_RELAY_ENABLED` master flag, seeded it into `sttRelayRuntime`, gated `selectRelay` behind it (OFF → forced `target:'railway'`), gated background `/healthz` probing behind it, exposed it in `/v1/stt/relays` + `/admin/stt-relays`, and made it runtime-flippable via `/admin/stt-relays/control`. |
+| `refract-api/tests/stt-external-relay-bypass.test.mjs` | **NEW** — 11 tests proving the bypass (offline source checks + live integration: OFF→Railway, ON→relay). |
+| `refract-api/tests/stt-session-endpoint.test.mjs` | `RELAY_ENV` now sets `STT_EXTERNAL_RELAY_ENABLED:'true'` (these tests exercise relay routing). |
+| `refract-api/tests/stt-relays-routes.test.mjs` | Same `RELAY_ENV` addition + updated the admin-shape + source assertions for the new flag. |
+| `refract-api/tests/stt-quota-lease.test.mjs` | Same `RELAY_ENV` addition (the lease only applies to relay sessions). |
 
 **Client (Electron): intentionally NOT changed.** The server-side switch is authoritative — when
 external relays are off, `/v1/stt/session` returns the Railway URL as `relay_ws_url` with no relay

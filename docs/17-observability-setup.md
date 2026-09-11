@@ -1,6 +1,6 @@
 # 17 — Observability Setup (Axiom · PostHog · Sentry)
 
-Telemetry is **wired live** on both the Railway control plane (`natively-api/server.js`) and the
+Telemetry is **wired live** on both the Railway control plane (`refract-api/server.js`) and the
 Electron desktop client. Every sender is **fire-and-forget, never throws, and is a silent no-op
 until its env is set** — so you can ship with nothing configured and turn it on later by adding env.
 
@@ -10,7 +10,7 @@ The **same three credentials** serve the control plane, the desktop client, and 
 
 ## What's wired
 
-### Control plane — `natively-api/lib/telemetry.js` (`createTelemetry()`)
+### Control plane — `refract-api/lib/telemetry.js` (`createTelemetry()`)
 | Sender | Fires on | Endpoint |
 |---|---|---|
 | **Axiom** | every `sttEvent(...)` (session_issued, railway_fallback_returned, quota_lease_degraded, both_relays_down, reaper_reconciled, …) — sent as `stt_<event>`; plus existing `embedding_request` | `POST https://api.axiom.co/v1/datasets/$AXIOM_DATASET/ingest` (Bearer `$AXIOM_TOKEN`) |
@@ -44,7 +44,7 @@ Set on **Railway** (control plane) and/or the **packaged desktop build** (client
 ```
 # Axiom — structured backend/desktop events
 AXIOM_TOKEN=<axiom api token>
-AXIOM_DATASET=natively-api          # control plane; use stt-relay on the VPS relays
+AXIOM_DATASET=refract-api          # control plane; use stt-relay on the VPS relays
 
 # Sentry — errors/crashes (control plane + client)
 SENTRY_DSN=https://<publicKey>@<org>.ingest.sentry.io/<projectId>
@@ -89,7 +89,7 @@ All optional. Unset → that platform is silently skipped.
 
 ## Tests
 
-- Control plane: `natively-api/tests/telemetry.test.mjs` — **8 tests** (injected env + fetch; each
+- Control plane: `refract-api/tests/telemetry.test.mjs` — **8 tests** (injected env + fetch; each
   sender's endpoint/shape, DSN parsing, no-op-when-unset, never-throws, status() leaks no secrets).
 - Client: `electron/services/__tests__/TelemetryRemoteSinks.test.mjs` — **7 tests** (PostHog/Axiom/
   Sentry dispatch, error-only Sentry gating, unconfigured-skip, failure-never-throws, no creds in JSONL)

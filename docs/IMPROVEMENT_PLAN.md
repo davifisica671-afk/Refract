@@ -141,7 +141,7 @@
 
 ### 5.3 Site de marketing
 - O `site/` existe. Melhorar:
-  - Hero com demo animada (GIF já existe em `assets/natively-ai-meeting-assistant-demo.gif`).
+  - Hero com demo animada (GIF já existe em `assets/refract-ai-meeting-assistant-demo.gif`).
   - Seção de pricing.
   - Testemunhos/casos de uso.
   - SEO (meta tags, Open Graph).

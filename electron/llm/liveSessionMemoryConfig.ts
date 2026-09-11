@@ -64,7 +64,7 @@ function readEnvOverride(): 'on' | 'off' | null {
   if (cachedEnv !== undefined) return cachedEnv ?? null;
   let result: 'on' | 'off' | null = null;
   try {
-    const v = (process.env.NATIVELY_ENABLE_LIVE_SESSION_MEMORY || '').trim().toLowerCase();
+    const v = (process.env.REFRACT_ENABLE_LIVE_SESSION_MEMORY || '').trim().toLowerCase();
     if (v === '1' || v === 'true' || v === 'on' || v === 'enabled') result = 'on';
     else if (v === '0' || v === 'false' || v === 'off' || v === 'disabled') result = 'off';
   } catch { result = null; }
@@ -75,7 +75,7 @@ function readEnvOverride(): 'on' | 'off' | null {
 /** Emergency kill trocar (env ou settings) — sobrescreve tudo para OFora */
 function killSwitchEngaged(): boolean {
   try {
-    const v = (process.env.NATIVELY_LIVE_SESSION_MEMORY_KILL_SWITCH || '').trim().toLowerCase();
+    const v = (process.env.REFRACT_LIVE_SESSION_MEMORY_KILL_SWITCH || '').trim().toLowerCase();
     if (v === '1' || v === 'true' || v === 'on' || v === 'enabled') return true;
   } catch { /* ignorar */ }
   try {
@@ -90,7 +90,7 @@ function isInternalContext(): boolean {
   try {
     if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') return true;
     if (process.env.BENCHMARK_MODEL) return true; // qualquer benchmark executa
-    if (process.env.NATIVELY_INTERNAL === '1' || process.env.NATIVELY_DEV === '1') return true;
+    if (process.env.REFRACT_INTERNAL === '1' || process.env.REFRACT_DEV === '1') return true;
   } catch { /* default false */ }
   return false;
 }
@@ -98,7 +98,7 @@ function isInternalContext(): boolean {
 /** O configured rollout percent (0–100), ou nulo quando unset/invalid (não gating). */
 function rolloutPercent(): number | null {
   try {
-    const raw = process.env.NATIVELY_LIVE_SESSION_MEMORY_ROLLOUT_PERCENT;
+    const raw = process.env.REFRACT_LIVE_SESSION_MEMORY_ROLLOUT_PERCENT;
     if (raw == null || raw.trim() === '') {
       const { SettingsManager } = require('../services/SettingsManager');
       const sv = SettingsManager.getInstance().get('liveSessionMemoryRolloutPercent');
@@ -193,7 +193,7 @@ export function isLiveSessionMemoryEnabled(sessionId?: string): boolean {
 /** Max items kept em a live SessionMemory (bounded para prevenir unbounded growth). */
 export function liveSessionMemoryMaxItems(): number {
   try {
-    const v = parseInt(process.env.NATIVELY_SESSION_MEMORY_MAX_ITEMS || '', 10);
+    const v = parseInt(process.env.REFRACT_SESSION_MEMORY_MAX_ITEMS || '', 10);
     if (Number.isFinite(v) && v >= 20 && v <= 2000) return v;
   } catch { /* default */ }
   return 200;
@@ -201,7 +201,7 @@ export function liveSessionMemoryMaxItems(): number {
 
 /** Se para emitir (redaction-safe, marker-only) session-memory depurar logs. */
 export function liveSessionMemoryDebug(): boolean {
-  try { return (process.env.NATIVELY_SESSION_MEMORY_DEBUG || '').trim().toLowerCase() === 'true'; }
+  try { return (process.env.REFRACT_SESSION_MEMORY_DEBUG || '').trim().toLowerCase() === 'true'; }
   catch { return false; }
 }
 

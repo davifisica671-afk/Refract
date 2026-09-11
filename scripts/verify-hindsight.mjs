@@ -25,13 +25,13 @@ function mask(v) {
 const baseUrl = (process.env.HINDSIGHT_BASE_URL || '').trim();
 const apiKey = (process.env.HINDSIGHT_API_KEY || '').trim();
 const timeoutMs = Number(process.env.HINDSIGHT_TIMEOUT_MS) || 800;
-const memoryFlag = ['true', '1', 'on'].includes((process.env.NATIVELY_HINDSIGHT_MEMORY || '').trim().toLowerCase());
+const memoryFlag = ['true', '1', 'on'].includes((process.env.REFRACT_HINDSIGHT_MEMORY || '').trim().toLowerCase());
 
 console.log('=== Hindsight verification ===');
 console.log(`HINDSIGHT_BASE_URL      : ${baseUrl || '(unset)'}`);
 console.log(`HINDSIGHT_API_KEY       : ${mask(apiKey)}`);
 console.log(`HINDSIGHT_TIMEOUT_MS    : ${timeoutMs}`);
-console.log(`NATIVELY_HINDSIGHT_MEMORY: ${memoryFlag}`);
+console.log(`REFRACT_HINDSIGHT_MEMORY: ${memoryFlag}`);
 console.log('');
 
 // 3. Client availability.

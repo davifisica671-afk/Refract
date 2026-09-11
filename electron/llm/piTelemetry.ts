@@ -13,7 +13,7 @@
 //      string valor looks como sensitive conteúdo (então a careless caller can't leak).
 //
 // Por padrão events são buffered in-memory (bounded ring) e a marker line é logged
-// apenas quando NATIVELY_PI_TELEMETRY_DEBUG=true. A sink pode ser registered (e.g. para ship
+// apenas quando REFRACT_PI_TELEMETRY_DEBUG=true. A sink pode ser registered (e.g. para ship
 // para an analytics backend) — o sink apenas já sees scrubbed marker payloads.
 
 export type PiTelemetryEvent =
@@ -122,7 +122,7 @@ class PiTelemetry {
     if (this.ring.length > RING_MAX) this.ring.shift();
     try { this.sink?.(rec); } catch { /* sink precisa nunca break o hot caminho */ }
     let debug = false;
-    try { debug = (process.env.NATIVELY_PI_TELEMETRY_DEBUG || '').trim().toLowerCase() === 'true'; } catch { /* ignorar */ }
+    try { debug = (process.env.REFRACT_PI_TELEMETRY_DEBUG || '').trim().toLowerCase() === 'true'; } catch { /* ignorar */ }
     if (debug) {
       // eslint-disable-next-line no-console
       console.log(`[piTelemetry] ${event}`, rec.data);

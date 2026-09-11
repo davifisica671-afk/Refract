@@ -57,11 +57,11 @@ describe('Hindsight live integration (opt-in)', { skip: !LIVE && 'set HINDSIGHT_
 
   test('LongTermMemoryService.fromFlags builds an ENABLED adapter when configured', () => {
     // Force o flag em via env (fresh rlê para this opt-in ttestar
-    process.env.NATIVELY_HINDSIGHT_MEMORY = '1';
+    process.env.REFRACT_HINDSIGHT_MEMORY = '1';
     const svc = LongTermMemoryService.fromFlags({ hindsight: { baseUrl: BASE } });
     assert.equal(svc.enabled, true);
     assert.notEqual(svc.providerName, 'noop');
-    delete process.env.NATIVELY_HINDSIGHT_MEMORY;
+    delete process.env.REFRACT_HINDSIGHT_MEMORY;
   });
 
   test('a tight timeout returns [] (never throws)', async () => {

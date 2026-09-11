@@ -34,8 +34,8 @@ apply now (additive, idempotent) and are needed the moment any relay/session-bil
 
 In the **Supabase SQL editor**, run, in order:
 ```
-natively-api/migrations/003_stt_durable_billing.sql
-natively-api/migrations/004_stt_quota_lease.sql
+refract-api/migrations/003_stt_durable_billing.sql
+refract-api/migrations/004_stt_quota_lease.sql
 ```
 Verify:
 ```sql
@@ -92,7 +92,7 @@ STT_REAPER_INTERVAL_MS=0             # default off; pg_cron not needed in Railwa
 Add to **Railway env** (control plane) and/or the **packaged desktop build** (client). Same names.
 Full detail + verification in `docs/17-observability-setup.md`.
 ```
-AXIOM_TOKEN=<token>      AXIOM_DATASET=natively-api
+AXIOM_TOKEN=<token>      AXIOM_DATASET=refract-api
 SENTRY_DSN=https://<key>@<org>.ingest.sentry.io/<project>
 POSTHOG_API_KEY=<key>    POSTHOG_HOST=https://app.posthog.com
 ```
@@ -131,7 +131,7 @@ Railway deploy logs should show:
 ```
 # session-create: 503 if you DIDN'T set the secret, or a railway-targeted session if you DID
 curl -X POST https://api.refract.software/v1/stt/session \
-  -H "Content-Type: application/json" -d '{"key":"<a valid natively_sk_ key>","channel":"system"}'
+  -H "Content-Type: application/json" -d '{"key":"<a valid refract_sk_ key>","channel":"system"}'
 # with the secret set → { selected_region: "railway", relay_ws_url: "wss://api.refract.software/v1/transcribe", ... }
 
 # relay status (shows the master switch off)

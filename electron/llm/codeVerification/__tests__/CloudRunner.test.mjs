@@ -17,30 +17,30 @@ const tc = { input: [1], expected: 1, source: 'model' };
 
 describe('cloudRunner — gated OFF by default', () => {
   test('cloudExecutionEnabled() is false without the opt-in flag', () => {
-    const prev = process.env.NATIVELY_CODE_EXECUTION_CLOUD;
-    delete process.env.NATIVELY_CODE_EXECUTION_CLOUD;
+    const prev = process.env.REFRACT_CODE_EXECUTION_CLOUD;
+    delete process.env.REFRACT_CODE_EXECUTION_CLOUD;
     try {
       assert.equal(cloudExecutionEnabled(), false);
     } finally {
-      if (prev !== undefined) process.env.NATIVELY_CODE_EXECUTION_CLOUD = prev;
+      if (prev !== undefined) process.env.REFRACT_CODE_EXECUTION_CLOUD = prev;
     }
   });
 
   test('runCaseCloud returns a skip-error (no send) when disabled', async () => {
-    const prev = process.env.NATIVELY_CODE_EXECUTION_CLOUD;
-    delete process.env.NATIVELY_CODE_EXECUTION_CLOUD;
+    const prev = process.env.REFRACT_CODE_EXECUTION_CLOUD;
+    delete process.env.REFRACT_CODE_EXECUTION_CLOUD;
     try {
       const r = await runCaseCloud('java', 'class Solution {}', 'f', tc);
       assert.equal(r.status, 'error');
       assert.equal(r.error, 'cloud_execution_disabled');
     } finally {
-      if (prev !== undefined) process.env.NATIVELY_CODE_EXECUTION_CLOUD = prev;
+      if (prev !== undefined) process.env.REFRACT_CODE_EXECUTION_CLOUD = prev;
     }
   });
 
   test('even with the flag on, the stub does not execute (pending) — never a false pass', async () => {
-    const prev = process.env.NATIVELY_CODE_EXECUTION_CLOUD;
-    process.env.NATIVELY_CODE_EXECUTION_CLOUD = 'true';
+    const prev = process.env.REFRACT_CODE_EXECUTION_CLOUD;
+    process.env.REFRACT_CODE_EXECUTION_CLOUD = 'true';
     try {
       const r = await runCaseCloud('java', 'class Solution {}', 'f', tc);
       // Qualquer um o SettingsManager exigir fails (→ disabled) ou o stub é
@@ -48,19 +48,19 @@ describe('cloudRunner — gated OFF by default', () => {
       assert.equal(r.status, 'error');
       assert.match(r.error, /cloud_runner_pending|cloud_execution_disabled/);
     } finally {
-      if (prev !== undefined) process.env.NATIVELY_CODE_EXECUTION_CLOUD = prev; else delete process.env.NATIVELY_CODE_EXECUTION_CLOUD;
+      if (prev !== undefined) process.env.REFRACT_CODE_EXECUTION_CLOUD = prev; else delete process.env.REFRACT_CODE_EXECUTION_CLOUD;
     }
   });
 
   test('pistonUrl honors the override env, falls back to default', () => {
-    const prev = process.env.NATIVELY_PISTON_URL;
-    process.env.NATIVELY_PISTON_URL = 'https://piston.internal/api';
+    const prev = process.env.REFRACT_PISTON_URL;
+    process.env.REFRACT_PISTON_URL = 'https://piston.internal/api';
     try {
       assert.equal(pistonUrl(), 'https://piston.internal/api');
     } finally {
-      if (prev !== undefined) process.env.NATIVELY_PISTON_URL = prev; else delete process.env.NATIVELY_PISTON_URL;
+      if (prev !== undefined) process.env.REFRACT_PISTON_URL = prev; else delete process.env.REFRACT_PISTON_URL;
     }
-    delete process.env.NATIVELY_PISTON_URL;
+    delete process.env.REFRACT_PISTON_URL;
     assert.match(pistonUrl(), /piston/);
   });
 

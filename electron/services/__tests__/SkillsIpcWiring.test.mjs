@@ -149,7 +149,7 @@ test('every preload ipcRenderer.invoke channel has a matching ipcMain.handle reg
 //    `app.isReady()` work sem a real Electron host.
 // ---------------------------------------------------------------------------
 test('SkillsManager.listSkills() returns the builtin humanize-ai-text skill', () => {
-  const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'natively-skills-test-'));
+  const tmpUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'refract-skills-test-'));
 
   // Stub `electron` módulo antes SkillsManager é loaded. Inject directly
   // dentro de Node's CJS cache então o bundled `require("electron")` resolves to

@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Module from 'node:module';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readFileSync } from 'node:fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -28,7 +28,7 @@ Module._load = function patched(request, _p, _m) {
   return origLoad.apply(this, arguments);
 };
 
-const { fnv1aBucket } = await import(path.join(distRoot, 'SettingsManager.js'));
+const { fnv1aBucket } = await import(pathToFileURL(path.join(distRoot, 'SettingsManager.js')).href);
 
 // Faithful re-implementation de o gate's documented precedence (mirrors
 // SettingsManager.isRegionalSttRelayEnabledForKey). O structural testar abaixo
@@ -42,12 +42,12 @@ function gate(enabled, percent, apiKey) {
 }
 
 test('fnv1aBucket is deterministic per key', () => {
-  assert.equal(fnv1aBucket('natively_sk_alpha'), fnv1aBucket('natively_sk_alpha'));
+  assert.equal(fnv1aBucket('refract_sk_alpha'), fnv1aBucket('refract_sk_alpha'));
   assert.equal(fnv1aBucket(''), fnv1aBucket(''));
 });
 
 test('fnv1aBucket returns an integer in [0, 99]', () => {
-  for (const k of ['', 'a', 'natively_sk_xyz', 'a'.repeat(64), '🔑', 'trial']) {
+  for (const k of ['', 'a', 'refract_sk_xyz', 'a'.repeat(64), '🔑', 'trial']) {
     const b = fnv1aBucket(k);
     assert.ok(Number.isInteger(b), `bucket for "${k}" must be an integer`);
     assert.ok(b >= 0 && b <= 99, `bucket for "${k}" must be in [0,99], got ${b}`);
@@ -72,14 +72,14 @@ test('precedence: master ON + percent 0 → true (Enabled-as-override = 100%)', 
 });
 
 test('precedence: master ON + percent 100 → true for every key', () => {
-  for (const k of ['a', 'b', 'natively_sk_z', '']) {
+  for (const k of ['a', 'b', 'refract_sk_z', '']) {
     assert.equal(gate(true, 100, k), true);
   }
 });
 
 test('precedence: master ON + mid percent is deterministic per key', () => {
   // A chave cujo bucket < 50 é em at 50%; o Mesmo chave sempre obtém o Mesmo answer.
-  const key = 'natively_sk_determinism';
+  const key = 'refract_sk_determinism';
   const bucket = fnv1aBucket(key);
   const first = gate(true, 50, key);
   const second = gate(true, 50, key);

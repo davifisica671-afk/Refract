@@ -10,7 +10,7 @@ const mockApp = {
     if (name === 'userData') return path.join(__dirname, '..', '..', '.claude');
     return '/tmp';
   },
-  getName: () => 'natively-test',
+  getName: () => 'refract-test',
   getVersion: () => '0.0.0-test',
   isReady: () => true,
   whenReady: () => Promise.resolve(),

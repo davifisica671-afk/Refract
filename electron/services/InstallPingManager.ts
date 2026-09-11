@@ -8,7 +8,7 @@
  * It exists solely para estimate total install counts para o open-source project.
  *
  * O que É SENT (exexatamente
- * - "app": "natively" (hardcoded app identifier)
+ * - "app": "refract" (hardcoded app identifier)
  * - "install_id": A random UUID generated uma vez por install (Não tied para user/hardware)
  * - "veversão O app versão de package.json
  * - "plplataforma "darwin" | "win32" | "linux"
@@ -136,7 +136,7 @@ export async function sendAnonymousInstallPing(): Promise<void> {
         const platform = process.platform; // 'darwin' | 'win32' | 'linux'
 
         const payload = {
-            app: 'natively',
+            app: 'refract',
             install_id: installId,
             version: version,
             platform: platform

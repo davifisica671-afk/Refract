@@ -14,7 +14,7 @@ async function loadPolicy() {
 }
 
 // Regression para F4 (Fase 2): a transient servidor estado (429 ip_blocked, 403 account_suspended,
-// 5xx, network error, unparseable bcorpo precisa Nunca revogar a paying user's natively_api Pro
+// 5xx, network error, unparseable bcorpo precisa Nunca revogar a paying user's refract_api Pro
 // license. Apenas a CONFIRMED loss de entitlement (plan downgraded / subscription_inactive /
 // key_not_found) revokes.
 

@@ -24,19 +24,19 @@ import type { TestCase, RunResult, VerifyLanguage } from './types';
 // self-hosted Piston.
 export const CLOUD_LANGUAGES: VerifyLanguage[] = ['c'];
 
-/** Default public Piston endpoint. Sobrescrever com NATIVELY_PISTON_URL (self-host). */
+/** Default public Piston endpoint. Sobrescrever com REFRACT_PISTON_URL (self-host). */
 const DEFAULT_PISTON_URL = 'https://emkc.org/api/v2/piston';
 
 /**
  * Se cloud execution é atualmente permitted. Fora a menos que BAmbos
- *   - o feature flag NATIVELY_CODE_EXECUTION_CLOUD === 'tverdadeiro (opt-in enquanto
+ *   - o feature flag REFRACT_CODE_EXECUTION_CLOUD === 'tverdadeiro (opt-in enquanto
  *     o cloud caminho é sendo rolled oufora AND
  *   - o `code_execution` provider-data-scope é não explicitly denied.
  * Lê configurações defensively (nunca throws); Retorna falso em qualquer uncertainty.
  */
 export const cloudExecutionEnabled = (): boolean => {
   try {
-    if (process.env.NATIVELY_CODE_EXECUTION_CLOUD !== 'true') return false;
+    if (process.env.REFRACT_CODE_EXECUTION_CLOUD !== 'true') return false;
     // Honor an explicit escopo denial se SettingsManager é available.
     const { SettingsManager } = require('../../services/SettingsManager');
     const policy = SettingsManager.getInstance().get('providerDataScopes');
@@ -47,7 +47,7 @@ export const cloudExecutionEnabled = (): boolean => {
 };
 
 export const pistonUrl = (): string => {
-  try { return process.env.NATIVELY_PISTON_URL || DEFAULT_PISTON_URL; } catch { return DEFAULT_PISTON_URL; }
+  try { return process.env.REFRACT_PISTON_URL || DEFAULT_PISTON_URL; } catch { return DEFAULT_PISTON_URL; }
 };
 
 /**

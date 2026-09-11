@@ -5,7 +5,7 @@
  * BACKGROUND: the 7000-row MiniMax-M2.7 run (2026-06-14) surfaced at scale
  * (looking-for-work_0447, a multi-criterion gap_analysis_answer) that MiniMax-M2.7
  * emits INTERLEAVED <think> blocks MID-ANSWER, not just a single leading one. The
- * original stripper (leading-only — mirrored from natively-api/lib/minimaxProvider.js)
+ * original stripper (leading-only — mirrored from refract-api/lib/minimaxProvider.js)
  * let the interleaved blocks LEAK into the visible answer (a critical
  * visible_reasoning_leak). The fix: strip ALL <think>…</think> blocks globally
  * (whole-string + incremental-streaming forms). These tests lock that in.

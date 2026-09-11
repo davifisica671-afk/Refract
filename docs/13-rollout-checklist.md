@@ -14,7 +14,7 @@ operational steps (VPS / DNS / secrets / migration / reaper / Railway env / rela
 
 **Everything that can be code-blocked is done, reviewed, and green.** The control plane
 (`/v1/stt/session`, `/v1/stt/relays`, `/admin/stt-relays`, `/admin/stt-relays/control`) ships in
-`natively-api/server.js` as **540 additive insertions, 0 deletions** — the legacy `/v1/transcribe`
+`refract-api/server.js` as **540 additive insertions, 0 deletions** — the legacy `/v1/transcribe`
 WS path is byte-for-byte untouched and remains the always-on emergency fallback. The standalone
 relay (`services/stt-relay`) boots, serves `/healthz`/`/readyz`/`/metrics`, verifies HMAC session
 tokens offline, runs the full provider chain via the shared `packages/stt-relay-core`, flushes/finalizes
@@ -51,7 +51,7 @@ These need credentials, infra, DNS, or deploy access. None can be completed from
 ## TASK 1 — Final wiring verification (13/13, with evidence)
 
 All test commands below were run in this phase under Node v25.9.0. Counts are exact per-suite.
-"file:line" refers to `natively-api/` for code and repo-root `docs/`/`electron/` where noted.
+"file:line" refers to `refract-api/` for code and repo-root `docs/`/`electron/` where noted.
 
 | # | What works / exists | Evidence (file:line or test) | Result |
 |---|---|---|---|
@@ -80,12 +80,12 @@ All test commands below were run in this phase under Node v25.9.0. Counts are ex
 
 > Conventions: `[ ]` = an action to take. `$ADMIN_SECRET` is the control plane's `x-admin-secret`.
 > All admin calls hit the Railway control plane. "CP" = control plane (Railway). cwd for code commands
-> is `natively-api/` unless noted. **No app redeploy is ever needed to roll back** (the kill switch +
+> is `refract-api/` unless noted. **No app redeploy is ever needed to roll back** (the kill switch +
 > percent are runtime/env on the CP; the client already caches a Railway-terminated fallback chain).
 
 ### 1. Local validation checklist
 
-Run from `natively-api/` (Node 20+). All four suites + both ops scripts must be green.
+Run from `refract-api/` (Node 20+). All four suites + both ops scripts must be green.
 
 - [ ] **Core suite** — `node --test packages/stt-relay-core/tests/*.test.mjs` → expect **277/277**.
       (If the one `relayHealth` background-tick test flakes under parallel load, re-run it alone:
@@ -113,8 +113,8 @@ Run from `natively-api/` (Node 20+). All four suites + both ops scripts must be 
       open the staging project SQL editor, paste all of `migrations/003_stt_durable_billing.sql`, **Run**
       (idempotent; safe to re-run).
 - [ ] **Deploy ONE relay to a staging VPS** per `docs/10` §1 (Docker or systemd):
-      `sudo REGION=us MODE=docker bash services/stt-relay/deploy/setup-vps.sh --src /path/to/natively-api --site us-relay-staging.refract.software`,
-      then populate `/etc/natively/stt-relay.env` (token secret, a Deepgram **test** key, the staging
+      `sudo REGION=us MODE=docker bash services/stt-relay/deploy/setup-vps.sh --src /path/to/refract-api --site us-relay-staging.refract.software`,
+      then populate `/etc/refract/stt-relay.env` (token secret, a Deepgram **test** key, the staging
       `SUPABASE_URL`/`SUPABASE_SERVICE_KEY`), bring it up, and `curl -fsS https://us-relay-staging…/healthz`.
 - [ ] **Set the staging CP env**: `STT_RELAY_US_URL=wss://us-relay-staging.refract.software/v1/transcribe`,
       `STT_SESSION_TOKEN_SECRET=<same as the relay>`, `STT_RELAY_ENABLE_PERCENT=0`.
@@ -122,7 +122,7 @@ Run from `natively-api/` (Node 20+). All four suites + both ops scripts must be 
       controlled dogfood — `curl -X POST https://<staging-cp>/admin/stt-relays/control -H "x-admin-secret: $ADMIN_SECRET" -H 'content-type: application/json' -d '{"force_region":"us","enable_percent":100}'`
       (or use a `STT_RELAY_ALLOWLIST` of internal key-ids if wired). Restore to `{"enable_percent":0}` after the dogfood.
 - [ ] **Run the live verifier**:
-      `CONTROL_PLANE_URL=https://<staging-cp> NATIVELY_API_KEY=<a paid staging key> node scripts/verify-stt-relay-rollout.mjs --live`
+      `CONTROL_PLANE_URL=https://<staging-cp> REFRACT_API_KEY=<a paid staging key> node scripts/verify-stt-relay-rollout.mjs --live`
       → expect PASS through `/v1/stt/relays` → `/v1/stt/session` → WS connect → fixture transcript.
 - [ ] **F15 isolation kill-test** (invariant §16.6 — must pass before stage 3): under a little load,
       `kill -9` the staging relay process (or `docker kill`). Confirm: (a) the CP stays up and
@@ -161,7 +161,7 @@ Run from `natively-api/` (Node 20+). All four suites + both ops scripts must be 
       openssl rand -hex 48
       ```
       Store it in the secret manager; it goes on **both relays AND the CP**, byte-identical.
-- [ ] **4) Deploy US + Asia relays** (`docs/10` §1–§2). Each relay's `/etc/natively/stt-relay.env` MUST set
+- [ ] **4) Deploy US + Asia relays** (`docs/10` §1–§2). Each relay's `/etc/refract/stt-relay.env` MUST set
       the full **Relay env checklist (§7)**. Confirm each: `curl -fsS https://us-relay…/healthz` and `/readyz`.
 - [ ] **5) Set the Railway CP env** (Railway dashboard) — keep **percent 0**:
       `STT_SESSION_TOKEN_SECRET=<same secret>`, `STT_RELAY_US_URL=wss://us-relay.refract.software/v1/transcribe`,
@@ -234,7 +234,7 @@ Set on the Railway control-plane service, then redeploy:
 | `STT_ALLOW_STEREO_PERCENT` | `0` | stereo cohort OFF |
 | `STT_ALLOW_DUAL_STREAM_PERCENT` | `0` | dual-stream cohort OFF |
 
-### 7. Relay env checklist (per VPS — `/etc/natively/stt-relay.env`, 0600)
+### 7. Relay env checklist (per VPS — `/etc/refract/stt-relay.env`, 0600)
 
 From `services/stt-relay/.env.example`. **REQUIRED** = relay won't serve correctly without it.
 
@@ -308,7 +308,7 @@ From `services/stt-relay/.env.example`. **REQUIRED** = relay won't serve correct
 ### 11. Post-deploy validation checklist
 
 - [ ] **Issue a test session against prod** —
-      `CONTROL_PLANE_URL=https://api.refract.software NATIVELY_API_KEY=<a paid key> node scripts/verify-stt-relay-rollout.mjs --live`
+      `CONTROL_PLANE_URL=https://api.refract.software REFRACT_API_KEY=<a paid key> node scripts/verify-stt-relay-rollout.mjs --live`
       (or temporarily force-route your own key via `{"force_region":"us","enable_percent":100}` and restore to 0 after).
       → PASS through select → connect → fixture transcript.
 - [ ] **Confirm the durable row** — `SELECT session_id, status, billable_seconds, billed_seconds, last_seq FROM stt_sessions ORDER BY created_at DESC LIMIT 1;`
@@ -353,7 +353,7 @@ Each stage holds its soak before promotion. Rollback at every stage = §10 (kill
 
 ---
 
-## Appendix — verification commands (copy/paste, run from `natively-api/`)
+## Appendix — verification commands (copy/paste, run from `refract-api/`)
 
 ```bash
 # 13/13 wiring (all green):
@@ -370,7 +370,7 @@ git diff --numstat HEAD -- server.js                                 # 540  0  s
 # client (from repo root):
 npm run build:electron && node --test electron/audio/__tests__/Relay*.test.mjs   # 44
 
-# end-to-end self-contained + load (from natively-api/):
+# end-to-end self-contained + load (from refract-api/):
 node scripts/verify-stt-relay-rollout.mjs                            # 9/9 PASS
 node scripts/load-test-stt-relay.mjs --max=50 --duration=10          # PASS, zero crashes
 

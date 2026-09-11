@@ -11,7 +11,7 @@
   - `DEFAULT_MODEL = 'gemini-embedding-2'`, `DEFAULT_DIMS = 768` (**already migrated**).
   - Hits Google directly: `generativelanguage.googleapis.com/.../{model}:embedContent`, auth via `x-goog-api-key` header, user's own key.
   - v2 formatting: task baked into text (`formatDocument`/`formatQuery`), no `task_type` param.
-  - Rollback levers: `NATIVELY_GEMINI_EMBED_MODEL` / `NATIVELY_GEMINI_EMBED_DIMS`, plus explicit config override.
+  - Rollback levers: `REFRACT_GEMINI_EMBED_MODEL` / `REFRACT_GEMINI_EMBED_DIMS`, plus explicit config override.
 - **Storage:** local SQLite, `vec_chunks_{dim}` tables + `embedding_space` column.
 - **Retrieval:** `RAGRetriever` → `VectorStore.search()` (filters by `embedding_space`) → `vectorSearchWorker` (cosine in a worker thread).
 - **Re-index:** `EmbeddingPipeline` compares active space vs stored space; mismatch → re-embed queue. v16 DB migration backfills legacy rows' space.
@@ -20,7 +20,7 @@ This system powers: Resume, JD, Custom Context, AI Persona, Negotiation, Referen
 RAG, semantic search, vector retrieval, interview assistant, "What should I answer", lecture,
 research — **all client-side, all on the user's own vectors.**
 
-### B. Server (`natively-api/server.js`)
+### B. Server (`refract-api/server.js`)
 - **Entry:** `getEmbedding(text)` → `callEmbedModel(model, text)`.
 - **Waterfall (pre-fix):** `text-embedding-004` (primary) → `gemini-embedding-001` (fallback).
 - **Reality:** `text-embedding-004` 404s on the key (verified), so the server effectively

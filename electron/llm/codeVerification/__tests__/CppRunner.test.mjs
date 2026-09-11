@@ -70,7 +70,7 @@ describe('buildCppProgram (pure)', () => {
     assert.ok(p);
     assert.match(p, /int a0 = 2;/);
     assert.match(p, /int a1 = 3;/);
-    assert.match(p, /__NATIVELY_RESULT_START__/);
+    assert.match(p, /__REFRACT_RESULT_START__/);
     assert.doesNotMatch(p, /bits\/stdc\+\+\.h/, 'must use portable headers, not the GCC-only bits header');
   });
 });

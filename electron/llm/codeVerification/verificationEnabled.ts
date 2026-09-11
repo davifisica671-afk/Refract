@@ -2,7 +2,7 @@
 //
 // Single kill-switch para verified código execution. Default OEm mas disableable
 // Sem a redeploy então production pode turn it fora se it já misbehaves:
-//   - env  NATIVELY_CODE_VERIFY = 'ofora | 'false' | '0'   → disabled
+//   - env  REFRACT_CODE_VERIFY = 'ofora | 'false' | '0'   → disabled
 //   - configurações  codeVerificationEnabled === falso          → disabled
 // Lê defensively (nunca throws); qualquer uncertainty resolves para o padrão OEm
 // EXCEPT an explicit env/settings "ofora que sempre wins.
@@ -13,7 +13,7 @@ const envDisabled = (): boolean => {
   if (cachedEnv !== null) return cachedEnv;
   let off = false;
   try {
-    const v = (process.env.NATIVELY_CODE_VERIFY || '').trim().toLowerCase();
+    const v = (process.env.REFRACT_CODE_VERIFY || '').trim().toLowerCase();
     off = v === 'off' || v === 'false' || v === '0' || v === 'disabled';
   } catch { off = false; }
   cachedEnv = off;

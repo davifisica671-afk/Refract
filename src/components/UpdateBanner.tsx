@@ -21,7 +21,7 @@ type ParsedReleaseNotes = {
     url?: string;
 };
 
-const LATEST_RELEASE_URL = 'https://github.com/joaolucas/refract/releases/latest';
+const LATEST_RELEASE_URL = 'https://github.com/davifisica671-afk/Refract/releases/latest';
 
 const UpdateBanner: React.FC = () => {
     const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -167,7 +167,7 @@ const UpdateBanner: React.FC = () => {
                 const dmgSuffix = isArm ? 'arm64' : 'x64';
                 setInstructionsArch(dmgSuffix);
                 const version = updateInfo.version.replace('v', '');
-                const url = `https://github.com/joaolucas/refract/releases/download/v${version}/Refract-${version}-${dmgSuffix}.dmg`;
+                const url = `https://github.com/davifisica671-afk/Refract/releases/download/v${version}/Refract-${version}-${dmgSuffix}.dmg`;
                 window.electronAPI.openExternal(url);
                 setStatus('instructions');
             } catch (err) {

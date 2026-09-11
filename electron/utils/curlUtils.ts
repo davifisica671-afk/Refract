@@ -297,7 +297,7 @@ export function validateImagePath(imagePath: string, userDataPath: string): { is
 
     // NOTA: a verificação de caminho de unidade Windows está DEPOIS da lista de permissão abaixo, não aqui.
     // No Windows, o userData é ele próprio um caminho de unidade absoluto
-    // (ex: C:\Users\<user>\AppData\Roaming\natively), então todo caminho legítimo
+    // (ex: C:\Users\<user>\AppData\Roaming\refract), então todo caminho legítimo
     // de captura de tela começa com uma letra de unidade. Rejeitar caminhos de unidade
     // antecipadamente bloqueou as próprias capturas de tela do app antes que a lista de
     // permissão pudesse aprová-las (issue #304). Isso espelha os bloqueios de caminho

@@ -1,7 +1,7 @@
 # Google Embedding Model Verification (Phase 2)
 
 **Date:** 2026-06-01
-**Method:** Live Gemini API calls with a production `GEMINI_API_KEY` from `natively-api/.env`.
+**Method:** Live Gemini API calls with a production `GEMINI_API_KEY` from `refract-api/.env`.
 **Rule applied:** Documentation/comments are NOT trusted. Ground truth = the live API
 (`ListModels` + real `embedContent` probes). Where they disagree, the live API wins.
 

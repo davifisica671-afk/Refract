@@ -11,7 +11,7 @@ Running changelog for the embedding-system upgrade (2026-06-01). Newest first.
   (Reported: "meeting started with low STT credits keeps going until the next meeting.")
 - **Root cause:** no live usage check during the session; `sessionQuota` captured once at auth,
   never re-evaluated against accumulating usage.
-- **Files changed:** `natively-api/server.js` — added `sessionBudgetSeconds`/`sessionResetsAt`/
+- **Files changed:** `refract-api/server.js` — added `sessionBudgetSeconds`/`sessionResetsAt`/
   `quotaCutoffFired` session vars, `liveBillableSeconds()` helper, and a watchdog inside the
   existing 25s `pingInterval`.
 - **Before:** open with 1 min left → run for hours → bill all at close → next session blocked.
@@ -30,7 +30,7 @@ Running changelog for the embedding-system upgrade (2026-06-01). Newest first.
 - **Issue found:** A 400 (`bad_request`) wrote `h.failReason` even though it doesn't open
   the breaker, so `/health` could momentarily show `failReason:'bad_request'` with `healthy:true`.
 - **Root cause:** Early-return branch set `failReason` before returning.
-- **Files changed:** `natively-api/server.js` (`markEmbeddingFailed` ~`:785`).
+- **Files changed:** `refract-api/server.js` (`markEmbeddingFailed` ~`:785`).
 - **Before:** healthy slot could display a fault reason.
 - **After:** `bad_request` returns immediately, touches nothing.
 - **Tests:** code-reviewer re-pass (LOW resolved); `node --check` OK.
@@ -40,7 +40,7 @@ Running changelog for the embedding-system upgrade (2026-06-01). Newest first.
   cases where the fallback slot was circuit-open. (b) `byModel` (attempt-level) silently
   disagreed with request-level `success/failure`, misleading on-call.
 - **Root cause:** counter placement + unlabeled mixing of request- vs attempt-level metrics.
-- **Files changed:** `natively-api/server.js` (`getEmbedding` ~`:2998`, `embedTelemetry`
+- **Files changed:** `refract-api/server.js` (`getEmbedding` ~`:2998`, `embedTelemetry`
   `:2147`, `embedTelemetrySnapshot` `:2180`, `tryEmbedSlot` `:2961`).
 - **Before:** `fallback_used` = fallback-succeeded; `by_model` looked broken vs headline.
 - **After:** `fallbackUsed`++ on fallback *attempt* (truthful when breaker open);
@@ -51,7 +51,7 @@ Running changelog for the embedding-system upgrade (2026-06-01). Newest first.
 - **Issue found:** `embeddingSlotAvailable` called `markEmbeddingHealthy` on read, so a
   `/health` poll could "heal" a provider that never served a request and wipe `failReason`.
 - **Root cause:** read-with-side-effect in the availability check.
-- **Files changed:** `natively-api/server.js` (`embeddingSlotAvailable` `:815`).
+- **Files changed:** `refract-api/server.js` (`embeddingSlotAvailable` `:815`).
 - **Before:** mutation-on-read; flapping providers reset their strike count via /health.
 - **After:** pure check; only `tryEmbedSlot` success clears the breaker. Cooldown still
   guarantees a half-open probe, so no permanent lockout.
@@ -63,7 +63,7 @@ Running changelog for the embedding-system upgrade (2026-06-01). Newest first.
   primary and fallback → both slots disabled for 5 min from one bad input. (Confirmed
   reachable: live probe showed empty string → HTTP 400.)
 - **Root cause:** conflating per-request 400 with provider-down 404.
-- **Files changed:** `natively-api/server.js` (`classifyEmbedHttp` `:2873`, `markEmbeddingFailed` `:780`).
+- **Files changed:** `refract-api/server.js` (`classifyEmbedHttp` `:2873`, `markEmbeddingFailed` `:780`).
 - **Before:** one malformed input → 5-min embedding outage for all users.
 - **After:** 400→`bad_request` (never opens breaker, never increments failCount); 404 stays
   `model_error` (opens breaker — config-level, affects all requests equally).
@@ -75,7 +75,7 @@ Running changelog for the embedding-system upgrade (2026-06-01). Newest first.
   live) — production silently ran entirely on `gemini-embedding-001` after a wasted
   round-trip + warning per call. No embedding observability.
 - **Root cause:** dead/retired model left as primary; no health tracking for embeddings.
-- **Files changed:** `natively-api/server.js` (model constants, `providerHealth`,
+- **Files changed:** `refract-api/server.js` (model constants, `providerHealth`,
   `mark*`/`embeddingSlotAvailable`, `callEmbedModel`, `tryEmbedSlot`, `getEmbedding`,
   `shipEmbedMetric`, `/health`).
 - **Before:** `004 → 001`, no health, no telemetry, hardcoded 768.

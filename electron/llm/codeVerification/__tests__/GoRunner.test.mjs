@@ -48,7 +48,7 @@ describe('buildGoProgram (pure)', () => {
     assert.match(p, /a0 := 2/);
     assert.match(p, /a1 := 3/);
     assert.match(p, /add\(a0, a1\)/);
-    assert.match(p, /__NATIVELY_RESULT_START__/);
+    assert.match(p, /__REFRACT_RESULT_START__/);
   });
   test('slice return imports encoding/json + nil-slice→[] normalizer', () => {
     const p = buildGoProgram('func twoSum(nums []int, target int) []int { return []int{0,1} }', 'twoSum', tc([[2, 7], 9], [0, 1]));

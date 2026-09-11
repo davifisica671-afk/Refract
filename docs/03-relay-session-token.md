@@ -3,7 +3,7 @@
 **Date:** 2026-06-13
 **Status:** Complete — all gates green
 **Inputs (binding):** `docs/01-target-stt-relay-architecture.md` §2/§7/§8, `docs/00-current-server-audit.md` (route table, auth helpers), `docs/02-stt-core-extraction.md` (core package layout).
-**Scope:** shared token module + basic relay selector in `packages/stt-relay-core`, plus ONE additive control-plane endpoint in `natively-api/server.js`. `/v1/transcribe` and every existing route are byte-for-byte untouched (verified: `git diff --stat` = `server.js | 187 insertions(+)`, zero deletions; the Phase 2 parity suite still passes against the edited file).
+**Scope:** shared token module + basic relay selector in `packages/stt-relay-core`, plus ONE additive control-plane endpoint in `refract-api/server.js`. `/v1/transcribe` and every existing route are byte-for-byte untouched (verified: `git diff --stat` = `server.js | 187 insertions(+)`, zero deletions; the Phase 2 parity suite still passes against the edited file).
 
 ---
 
@@ -17,7 +17,7 @@
 
 - Exactly three `.`-separated segments. The HMAC input includes the `v1.` version prefix, so a token cannot be re-versioned without re-signing.
 - Same compact-HMAC construction as the production trial token (`server.js:1716-1744`) — proven in prod; `node:crypto` only, no JWT library, no `alg` header (no algorithm-confusion / `none`-downgrade class).
-- Module: `natively-api/packages/stt-relay-core/src/sessionToken.js`. The Phase 5 relay imports `verifySessionToken` + `createJtiCache` from this same file — the format lives in ONE place.
+- Module: `refract-api/packages/stt-relay-core/src/sessionToken.js`. The Phase 5 relay imports `verifySessionToken` + `createJtiCache` from this same file — the format lives in ONE place.
 
 ### 1.2 Claims
 
@@ -80,8 +80,8 @@ Per-relay in-memory nonce cache: `checkAndStore(jti, exp)` → `true` (fresh, st
 
 ```json
 {
-  "key": "natively_sk_…",            // OR
-  "trial_token": "natively_trial_…",
+  "key": "refract_sk_…",            // OR
+  "trial_token": "refract_trial_…",
   "region_hint": "IN",                // ISO-3166 alpha-2 OR coarse ('us','asia','eu','latam','apac',…)
   "latency_probes": { "us": 42, "asia": 187 },
   "app_version": "3.4.1",
@@ -208,7 +208,7 @@ Both helpers are **top-level functions** (per the audit), so no extraction from 
 |---|---|---|
 | `packages/stt-relay-core/tests/sessionToken.test.mjs` (NEW) | 28 | roundtrip (all claims), wire format, sig-covers-prefix, iat/exp not overridable, expiry boundary (valid at exp−1s, dead at exp), payload byte-flip → `bad_signature`, sig tamper, claims-rewrite forgery, wrong secret, prev-secret rotation (both directions), no-secret throws, wrong region, bad version (prefix + payload level), malformed matrix (empty/dots/b64/non-JSON/array/null/missing iat-exp/non-string), iat skew ±30s boundary (30s ok, 31s `not_yet_valid`), strict exp (no grace), jti fresh/replay/exp-seconds-expiry/sweep/maxEntries-eviction/sweep-before-evict/junk-jti, e2e verify+jti, jti uniqueness — **28/28 pass** |
 | `packages/stt-relay-core/tests/relaySelection.test.mjs` (NEW) | 26 | bucket determinism vs independent sha256, 0-99 range, 10k-id distribution at 10% within ±50%, monotonicity, kill switch beats all, percent 0 → all railway, percent 100 → none railway, bucket-gate edges, forced region, forced-but-unhealthy → alternate, invalid force ignored, latency probes (lowest / skip-unhealthy / junk-values / priority-below-force), geo matrix (US,CA,MX,BR,DE,FR,GB→us; IN,SG,JP,AU,KR,NZ…→asia; ''/unknown→default; defaultRegion override), case/trim insensitivity, GEO_MAP closure over RELAY_REGIONS, otherRegion, unhealthy→alternate, both-unhealthy→railway, absent/partial healthMap, NaN/oversized percent — **26/26 pass** |
-| `natively-api/tests/stt-session-endpoint.test.mjs` (NEW) | 18 | Follows the `stt-health-system.test.mjs` pattern exactly: same `spawnServer` (spawn `node server.js`, poll `/health`), same `.env` loading, same Supabase-backed `itest` skip-guard. **Offline tier (9, always run):** source checks (route present; handler calls `validateKey`/`validateTrial`/`checkDDoS` and never queries `api_keys`/`free_trials` directly; 402 vocabulary; 503 gate without `process.exit`; issue-log hashes identity and never logs token/raw key; TTL clamp) + pure handler logic (railway URL mapping, endpoint-shaped token sign/verify with §7 claims, bucket stability). **Integration tier (9, env-gated):** missing secret → 503; kill switch → railway URLs + `region:'railway'` claim; percent=100+forced-us → us URL/asia fallback/railway present; percent=0 → railway; paid happy path (full contract keys, clamps 48k→16k & stereo→mono, alternates filtered, `st_<uuid>` id, exact-ISO `expires_at` within TTL clamp, offline token verify, sub≠raw key, token absent from logs); 401 matrix; channel-injection → 'default' in config+claim; trial happy path (mints a trial token the same way `generateTrialToken` does; skips with a note if no live trial row); quota-exceeded 402 (skips if no exhausted key in DB — gate covered by the source check) — **18/18 pass with env** (integration tier skips cleanly without Supabase env, same as the existing suites) |
+| `refract-api/tests/stt-session-endpoint.test.mjs` (NEW) | 18 | Follows the `stt-health-system.test.mjs` pattern exactly: same `spawnServer` (spawn `node server.js`, poll `/health`), same `.env` loading, same Supabase-backed `itest` skip-guard. **Offline tier (9, always run):** source checks (route present; handler calls `validateKey`/`validateTrial`/`checkDDoS` and never queries `api_keys`/`free_trials` directly; 402 vocabulary; 503 gate without `process.exit`; issue-log hashes identity and never logs token/raw key; TTL clamp) + pure handler logic (railway URL mapping, endpoint-shaped token sign/verify with §7 claims, bucket stability). **Integration tier (9, env-gated):** missing secret → 503; kill switch → railway URLs + `region:'railway'` claim; percent=100+forced-us → us URL/asia fallback/railway present; percent=0 → railway; paid happy path (full contract keys, clamps 48k→16k & stereo→mono, alternates filtered, `st_<uuid>` id, exact-ISO `expires_at` within TTL clamp, offline token verify, sub≠raw key, token absent from logs); 401 matrix; channel-injection → 'default' in config+claim; trial happy path (mints a trial token the same way `generateTrialToken` does; skips with a note if no live trial row); quota-exceeded 402 (skips if no exhausted key in DB — gate covered by the source check) — **18/18 pass with env** (integration tier skips cleanly without Supabase env, same as the existing suites) |
 | `packages/stt-relay-core/tests/*.test.mjs` (full core, incl. Phase 2 parity vs the EDITED server.js) | 251 | **251/251 pass** (197 existing + 54 new) |
 | `tests/unit-fixes.test.mjs` + `tests/flash-model-picker.test.mjs` (regression) | 56 | **56/56 pass** |
 | `node --check server.js` | — | pass |

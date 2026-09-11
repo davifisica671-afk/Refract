@@ -504,11 +504,11 @@ export class ModeHybridRetriever {
                     candidateCount: props.candidateCount,
                     queryTokenCount: props.queryTokenCount,
                     errorClass: props.errorClass,
-                    // Optional test-run marker. Tests define NATIVELY_TELEMETRY_TEST_RUN_ID
+                    // Optional test-run marker. Tests define REFRACT_TELEMETRY_TEST_RUN_ID
                     // para filtrar events emitted por their específico rexecuta isolating
                     // de qualquer parallel testar ou stale JSONL line. Production
                     // leaves isso unset.
-                    testRunId: process.env.NATIVELY_TELEMETRY_TEST_RUN_ID || undefined,
+                    testRunId: process.env.REFRACT_TELEMETRY_TEST_RUN_ID || undefined,
                 },
             });
         } catch {
@@ -557,7 +557,7 @@ export class ModeHybridRetriever {
                     candidateCount: props.candidateCount,
                     queryTokenCount: props.queryTokenCount,
                     errorClass: props.errorClass,
-                    testRunId: process.env.NATIVELY_TELEMETRY_TEST_RUN_ID || undefined,
+                    testRunId: process.env.REFRACT_TELEMETRY_TEST_RUN_ID || undefined,
                 },
             });
         } catch {

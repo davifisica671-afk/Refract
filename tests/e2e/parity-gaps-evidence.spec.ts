@@ -11,7 +11,7 @@
 // dynamic-action accept, post-call summary canary, e log-canary checks
 // requires either fake-LLM seams ou a packaged Electron binary com a
 // temp userData path. Both are fora o scope of isso minimal pass —
-// see docs/engineering/NATIVELY_CLUELY_PARITY_ROADMAP.md para o next
+// see docs/engineering/REFRACT_CLUELY_PARITY_ROADMAP.md para o next
 // milestone. This spec proves o renderer-facing contract para o new
 // IPC surfaces is real e reachable, que is what o anterior unit
 // tests could não mostrar on their own.

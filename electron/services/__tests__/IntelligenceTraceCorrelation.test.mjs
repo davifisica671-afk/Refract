@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Habilitar o rastrear Antes importing o módulo (flag é lê at beginTrace()).
-process.env.NATIVELY_INTELLIGENCE_TRACE = 'on';
+process.env.REFRACT_INTELLIGENCE_TRACE = 'on';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const tracePath = path.resolve(__dirname, '../../../dist-electron/electron/intelligence/IntelligenceTrace.js');
@@ -85,8 +85,8 @@ describe('IntelligenceTrace.setCorrelation (audit finding #9)', () => {
 describe('IntelligenceTrace.setCorrelation on the NO-OP trace (flag off semantics)', () => {
   test('NOOP trace ignores setCorrelation and returns itself', async () => {
     // Re-import com o flag Fora to obtém o NOOP de beginTrace.
-    const prev = process.env.NATIVELY_INTELLIGENCE_TRACE;
-    process.env.NATIVELY_INTELLIGENCE_TRACE = 'off';
+    const prev = process.env.REFRACT_INTELLIGENCE_TRACE;
+    process.env.REFRACT_INTELLIGENCE_TRACE = 'off';
     try {
       const trace = beginTrace('q');
       assert.equal(trace.enabled, false);
@@ -94,7 +94,7 @@ describe('IntelligenceTrace.setCorrelation on the NO-OP trace (flag off semantic
       assert.equal(ret, trace, 'chainable no-op');
       assert.equal(trace.toRecord(), null, 'no-op trace produces no record');
     } finally {
-      process.env.NATIVELY_INTELLIGENCE_TRACE = prev;
+      process.env.REFRACT_INTELLIGENCE_TRACE = prev;
     }
   });
 });

@@ -20,12 +20,12 @@ instant rollback to the unchanged Railway path.
 
 ## Artifacts produced by this phase
 
-All under `natively-api/services/stt-relay/`:
+All under `refract-api/services/stt-relay/`:
 
 | File | Purpose |
 |---|---|
-| `Dockerfile` | Multi-stage, non-root, healthcheck image. **Build context = `natively-api/`** (the file: link needs both `services/stt-relay` and `packages/stt-relay-core`). |
-| `.dockerignore` (service) + `natively-api/.dockerignore` (context root, authoritative) | Exclude `node_modules`, `.env`, tests, logs, VCS. |
+| `Dockerfile` | Multi-stage, non-root, healthcheck image. **Build context = `refract-api/`** (the file: link needs both `services/stt-relay` and `packages/stt-relay-core`). |
+| `.dockerignore` (service) + `refract-api/.dockerignore` (context root, authoritative) | Exclude `node_modules`, `.env`, tests, logs, VCS. |
 | `deploy/docker-compose.example.yml` | Relay + Caddy; relay internal-only, Caddy public 80/443; `env_file: .env`; restart `unless-stopped`; mem limits. |
 | `deploy/Caddyfile.example` | Auto-TLS reverse proxy, WS-aware, long-stream timeouts, security headers, grey-cloud note. |
 | `deploy/nginx.example.conf` | Nginx alternative (WS upgrade headers + certbot). |
@@ -158,40 +158,40 @@ Two supported paths. Both end with a relay reachable at
 ### Path A — Docker (recommended for parity with Fly)
 
 ```bash
-# On the US VPS, with the repo (or a tarball of natively-api/) present:
+# On the US VPS, with the repo (or a tarball of refract-api/) present:
 sudo REGION=us MODE=docker bash services/stt-relay/deploy/setup-vps.sh \
-     --src /path/to/natively-api --site us-relay.refract.software
+     --src /path/to/refract-api --site us-relay.refract.software
 
 # Populate secrets (the script wrote a 0600 template):
-sudo nano /etc/natively/stt-relay.env       # set STT_SESSION_TOKEN_SECRET, DEEPGRAM_API_KEY, SUPABASE_*
+sudo nano /etc/refract/stt-relay.env       # set STT_SESSION_TOKEN_SECRET, DEEPGRAM_API_KEY, SUPABASE_*
 
-# Build + start (context = natively-api/, file: link resolvable):
-cd /opt/natively/stt-relay/services/stt-relay/deploy
+# Build + start (context = refract-api/, file: link resolvable):
+cd /opt/refract/stt-relay/services/stt-relay/deploy
 CADDY_SITE=us-relay.refract.software docker compose -f docker-compose.example.yml up -d --build
 
 # Verify:
-bash /opt/natively/stt-relay/services/stt-relay/deploy/healthcheck.sh
+bash /opt/refract/stt-relay/services/stt-relay/deploy/healthcheck.sh
 curl -fsS https://us-relay.refract.software/healthz
 ```
 
 Manual image build (no compose):
 
 ```bash
-cd natively-api
-docker build -f services/stt-relay/Dockerfile -t natively-stt-relay .
-# context is "." == natively-api/ — it contains BOTH services/stt-relay and packages/stt-relay-core.
+cd refract-api
+docker build -f services/stt-relay/Dockerfile -t refract-stt-relay .
+# context is "." == refract-api/ — it contains BOTH services/stt-relay and packages/stt-relay-core.
 ```
 
 ### Path B — bare-metal Node + systemd
 
 ```bash
 sudo REGION=us MODE=systemd bash services/stt-relay/deploy/setup-vps.sh \
-     --src /path/to/natively-api --site us-relay.refract.software
-# installs Node 20 + Caddy, syncs the tree to /opt/natively/stt-relay, npm ci
-# (with @google-cloud/speech), writes /etc/natively/stt-relay.env template,
+     --src /path/to/refract-api --site us-relay.refract.software
+# installs Node 20 + Caddy, syncs the tree to /opt/refract/stt-relay, npm ci
+# (with @google-cloud/speech), writes /etc/refract/stt-relay.env template,
 # installs+enables stt-relay.service, configures ufw.
 
-sudo nano /etc/natively/stt-relay.env       # set the required secrets
+sudo nano /etc/refract/stt-relay.env       # set the required secrets
 sudo systemctl start stt-relay
 sudo systemctl reload caddy
 journalctl -u stt-relay -f                   # watch the structured JSON boot banner
@@ -207,10 +207,10 @@ region-agnostic; region is pure env:
 ```bash
 # Docker:
 sudo REGION=asia MODE=docker bash services/stt-relay/deploy/setup-vps.sh \
-     --src /path/to/natively-api --site asia-relay.refract.software
+     --src /path/to/refract-api --site asia-relay.refract.software
 # systemd:
 sudo REGION=asia MODE=systemd bash services/stt-relay/deploy/setup-vps.sh \
-     --src /path/to/natively-api --site asia-relay.refract.software
+     --src /path/to/refract-api --site asia-relay.refract.software
 ```
 
 Region differences that matter:
@@ -315,13 +315,13 @@ the public interface regardless of ufw.)
 `deploy/docker-compose.example.yml` runs two services: `relay` (internal-only)
 and `caddy` (public 80/443). Key facts:
 
-- **Build-context caveat:** `build.context` points to `../../..` (= `natively-api/`)
+- **Build-context caveat:** `build.context` points to `../../..` (= `refract-api/`)
   and `build.dockerfile` is `services/stt-relay/Dockerfile`, because the relay's
   `file:../../packages/stt-relay-core` link needs both trees in the context. The
   equivalent manual build is
-  `docker build -f services/stt-relay/Dockerfile -t natively-stt-relay natively-api/`.
+  `docker build -f services/stt-relay/Dockerfile -t refract-stt-relay refract-api/`.
 - **`env_file: .env`** — all config + secrets come from a gitignored `.env` next
-  to the compose file. The bootstrap symlinks it to `/etc/natively/stt-relay.env`.
+  to the compose file. The bootstrap symlinks it to `/etc/refract/stt-relay.env`.
 - **Relay not public:** the relay uses `expose: ["8080"]` (compose-network only),
   **no host `ports:`**. Only Caddy maps `80:80`/`443:443`.
 - **`restart: unless-stopped`**, `stop_grace_period: 30s` (≥ `SHUTDOWN_GRACE_MS`
@@ -346,9 +346,9 @@ docker compose -f docker-compose.example.yml logs -f relay
 
 `deploy/stt-relay.service` (bare-metal path):
 
-- Runs `node src/index.js` as the unprivileged `natively` user from
-  `WorkingDirectory=/opt/natively/stt-relay/services/stt-relay`.
-- `EnvironmentFile=/etc/natively/stt-relay.env` (0600 root:natively).
+- Runs `node src/index.js` as the unprivileged `refract` user from
+  `WorkingDirectory=/opt/refract/stt-relay/services/stt-relay`.
+- `EnvironmentFile=/etc/refract/stt-relay.env` (0600 root:refract).
 - `Restart=on-failure`, `RestartSec=3`, `StartLimitBurst=5`/`StartLimitIntervalSec=60`
   (back off a crash loop instead of hammering vendors). A clean drain exits 0 →
   **no** restart; `uncaughtException` exits 1 → restart.
@@ -576,7 +576,7 @@ the token secret.
   them) so you can compare US vs Asia in one query.
 - **Control-plane logs (Phase 8):** the Railway control plane drains its logs to
   Axiom separately (the Railway → Axiom log drain). Those land in the control
-  plane's own dataset (e.g. `natively-api` / `railway`), **not** `stt-relay` —
+  plane's own dataset (e.g. `refract-api` / `railway`), **not** `stt-relay` —
   keep them distinct so relay session events and control-plane request logs don't
   intermix. Cross-reference by `session_id`.
 - **Verify ingestion:** after starting a relay and running one session, query the
@@ -697,7 +697,7 @@ available; Node v25 only). What was checked vs deferred:
 | `deploy/setup-vps.sh` | `bash -n` | **PASS** | full run on a fresh Ubuntu box (apt/Node/Caddy/Docker installs, ufw) |
 | `docker-compose.example.yml` | parsed with `js-yaml`; asserted services, relay-has-no-public-`ports`, Caddy-`depends_on`-healthy, `stop_grace_period`, `mem_limit` | **VALID** | `docker compose config` / `up` |
 | `fly.us.toml`, `fly.asia.toml` | parsed with `@iarna/toml`; asserted `app`/`primary_region`/`env.REGION`/`internal_port`/`force_https`/`min_machines`/`concurrency`/`checks`/`kill_*` | **VALID** (caught + fixed a real bug: `kill_signal`/`kill_timeout` were after `[[vm]]` → silently misnested; moved to top-level) | `fly deploy` / `fly config validate` |
-| `Dockerfile` | structural review against the `file:` link layout + lockfile (`../../packages/stt-relay-core` resolution confirmed); manifests-first cache order; non-root `node` user; tini PID 1; HEALTHCHECK; multi-stage | reviewed | `docker build -f services/stt-relay/Dockerfile natively-api/` + `hadolint` |
+| `Dockerfile` | structural review against the `file:` link layout + lockfile (`../../packages/stt-relay-core` resolution confirmed); manifests-first cache order; non-root `node` user; tini PID 1; HEALTHCHECK; multi-stage | reviewed | `docker build -f services/stt-relay/Dockerfile refract-api/` + `hadolint` |
 | `Caddyfile.example` | structural review (env-var substitution, WS pass-through, long-stream timeouts, security headers, encode scoped to health paths) | reviewed | `caddy validate` |
 | `nginx.example.conf` | structural review (Upgrade/Connection map, long `proxy_read_timeout`, certbot steps) | reviewed | `nginx -t` |
 | `stt-relay.service` | structural review (`TimeoutStopSec` 30 > `SHUTDOWN_GRACE_MS` 20s, `Restart=on-failure`, `EnvironmentFile`, hardening) | reviewed | `systemd-analyze verify` |

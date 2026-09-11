@@ -39,7 +39,7 @@ async function makeEngine() {
 test('runWhatShouldISay passes screenContext and preserves imagePaths', async () => {
   const { engine, session } = await makeEngine();
   const calls = [];
-  const imagePaths = ['/tmp/natively-test-screen.png'];
+  const imagePaths = ['/tmp/refract-test-screen.png'];
   const screenContext = {
     ocrText: 'Visible prompt: explain the error on screen',
     imagePath: imagePaths[0],

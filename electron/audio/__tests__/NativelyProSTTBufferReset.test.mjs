@@ -25,12 +25,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distRoot = path.resolve(__dirname, '../../../dist-electron/electron/audio');
 
-const { RefractProSTT } = await import(path.join(distRoot, 'RefractProSTT.js'));
+const { RefractProSTT } = await import(pathToFileURL(path.join(distRoot, 'RefractProSTT.js')).href);
 
 test('RefractProSTT.stop() resets buffer-overflow latch and dropped-chunk counter so the next session can re-emit buffer-overflow', () => {
     const stt = new RefractProSTT('fake-key', 'mic');

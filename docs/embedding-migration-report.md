@@ -9,7 +9,7 @@
 
 ## BEFORE
 
-| | Server (`natively-api`) | Desktop app |
+| | Server (`refract-api`) | Desktop app |
 |---|---|---|
 | Primary model | `text-embedding-004` | already `gemini-embedding-2` |
 | Fallback model | `gemini-embedding-001` | provider chain (Ollama/local) |
@@ -22,10 +22,10 @@
 
 | | Server | Desktop app |
 |---|---|---|
-| Primary model | **`gemini-embedding-2`** (env: `NATIVELY_EMBED_PRIMARY`) | `gemini-embedding-2` (unchanged) |
-| Fallback model | `gemini-embedding-001` (env: `NATIVELY_EMBED_FALLBACK`) | unchanged |
+| Primary model | **`gemini-embedding-2`** (env: `REFRACT_EMBED_PRIMARY`) | `gemini-embedding-2` (unchanged) |
+| Fallback model | `gemini-embedding-001` (env: `REFRACT_EMBED_FALLBACK`) | unchanged |
 | Legacy `004` | kept behind `ENABLE_LEGACY_TEXT_EMBEDDING_004=true` (off) | n/a |
-| Dimensions | 768 (env: `NATIVELY_EMBED_DIMS`, dimension-guarded) | 768 |
+| Dimensions | 768 (env: `REFRACT_EMBED_DIMS`, dimension-guarded) | 768 |
 | Health | `providerHealth.embedding2` / `embedding001` + circuit breaker | n/a |
 | Telemetry | requests/success/failure/fallback/timeout/auth/quota/bad_request, avg+p95+p99, per-model attempts; `/health` block; optional PostHog/Axiom | n/a |
 | Reliability | primary→fallback failover; breaker fast-skips hard-down models; bad-input (400) cannot down the service | unchanged |
@@ -40,7 +40,7 @@
 
 | File | Change |
 |---|---|
-| `natively-api/server.js` | Embedding waterfall, health, telemetry, `/health` block (see functions below) |
+| `refract-api/server.js` | Embedding waterfall, health, telemetry, `/health` block (see functions below) |
 | `electron/rag/*` | **None** — verified only; desktop was already on v2 with full safety |
 
 ### Functions added/modified in `server.js`
@@ -78,8 +78,8 @@ counters and avg/p95/p99 at `GET /health`. Optional shipping to PostHog (`POSTHO
 | 3072 default if dims dropped | Guarded (explicit `outputDimensionality`, dimension_mismatch reject) |
 
 ## Rollback plan
-- **Server:** `NATIVELY_EMBED_PRIMARY=gemini-embedding-001` (env, no redeploy) → instant; server stores nothing. `ENABLE_LEGACY_TEXT_EMBEDDING_004=true` if 004 returns. Revert commit for full rollback.
-- **Desktop:** `NATIVELY_GEMINI_EMBED_MODEL=gemini-embedding-001` (+ dims 768) → index re-aligns to v1 lazily, no rebuild.
+- **Server:** `REFRACT_EMBED_PRIMARY=gemini-embedding-001` (env, no redeploy) → instant; server stores nothing. `ENABLE_LEGACY_TEXT_EMBEDDING_004=true` if 004 returns. Revert commit for full rollback.
+- **Desktop:** `REFRACT_GEMINI_EMBED_MODEL=gemini-embedding-001` (+ dims 768) → index re-aligns to v1 lazily, no rebuild.
 
 ## Verdict
 **Production-ready.** Server APPROVE (0 critical/high/medium after fix loop); desktop VERIFIED

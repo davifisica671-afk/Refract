@@ -65,7 +65,7 @@ describe('HindsightManager.healthCheck + isAvailable', () => {
 
   test('start() with a baseUrl but memory flag OFF does not spawn (stays Noop)', async () => {
     process.env.HINDSIGHT_BASE_URL = 'http://127.0.0.1:59999'; // unreachable
-    delete process.env.NATIVELY_HINDSIGHT_MEMORY; // flag fora
+    delete process.env.REFRACT_HINDSIGHT_MEMORY; // flag fora
     // Precisa retorna rapidamente sem spawning aqualquer coisa isAvailable stays false.
     await assert.doesNotReject(() => HindsightManager.getInstance().start());
     assert.equal(HindsightManager.getInstance().isAvailable(), false);

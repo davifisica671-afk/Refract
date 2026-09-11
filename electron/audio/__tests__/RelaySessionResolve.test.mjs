@@ -14,11 +14,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distRoot = path.resolve(__dirname, '../../../dist-electron/electron/audio');
-const rs = await import(path.join(distRoot, 'relaySession.js'));
+const rs = await import(pathToFileURL(path.join(distRoot, 'relaySession.js')).href);
 const {
   resolveRelaySession,
   buildFallbackChain,
@@ -78,7 +78,7 @@ function makeFetch({ status = 200, json, throwName } = {}) {
 }
 
 const baseOpts = {
-  apiKey: 'natively_sk_test',
+  apiKey: 'refract_sk_test',
   channel: 'system',
   language: 'en-US',
   languageAlternates: ['en-GB'],
@@ -124,7 +124,7 @@ test('resolveRelaySession sends the correct request body (key, hints, channel)',
     fetchImpl: fetchSpy,
   });
   assert.equal(captured.url, 'https://api.refract.software/v1/stt/session');
-  assert.equal(captured.body.key, 'natively_sk_test');
+  assert.equal(captured.body.key, 'refract_sk_test');
   assert.equal(captured.body.trial_token, undefined, 'paid key must not send trial_token');
   assert.equal(captured.body.region_hint, 'us');
   assert.deepEqual(captured.body.latency_probes, { us: 42, asia: 187 });
@@ -143,10 +143,10 @@ test('resolveRelaySession trial token path sends trial_token, not key', async ()
   await resolveRelaySession({
     ...baseOpts,
     apiKey: undefined,
-    trialToken: 'natively_trial_xyz',
+    trialToken: 'refract_trial_xyz',
     fetchImpl: fetchSpy,
   });
-  assert.equal(captured.trial_token, 'natively_trial_xyz');
+  assert.equal(captured.trial_token, 'refract_trial_xyz');
   assert.equal(captured.key, undefined, 'trial path must not send key');
 });
 

@@ -50,11 +50,11 @@ test('Axiom sink: ingest POST with Bearer token + _time + kind', () => {
   withFakeFetch((calls) => {
     const svc = new TelemetryService({
       enabled: true, localEnabled: false, logFilePath: tmpLog(),
-      sinks: [{ name: 'axiom', enabled: true, apiKey: 'axm_tok', dataset: 'natively-desktop' }],
+      sinks: [{ name: 'axiom', enabled: true, apiKey: 'axm_tok', dataset: 'refract-desktop' }],
     });
     svc.track({ name: 'meeting_start', properties: { mode: 'interview' } });
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].url, 'https://api.axiom.co/v1/datasets/natively-desktop/ingest');
+    assert.equal(calls[0].url, 'https://api.axiom.co/v1/datasets/refract-desktop/ingest');
     assert.match(calls[0].opts.headers.Authorization, /^Bearer axm_tok$/);
     const arr = JSON.parse(calls[0].opts.body);
     assert.equal(arr[0].kind, 'meeting_start');

@@ -27,8 +27,8 @@ import {
 import { __resetIntelligenceFlagsCache } from '../../../dist-electron/electron/intelligence/intelligenceFlags.js';
 
 function setTraceFlag(on) {
-  if (on) process.env.NATIVELY_INTELLIGENCE_TRACE = '1';
-  else delete process.env.NATIVELY_INTELLIGENCE_TRACE;
+  if (on) process.env.REFRACT_INTELLIGENCE_TRACE = '1';
+  else delete process.env.REFRACT_INTELLIGENCE_TRACE;
   __resetIntelligenceFlagsCache();
 }
 

@@ -1,7 +1,7 @@
 // electron/llm/codeVerification/__tests__/VerificationFlag.test.mjs
 //
 // Kill-switch para verified code execution: default OEm disableable at runtime
-// (não redeploy) via env NATIVELY_CODE_VERIFY=off. Quando ofora o hidden
+// (não redeploy) via env REFRACT_CODE_VERIFY=off. Quando ofora o hidden
 // <verification_spec> instrução é também omitted de o coding prompt então o
 // modelo wastes não tokens em a spec nada vai rexecuta
 //
@@ -20,11 +20,11 @@ describe('isCodeVerificationEnabled', () => {
   });
 
   for (const off of ['off', 'false', '0', 'disabled']) {
-    test(`env NATIVELY_CODE_VERIFY=${off} disables it (child process for clean cache)`, () => {
+    test(`env REFRACT_CODE_VERIFY=${off} disables it (child process for clean cache)`, () => {
       const out = execFileSync(process.execPath, [
         '--input-type=module', '-e',
         `import { isCodeVerificationEnabled } from './dist-electron/electron/llm/codeVerification/verificationEnabled.js'; process.stdout.write(String(isCodeVerificationEnabled()));`,
-      ], { cwd: process.cwd(), env: { ...process.env, NATIVELY_CODE_VERIFY: off } }).toString();
+      ], { cwd: process.cwd(), env: { ...process.env, REFRACT_CODE_VERIFY: off } }).toString();
       assert.equal(out, 'false');
     });
   }
@@ -33,7 +33,7 @@ describe('isCodeVerificationEnabled', () => {
     const out = execFileSync(process.execPath, [
       '--input-type=module', '-e',
       `import { isCodeVerificationEnabled } from './dist-electron/electron/llm/codeVerification/verificationEnabled.js'; process.stdout.write(String(isCodeVerificationEnabled()));`,
-    ], { cwd: process.cwd(), env: { ...process.env, NATIVELY_CODE_VERIFY: 'on' } }).toString();
+    ], { cwd: process.cwd(), env: { ...process.env, REFRACT_CODE_VERIFY: 'on' } }).toString();
     assert.equal(out, 'true');
   });
 });

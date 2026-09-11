@@ -30,9 +30,9 @@ fs.mkdirSync(OUT_DIR, { recursive: true });
 
 const { QUESTIONS } = await import('./spoken-quality-dataset.mjs');
 
-process.env.NATIVELY_CONVERSATION_MEMORY_V2 = 'true';
-process.env.NATIVELY_ANSWER_DIVERSITY_GUARD = 'true';
-process.env.NATIVELY_PROFILE_TREE_V2 = 'true';
+process.env.REFRACT_CONVERSATION_MEMORY_V2 = 'true';
+process.env.REFRACT_ANSWER_DIVERSITY_GUARD = 'true';
+process.env.REFRACT_PROFILE_TREE_V2 = 'true';
 
 const llm = require(path.join(DIST, 'llm', 'index.js'));
 const {

@@ -25,7 +25,7 @@ const WS = require('ws').WebSocket;
 
 const compiledServicePath = path.resolve(repoRoot, 'dist-electron/electron/services/PhoneMirrorService.js');
 
-const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'natively-bc-test-'));
+const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'refract-bc-test-'));
 const safeStorageStub = {
   isEncryptionAvailable: () => true,
   encryptString: (s) => Buffer.from('enc:' + s, 'utf8'),

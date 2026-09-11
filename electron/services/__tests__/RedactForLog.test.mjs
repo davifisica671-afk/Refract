@@ -13,12 +13,12 @@ async function loadRedactor() {
   return import(pathToFileURL(distPath).href);
 }
 
-test('redactForLog scrubs API keys, bearer tokens, JWTs, and natively/Anthropic key shapes', async () => {
+test('redactForLog scrubs API keys, bearer tokens, JWTs, and refract/Anthropic key shapes', async () => {
   const { redactForLog } = await loadRedactor();
 
   const inputs = [
     'auth: Bearer abc123def456ghi789jkl0mn',
-    'natively_sk_THIS_SHOULD_BE_HIDDEN',
+    'refract_sk_THIS_SHOULD_BE_HIDDEN',
     'OpenAI key: sk-abcdefghijklmnopqrstu',
     'Groq key: gsk_ZZZZZZZZZZZZZZZZZZZZ',
     'Anthropic: sk-ant-api03-aaaaaaaaaaaaaaaaaaaa',

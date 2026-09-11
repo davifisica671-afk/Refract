@@ -28,7 +28,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Module from 'node:module';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distRoot = path.resolve(__dirname, '../../../dist-electron/electron/audio');
@@ -108,7 +108,7 @@ Module._load = function patchedLoad(request, parent, isMain) {
     if (request === 'electron') {
         return {
             app: {
-                getAppPath: () => '/tmp/fake-natively-app',
+                getAppPath: () => '/tmp/fake-refract-app',
                 isPackaged: false,
                 isReady: () => false,
             },
@@ -125,8 +125,8 @@ Module._load = function patchedLoad(request, parent, isMain) {
 };
 
 // Agora we pode safely importar o compiled wrappers.
-const { SystemAudioCapture } = await import(path.join(distRoot, 'SystemAudioCapture.js'));
-const { MicrophoneCapture } = await import(path.join(distRoot, 'MicrophoneCapture.js'));
+const { SystemAudioCapture } = await import(pathToFileURL(path.join(distRoot, 'SystemAudioCapture.js')).href);
+const { MicrophoneCapture } = await import(pathToFileURL(path.join(distRoot, 'MicrophoneCapture.js')).href);
 
 // setImmediate-flush hauxiliar `stop()` defers `monitor.stop()` via setImmediate;
 // we aguardar one macrotask então o deferred teardown actually rexecuta

@@ -9,7 +9,7 @@ const telemetryPath = path.resolve(process.cwd(), 'dist-electron/electron/servic
 const { TelemetryService, sanitizeTelemetryProperties } = await import(pathToFileURL(telemetryPath).href);
 
 function makeTempDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'natively-telemetry-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'refract-telemetry-test-'));
 }
 
 function readRecords(filePath) {
@@ -47,7 +47,7 @@ test('API keys and tokens are redacted from properties', () => {
     apiKey: 'sk-abcdefghijklmnopqrstuvwxyz123456',
     authorization: 'Bearer abcdefghijklmnopqrstuvwxyz1234567890',
     nested: {
-      token: 'natively_sk_supersecretvalue',
+      token: 'refract_sk_supersecretvalue',
       message: 'failed with gsk_abcdefghijklmnopqrstuvwxyz123456',
     },
   });
@@ -55,7 +55,7 @@ test('API keys and tokens are redacted from properties', () => {
   const serialized = JSON.stringify(sanitized);
   assert.doesNotMatch(serialized, /sk-abcdefghijklmnopqrstuvwxyz123456/);
   assert.doesNotMatch(serialized, /Bearer abcdefghijklmnopqrstuvwxyz1234567890/);
-  assert.doesNotMatch(serialized, /natively_sk_supersecretvalue/);
+  assert.doesNotMatch(serialized, /refract_sk_supersecretvalue/);
   assert.doesNotMatch(serialized, /gsk_abcdefghijklmnopqrstuvwxyz123456/);
   assert.match(serialized, /\[REDACTED\]/);
 });

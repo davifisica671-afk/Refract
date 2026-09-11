@@ -40,7 +40,7 @@ describe('buildJavaProgram (pure)', () => {
     assert.match(p, /int a0 = 2;/);
     assert.match(p, /int a1 = 3;/);
     assert.match(p, /new Solution\(\)\.add\(a0, a1\)/);
-    assert.match(p, /__NATIVELY_RESULT_START__/);
+    assert.match(p, /__REFRACT_RESULT_START__/);
   });
   test('emits ListNode build/serialize helpers when the signature uses them', () => {
     const p = buildJavaProgram('class Solution { public ListNode reverseList(ListNode head){return head;} }', 'reverseList', tc([[1, 2, 3]], [3, 2, 1]));

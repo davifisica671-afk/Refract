@@ -47,7 +47,7 @@ function sha512base64(file) {
 }
 
 function resolveDeveloperIdIdentity() {
-  if (process.env.NATIVELY_SIGN_IDENTITY) return process.env.NATIVELY_SIGN_IDENTITY;
+  if (process.env.REFRACT_SIGN_IDENTITY) return process.env.REFRACT_SIGN_IDENTITY;
   if (process.env.CSC_NAME) return process.env.CSC_NAME;
   try {
     const out = execSync('security find-identity -v -p codesigning', { encoding: 'utf8' });

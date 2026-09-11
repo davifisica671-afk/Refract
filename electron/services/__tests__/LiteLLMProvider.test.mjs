@@ -40,7 +40,7 @@ describe('LiteLLM model id detection + prefix handling', () => {
     assert.equal(isLiteLLMModel('claude-sonnet-4-6'), false);
     assert.equal(isLiteLLMModel('deepseek-v4-flash'), false);
     assert.equal(isLiteLLMModel('ollama-llama3'), false);
-    assert.equal(isLiteLLMModel('natively'), false);
+    assert.equal(isLiteLLMModel('refract'), false);
   });
 
   test('is null/empty safe', () => {

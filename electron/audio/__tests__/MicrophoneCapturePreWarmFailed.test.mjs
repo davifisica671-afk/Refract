@@ -79,7 +79,7 @@ Module._load = function patchedLoad(request, parent, isMain) {
     if (request === 'electron') {
         return {
             app: {
-                getAppPath: () => '/tmp/fake-natively-app',
+                getAppPath: () => '/tmp/fake-refract-app',
                 isPackaged: false,
                 isReady: () => false,
             },

@@ -20,8 +20,8 @@ export interface ParsedReleaseNotes {
 export class ReleaseNotesManager {
     private static instance: ReleaseNotesManager;
     private cachedNotes: ParsedReleaseNotes | null = null;
-    private readonly repoOwner = "Refract-AI-assistant";
-    private readonly repoName = "refract";
+    private readonly repoOwner = "davifisica671-afk";
+    private readonly repoName = "Refract";
 
     private constructor() { }
 

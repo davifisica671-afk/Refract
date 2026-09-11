@@ -42,9 +42,9 @@ test('span close is idempotent (second end is a no-op)', () => {
 
 test('endWith records the status', () => {
   const { svc, events } = captureService();
-  svc.startSpan('provider_request_started').endWith('timeout', { provider: 'natively' });
+  svc.startSpan('provider_request_started').endWith('timeout', { provider: 'refract' });
   assert.equal(events[0].status, 'timeout');
-  assert.equal(events[0].properties.provider, 'natively');
+  assert.equal(events[0].properties.provider, 'refract');
 });
 
 test('elapsedMs does not close the span', () => {
@@ -81,7 +81,7 @@ test('debugMetadata is merged under properties.debug and can be cleared', () => 
 
 test('per-event debug overrides win over global debug metadata', () => {
   const { svc, events } = captureService();
-  svc.setDebugMetadata({ provider: 'natively' });
+  svc.setDebugMetadata({ provider: 'refract' });
   svc.track({ name: 'provider_race_won', properties: { debug: { provider: 'groq' } } });
   assert.equal(events[0].properties.debug.provider, 'groq', 'event-level debug overrides global');
 });
@@ -126,8 +126,8 @@ test('sanitizer removes raw transcript/prompt/resume/persona/jd/negotiation cont
 });
 
 test('sanitizer redacts apiKey-suffixed keys', () => {
-  const clean = sanitizeTelemetryProperties({ nativelyApiKey: 'natively_sk_xxxxxxxxxxxx', model: 'gemini-flash' });
-  assert.equal(clean.nativelyApiKey, '[REDACTED]');
+  const clean = sanitizeTelemetryProperties({ refractApiKey: 'refract_sk_xxxxxxxxxxxx', model: 'gemini-flash' });
+  assert.equal(clean.refractApiKey, '[REDACTED]');
   assert.equal(clean.model, 'gemini-flash');
 });
 
