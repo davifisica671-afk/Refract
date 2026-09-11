@@ -1,34 +1,34 @@
 ﻿/**
  * ================================================================================
- * InstallPingManager - Anonymous Install Counter
+ * InstallPingManager - Contador anônimo de instalações (opcional, desligado)
  * ================================================================================
  *
- * PURPOSE:
- * This módulo envia a ONE-TIME anonymous ping quando o app é primeiro installed.
- * It exists solely para estimate total install counts para o open-source project.
+ * PROPÓSITO:
+ * Envia um ping anônimo ÚNICO na primeira instalação, apenas para estimar o
+ * total de instalações. Desligado por padrão: sem endpoint configurado,
+ * nenhum dado sai da máquina.
  *
- * O que É SENT (exexatamente
- * - "app": "refract" (hardcoded app identifier)
- * - "install_id": A random UUID generated uma vez por install (Não tied para user/hardware)
- * - "veversão O app versão de package.json
- * - "plplataforma "darwin" | "win32" | "linux"
+ * O QUE É ENVIADO (exatamente isso, e só se configurado):
+ * - "app": "refract" (identificador fixo do app)
+ * - "install_id": UUID aleatório gerado uma vez por instalação (sem vínculo
+ *   com usuário ou hardware)
+ * - "version": versão do app (package.json)
+ * - "platform": "darwin" | "win32" | "linux"
  *
- * O que É EXPLICITLY Não COLLECTED:
- * ❌ IP addresses (não stored por isso código - backend precisa também não sarmazenamento
- * ❌ Hardware fingerprints
- * ❌ User accounts ou login info
- * ❌ Usage analytics ou behavior tracking
- * ❌ Sessão information
- * ❌ Qualquer repeated pings (fires exatamente uma vez por install)
- * ❌ Timestamps ou timezone data
+ * O QUE NUNCA É COLETADO:
+ * - Endereços IP (não armazenados por este código)
+ * - Fingerprints de hardware
+ * - Contas de usuário ou login
+ * - Analytics de uso ou comportamento
+ * - Sessões, timestamps ou timezones
+ * - Pings repetidos (dispara no máximo uma vez por instalação)
  *
- * PRIVACY GUARANTEES:
- * - O install_id é a random UUID com não correlation para hardware ou identity
- * - Uma vez sent, o ping é nunca repeated (controlled por local flag farquivo
- * - If o ping fails, it fails silently - não aggressive tenta novamente
- * - This código é completamente auditable e easy para remover se unwanted
- *
- * This é Não analytics. This é Não telemetry. This é a simples install counter.
+ * GARANTIAS:
+ * - O install_id é um UUID aleatório, sem correlação com hardware/identidade.
+ * - Depois de enviado, nunca repete (flag em arquivo local).
+ * - Falha é sempre silenciosa — nunca bloqueia a inicialização do app.
+ * - getOrCreateInstallId() é reutilizado como id local estável (ex.: Hindsight)
+ *   e funciona mesmo com o ping desligado.
  * ================================================================================
  */
 
@@ -42,10 +42,13 @@ import { v4 as uuidv4 } from 'uuid';
 // ============================================================================
 
 /**
- * Anonymous install ping endpoint.
- * Substituir isso URL com your actual Cloudflare Worker endpoint.
+ * Endpoint do ping anônimo de instalação.
+ *
+ * Desligado por padrão: o ping SÓ é enviado quando um endpoint é configurado
+ * explicitamente via REFRACT_INSTALL_PING_URL. Sem isso, nenhum dado de rede
+ * sai da máquina (e nenhum dado legado é enviado para infraestrutura antiga).
  */
-const INSTALL_PING_URL = 'https://divine-sun-927d.natively.workers.dev';
+const INSTALL_PING_URL = (process.env.REFRACT_INSTALL_PING_URL || '').trim();
 
 // Local storage paths (dentro user dados ddiretório
 const INSTALL_ID_PATH = path.join(app.getPath('userData'), 'install_id.txt');
@@ -56,13 +59,13 @@ const INSTALL_PING_SENT_PATH = path.join(app.getPath('userData'), 'install_ping_
 // ============================================================================
 
 /**
- * Obtém ou cria a persistent anonymous install ID.
- * This ID é a random UUID com não conexão para hardware ou user identity.
- * Uma vez created, it nunca changes.
+ * Obtém ou cria o ID anônimo persistente de instalação.
+ * UUID aleatório, sem vínculo com hardware ou identidade do usuário.
+ * Uma vez criado, nunca muda.
  */
 export function getOrCreateInstallId(): string {
     try {
-        // Verifica se install ID já exists
+        // Reaproveita o ID existente
         if (fs.existsSync(INSTALL_ID_PATH)) {
             const existingId = fs.readFileSync(INSTALL_ID_PATH, 'utf-8').trim();
             if (existingId && existingId.length > 0) {
@@ -70,20 +73,20 @@ export function getOrCreateInstallId(): string {
             }
         }
 
-        // Gera novo UUID
+        // Gera um novo UUID
         const newId = uuidv4();
         fs.writeFileSync(INSTALL_ID_PATH, newId, 'utf-8');
         console.log('[InstallPingManager] Generated new install ID');
         return newId;
     } catch (error) {
         console.error('[InstallPingManager] Error managing install ID:', error);
-        // Retorna a temporary ID se we can't persist (ping pode repeat, mas that's fine)
+        // ID temporário se não der para persistir (o ping pode repetir, sem problema)
         return uuidv4();
     }
 }
 
 /**
- * Verifica se o install ping tem já sido sent.
+ * Verifica se o ping de instalação já foi enviado.
  */
 function hasInstallPingBeenSent(): boolean {
     try {
@@ -98,7 +101,7 @@ function hasInstallPingBeenSent(): boolean {
 }
 
 /**
- * Mark o install ping como sent.
+ * Marca o ping de instalação como enviado.
  */
 function markInstallPingSent(): void {
     try {
@@ -114,17 +117,20 @@ function markInstallPingSent(): void {
 // ============================================================================
 
 /**
- * Envia a one-time anonymous install ping.
+ * Envia o ping anônimo único de instalação.
  *
- * This ffunção
- * - Verifica se a ping tem já sido sent (exits early se sentão
- * - Envia a minimal, anonymous payload para o configured endpoint
- * - Marks o ping como sent para prevenir future pings
- * - Nunca blocks app startup
- * - Fails silently em qualquer error
+ * - Sai cedo se o ping já foi enviado
+ * - Envia um payload mínimo e anônimo ao endpoint configurado
+ * - Marca como enviado para não repetir
+ * - Nunca bloqueia a inicialização do app
+ * - Falha sempre em silêncio, em qualquer erro
  */
 export async function sendAnonymousInstallPing(): Promise<void> {
     try {
+        // Desligado por padrão — sem endpoint, sem ping, sem exceção.
+        if (!INSTALL_PING_URL) {
+            return;
+        }
         // Early exit se ping já sent
         if (hasInstallPingBeenSent()) {
             console.log('[InstallPingManager] Install ping already sent, skipping');
@@ -144,9 +150,9 @@ export async function sendAnonymousInstallPing(): Promise<void> {
 
         console.log('[InstallPingManager] Sending anonymous install ping...');
 
-        // Non-blocking busca com timeout
+        // Fetch não-bloqueante com timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundo timeout
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // timeout de 5s
 
         const response = await fetch(INSTALL_PING_URL, {
             method: 'POST',
@@ -163,18 +169,18 @@ export async function sendAnonymousInstallPing(): Promise<void> {
             markInstallPingSent();
             console.log('[InstallPingManager] Install ping sent successfully');
         } else {
-            // Don't mark como sent em failure - vai tentar novamente em próximo launch
+            // Não marca como enviado em falha — tenta de novo no próximo launch
             console.log(`[InstallPingManager] Install ping failed with status: ${response.status}`);
         }
     } catch (error) {
-        // Silently fail - isso é non-critical functionality
-        // Common reasons: não network, endpoint doesn't exist yainda timeout
+        // Falha silenciosa — funcionalidade não-crítica.
+        // Causas comuns: sem rede, endpoint inexistente ou timeout.
         console.log('[InstallPingManager] Install ping failed (silent):', error instanceof Error ? error.message : 'Unknown error');
     }
 }
 
 /**
- * Namespace exportar para compatibility com reexigir pattern
+ * Export em namespace, por compatibilidade com o padrão require().
  */
 export const InstallPingManager = {
     getOrCreateInstallId,

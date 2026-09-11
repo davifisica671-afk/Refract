@@ -77,9 +77,11 @@ const CONTROL_TOKENS = [
     { regex: /\[\/INST\]/gi, replacement: '[/INST_REDACTED]' },
     { regex: /(?:<<SYS>>|&(?:amp;)?lt;&(?:amp;)?lt;SYS&(?:amp;)?gt;&(?:amp;)?gt;)/gi, replacement: '|SYS_REDACTED|' },
     { regex: /(?:<<\/SYS>>|&(?:amp;)?lt;&(?:amp;)?lt;\/SYS&(?:amp;)?gt;&(?:amp;)?gt;)/gi, replacement: '|/SYS_REDACTED|' },
-    // Note: <s> e </s> entries apenas aplica para o reference-file caminho (que é não HTML entity-encoded).
-    // O DOM contexto block é completamente entity-encoded antes injection cverifica meaning qualquer literal "<s>" 
-    // dentro DOM becomes "&lt;s&gt;", que natively neutralizes o token sem requiring an entity-encoded regex.
+    // Nota: as entradas <s> e </s> aplicam-se apenas ao caminho de reference-file
+    // (que não passa por entity-encoding de HTML). O bloco de contexto DOM é
+    // totalmente entity-encoded antes da injeção, então um "<s>" literal vira
+    // "&lt;s&gt;" — o que por si só já neutraliza o token, sem precisar de
+    // regex para a forma encoded.
     { regex: /<s>/gi, replacement: '|s_redacted|' },
     { regex: /<\/s>/gi, replacement: '|/s_redacted|' },
 ];

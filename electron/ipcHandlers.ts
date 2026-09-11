@@ -102,12 +102,37 @@ import { buildManualProfileBackendAnswer } from './llm/profileAnswerBackend';
 import { SmartMeetingService } from './services/SmartMeetingService';
 
 export function initializeIpcHandlers(appState: AppState): void {
+  /**
+   * F-10 (defesa em profundidade): rejeita invocações IPC cuja origem não é
+   * uma janela do próprio app. Todo renderer legítimo é uma BrowserWindow
+   * nossa, então chamadas reais não mudam de comportamento.
+   * Limite honesto: NÃO barra XSS executando dentro de uma janela legítima
+   * (essa fronteira é a sanitização do renderer); barra remetentes estranhos.
+   */
+  const assertAppSender = (event: any, channel: string): void => {
+    const sender = event?.sender;
+    if (!sender) return; // chamadas internas sem evento passam
+    let ownWindow = null;
+    try {
+      ownWindow = BrowserWindow.fromWebContents(sender);
+    } catch {
+      ownWindow = null;
+    }
+    if (!ownWindow) {
+      console.warn(`[IPC] ${channel}: rejected call from non-app sender`);
+      throw new Error('forbidden sender');
+    }
+  };
+
   const safeHandle = (
     channel: string,
     listener: (event: any, ...args: any[]) => Promise<any> | any,
   ) => {
     ipcMain.removeHandler(channel);
-    ipcMain.handle(channel, listener);
+    ipcMain.handle(channel, async (event, ...args) => {
+      assertAppSender(event, channel);
+      return listener(event, ...args);
+    });
   };
 
   const safeOn = (
@@ -115,7 +140,14 @@ export function initializeIpcHandlers(appState: AppState): void {
     listener: (event: any, ...args: any[]) => void,
   ) => {
     ipcMain.removeAllListeners(channel);
-    ipcMain.on(channel, listener);
+    ipcMain.on(channel, (event, ...args) => {
+      try {
+        assertAppSender(event, channel);
+      } catch {
+        return;
+      }
+      listener(event, ...args);
+    });
   };
 
   const escapeXmlText = (text: string): string =>
@@ -123,6 +155,38 @@ export function initializeIpcHandlers(appState: AppState): void {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+
+  /**
+   * F-05: valida imagePaths vindos do renderer contra o confinamento de
+   * userData (validateImagePath) + teto de quantidade. Lança Error quando
+   * inválido — o chamador decide como reportar (throw direto ou
+   * evento 'gemini-stream-error'). Retorna undefined quando não há imagens.
+   */
+  const MAX_CHAT_IMAGE_PATHS = 5;
+  const validateChatImagePaths = (
+    imagePaths: string[] | undefined,
+    channel: string,
+  ): string[] | undefined => {
+    if (!imagePaths || imagePaths.length === 0) return undefined;
+    if (!Array.isArray(imagePaths) || imagePaths.length > MAX_CHAT_IMAGE_PATHS) {
+      console.warn(`[IPC] ${channel}: malformed image path payload rejected`);
+      throw new Error('Invalid image path payload');
+    }
+    const { validateImagePath } = require('./utils/curlUtils');
+    const userDataDir = app.getPath('userData');
+    return imagePaths.map((p) => {
+      if (typeof p !== 'string' || !p.trim()) {
+        console.warn(`[IPC] ${channel}: malformed image path payload rejected`);
+        throw new Error('Invalid image path payload');
+      }
+      const v = validateImagePath(p, userDataDir);
+      if (!v.isValid) {
+        console.warn(`[IPC] ${channel}: invalid image path rejected: ${v.reason}`);
+        throw new Error(`Invalid image path: ${v.reason}`);
+      }
+      return p;
+    });
+  };
 
   const sanitizeRepairPromptText = (text: string, maxChars: number): string => {
     const normalized = String(text || '')
@@ -617,9 +681,12 @@ export function initializeIpcHandlers(appState: AppState): void {
       options?: { skipSystemPrompt?: boolean },
     ) => {
       try {
+        // F-05: imagePaths vêm do renderer — confina a userData ANTES de
+        // entregar ao LLM (mesmo padrão de generate-what-to-say).
+        const validatedChatImagePaths = validateChatImagePaths(imagePaths, 'gemini-chat');
         const result = await appState.processingHelper
           .getLLMHelper()
-          .chatWithGemini(message, imagePaths, context, options?.skipSystemPrompt);
+          .chatWithGemini(message, validatedChatImagePaths, context, options?.skipSystemPrompt);
 
         console.log(`[IPC] gemini - chat response received`, { length: result?.length ?? 0 });
 
@@ -730,6 +797,15 @@ export function initializeIpcHandlers(appState: AppState): void {
       try {
         console.log('[IPC] gemini-chat-stream started using LLMHelper.streamChat');
         const llmHelper = appState.processingHelper.getLLMHelper();
+
+        // F-05: imagePaths do renderer validados antes de qualquer uso
+        // (probe de identidade e streamChat). Falha vira erro no stream.
+        try {
+          imagePaths = validateChatImagePaths(imagePaths, 'gemini-chat-stream');
+        } catch (validationErr: any) {
+          event.sender.send('gemini-stream-error', validationErr?.message || 'Invalid image path');
+          return;
+        }
 
         const senderId = event.sender.id;
         const myStreamId = ++_chatStreamId;
@@ -1410,10 +1486,9 @@ export function initializeIpcHandlers(appState: AppState): void {
           context = context ? `${skillPromptBlock}\n\n${context}` : skillPromptBlock;
         }
 
-        // Uso CHAT_MODE_PROMPT para geral chat — bypasses o interview-copilot
-        // framing em HARD_SYSTEM_PROMPT/ASSIST_MODE_PROMPT que era causing coding
-        // questions para ser answered com "At Aetherbot AI, I era responsible for.para
-        // (retomar hijack via CONTEXT_INTELLIGENCE_LAYER's "you São o user").
+        // Usa CHAT_MODE_PROMPT para chat geral — evita o enquadramento de
+        // copiloto de entrevistas (HARD_SYSTEM_PROMPT/ASSIST_MODE_PROMPT), que
+        // fazia perguntas de programação saírem como texto de entrevista.
         const systemPromptOverride: string | undefined = options?.skipSystemPrompt
           ? ''
           : CHAT_MODE_PROMPT;
@@ -2206,6 +2281,7 @@ export function initializeIpcHandlers(appState: AppState): void {
   });
 
   safeHandle('delete-meeting', async (_, id: string) => {
+    if (typeof id !== 'string' || !id) throw new Error('Invalid meeting id');
     return DatabaseManager.getInstance().deleteMeeting(id);
   });
 
@@ -4358,6 +4434,14 @@ export function initializeIpcHandlers(appState: AppState): void {
       if (Number.isNaN(darwinMajor) || darwinMajor < 22) {
         return { success: false, error: 'Local Whisper models require macOS 13 Ventura or later.' };
       }
+    }
+    // F-06: só baixa ids do catálogo — id arbitrário do renderer poderia
+    // puxar qualquer repo do HF (enchimento de disco/rede).
+    try {
+      const { assertKnownModelId } = require('./audio/whisper/modelManager');
+      assertKnownModelId(modelId);
+    } catch (e: any) {
+      return { success: false, error: e.message };
     }
     if (activeWhisperDownloads.has(modelId)) {
       return { success: false, error: 'already-downloading' };
@@ -7556,9 +7640,11 @@ safeHandle('smart-meeting:workspace', async (_, params: { meetingId?: string; ev
   // ---- Coding Assistant IPC handlers ----
   safeHandle('repo-index:scan', async (_event, repoPath: string) => {
     try {
-      const { RepoIndexer } = require('./repo-indexer/RepoIndexer');
+      const { RepoIndexer, validateRepoPath } = require('./repo-indexer/RepoIndexer');
+      // F-08: confina a varredura (absoluto, fora de locais do SO, com tetos).
+      const resolved = validateRepoPath(repoPath);
       const indexer = new RepoIndexer({
-        repoPath,
+        repoPath: resolved,
         db: DatabaseManager.getInstance().getDb(),
         dbPath: DatabaseManager.getInstance().getDbPath(),
         extPath: DatabaseManager.getInstance().getExtPath(),
@@ -7574,10 +7660,10 @@ safeHandle('smart-meeting:workspace', async (_, params: { meetingId?: string; ev
 
   safeHandle('repo-index:query', async (_event, query: string, topK?: number) => {
     try {
-      const { RepoIndexer } = require('./repo-indexer/RepoIndexer');
+      const { RepoIndexer, validateRepoPath } = require('./repo-indexer/RepoIndexer');
       const { SettingsManager } = require('./services/SettingsManager');
       const sm = SettingsManager.getInstance();
-      const repoPath = sm.get('repoIndexerPath') || '';
+      const repoPath = validateRepoPath(sm.get('repoIndexerPath') || '');
       if (!repoPath) return { success: false, error: 'No repo path configured' };
       const appState = require('./main').appState;
       const indexer = new RepoIndexer({

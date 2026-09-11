@@ -20,7 +20,7 @@ process.env.LS_NO_LISTEN = '1';
 process.env.LEMONSQUEEZY_WEBHOOK_SECRET = 'test-webhook-secret';
 process.env.DB_PATH = path.join(os.tmpdir(), `refract-ls-test-${process.pid}-${Date.now()}.db`);
 
-const { default: app, createRateLimiter, hwidAllowsAccess } = await import('./server.js');
+const { default: app, createRateLimiter, hwidAllowsAccess, isPlaceholderSecret } = await import('./server.js');
 
 test.after(() => {
     try { app.close(); } catch { /* noop */ }
@@ -61,12 +61,13 @@ test('hwid: linha com hwid conhecido exige match exato', () => {
     assert.equal(hwidAllowsAccess('abc', 'abc', true), true, 'strict não afrouxa um match válido');
 });
 
-test('hwid: linha legada (sem hwid) — bypass fora do estrito, exige query no estrito', () => {
-    assert.equal(hwidAllowsAccess('', '', false), true, 'compat: sem hwid, sem strict → libera');
+test('hwid: linha legada (sem hwid) — recusada no estrito (F-04), bypass só fora dele', () => {
+    assert.equal(hwidAllowsAccess('', '', false), true, 'compat explícita: sem hwid, sem strict → libera');
     assert.equal(hwidAllowsAccess('unknown', '', false), true);
     assert.equal(hwidAllowsAccess(null, 'q', false), true);
-    assert.equal(hwidAllowsAccess('unknown', '', true), false, 'strict: exige ao menos um hwid na query');
-    assert.equal(hwidAllowsAccess('', 'q', true), true, 'strict: query com hwid é aceita');
+    assert.equal(hwidAllowsAccess('unknown', '', true), false, 'strict: linha legada sem query → nega');
+    assert.equal(hwidAllowsAccess('', 'q', true), false, 'strict: hwid qualquer NÃO é posse → nega (F-04/F-12)');
+    assert.equal(hwidAllowsAccess(null, 'q', true), false);
 });
 
 // ── healthcheck ────────────────────────────────────────────────────────────
@@ -74,6 +75,30 @@ test('GET /health responde 200', async () => {
     const res = await app.inject({ method: 'GET', url: '/health' });
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.json(), { ok: true, service: 'refract-lemonsqueezy' });
+});
+
+// ── F-07: POST /v1/checkout tem rate-limit próprio ─────────────────────────
+test('POST /v1/checkout sem plano válido conta p/ o limite e estoura em 429', async () => {
+    // Default LS_CHECKOUT_LIMIT_PER_MIN=20 — 25 chamadas com plano inválido
+    // (400, sem tocar a API do LS) devem terminar em 429.
+    let last;
+    for (let i = 0; i < 25; i++) {
+        last = await app.inject({
+            method: 'POST', url: '/v1/checkout/lemonsqueezy',
+            payload: { plan: 'nope' },
+        });
+    }
+    assert.equal(last.statusCode, 429, 'flood de checkout deve ser limitado');
+    assert.equal(last.json().error, 'rate_limited');
+});
+
+// ── F-01: placeholders de segredo são detectados ───────────────────────────
+test('isPlaceholderSecret recusa placeholders e aceita valores plausíveis', () => {
+    for (const v of ['your_api_key_here', 'changeme', 'test-secret', 'test-webhook-secret', 'xxx', '', null, undefined, 'short']) {
+        assert.equal(isPlaceholderSecret(v), true, JSON.stringify(v) + ' deve ser placeholder');
+    }
+    assert.equal(isPlaceholderSecret('whsec_9f2Kv7Qd8LmX4pTz'), false);
+    assert.equal(isPlaceholderSecret('gsk_abc123XYZ456'), false);
 });
 
 // ── webhook: validação de assinatura HMAC ──────────────────────────────────

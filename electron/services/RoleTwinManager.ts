@@ -9,7 +9,7 @@
  * - Persistir twins em electron-store (arquivo dedicado refract-role-twins)
  * - Chamar RoleTwinService.analyze() com o contexto do candidato disponível
  * - Pesquisar o dossiê da empresa (CompanyResearchEngine) quando solicitado,
- *   com o mesmo gate premium do handler profile:research-company
+ *   com o mesmo gate pro-ou-trial do handler profile:research-company
  * - Garantir um único twin ativo por vez
  *
  * Contrato consumido por electron/services/RoleTwinIpc.ts:
@@ -38,6 +38,32 @@ export interface RoleTwinAnalyzeResult {
     success: boolean;
     twin?: RoleTwin;
     error?: string;
+}
+
+/**
+ * F-14: mesmo gate "pro ou trial ativo" dos handlers profile:* em
+ * ipcHandlers.ts. Espelhado aqui (em vez de importado) porque o
+ * ipcHandlers define a função localmente; duplicar a lógica curta é
+ * preferível a criar dependência do módulo gigante de IPC.
+ */
+export function isProOrTrialActive(): boolean {
+    try {
+        const { LicenseManager } = require('../../premium/electron/services/LicenseManager');
+        if (LicenseManager.getInstance().isPremium()) return true;
+    } catch {
+        /* módulo premium não disponível */
+    }
+    try {
+        const { CredentialsManager } = require('./CredentialsManager');
+        const cm = CredentialsManager.getInstance();
+        const token = cm.getTrialToken();
+        if (!token) return false;
+        const expiresAt = cm.getTrialExpiresAt();
+        if (!expiresAt) return false;
+        return new Date(expiresAt).getTime() > Date.now();
+    } catch {
+        return false;
+    }
 }
 
 export class RoleTwinManager {
@@ -221,9 +247,9 @@ export class RoleTwinManager {
         jobDescription: string,
     ): Promise<RoleTwin['companyDossier']> {
         try {
-            // Gate premium — idêntico ao de profile:research-company.
-            const { LicenseManager } = require('../../premium/electron/services/LicenseManager');
-            if (!LicenseManager.getInstance().isPremium()) return null;
+            // Gate pro-ou-trial — idêntico ao de profile:research-company
+            // (F-14: antes era isPremium() puro, e o trial ficava de fora).
+            if (!isProOrTrialActive()) return null;
 
             const { DatabaseManager } = require('../db/DatabaseManager');
             const sqliteDb = DatabaseManager.getInstance().getDb();

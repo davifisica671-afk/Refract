@@ -5,6 +5,13 @@ import { VectorStore } from '../rag/VectorStore';
 import { EmbeddingPipeline } from '../rag/EmbeddingPipeline';
 import { RAGRetriever } from '../rag/RAGRetriever';
 import { isIntelligenceFlagEnabled } from '../intelligence/intelligenceFlags';
+import {
+  REPO_SCAN_MAX_FILES,
+  REPO_SCAN_MAX_FILE_BYTES,
+  REPO_SCAN_MAX_TOTAL_BYTES,
+} from './repoPathPolicy';
+
+export { validateRepoPath } from './repoPathPolicy';
 
 interface RepoFile {
   path: string;
@@ -55,10 +62,16 @@ export class RepoIndexer {
 
   private walkRepo(): RepoFile[] {
     const results: RepoFile[] = [];
+    let totalBytes = 0;
     const walkDir = (dir: string) => {
+      if (results.length >= REPO_SCAN_MAX_FILES || totalBytes >= REPO_SCAN_MAX_TOTAL_BYTES) return;
       let entries: fs.Dirent[];
       try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
       for (const entry of entries) {
+        if (results.length >= REPO_SCAN_MAX_FILES || totalBytes >= REPO_SCAN_MAX_TOTAL_BYTES) return;
+        // Symlinks nunca são seguidos: um repo malicioso poderia apontar
+        // para fora (ex.: /etc) e vazar arquivos na indexação.
+        if (entry.isSymbolicLink()) continue;
         const fullPath = path.join(dir, entry.name);
         const relPath = path.relative(this.repoPath, fullPath);
         if (this.ignoreFilter.ignores(relPath)) continue;
@@ -67,7 +80,11 @@ export class RepoIndexer {
         const lang = this.extToLang(ext);
         if (!lang) continue;
         try {
+          const stat = fs.statSync(fullPath);
+          if (!stat.isFile() || stat.size > REPO_SCAN_MAX_FILE_BYTES) continue;
+          if (totalBytes + stat.size > REPO_SCAN_MAX_TOTAL_BYTES) return;
           const content = fs.readFileSync(fullPath, 'utf-8');
+          totalBytes += stat.size;
           results.push({ path: relPath, content, language: lang });
         } catch { }
       }

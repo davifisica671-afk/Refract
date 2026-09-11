@@ -15,12 +15,17 @@ Servidor standalone de checkout LemonSqueezy para o Refract Pro. Emite licenças
 
 | Variável | Obrigatória | Default | Descrição |
 |----------|-------------|---------|-----------|
-| `LEMONSQUEEZY_API_KEY` | ✅ | — | Chave de API do LemonSqueezy |
+| `LEMONSQUEEZY_API_KEY` | ✅ | — | Chave de API do LemonSqueezy (placeholders recusados no boot) |
 | `LEMONSQUEEZY_STORE_ID` | ✅ | — | ID da loja no LemonSqueezy |
 | `LEMONSQUEEZY_WEBHOOK_SECRET` | ✅ | — | Segredo para validar webhooks |
-| `LICENSE_SIGNING_KEY_PATH` | ❌ | `~/.refract/license-signing-key.pem` | Caminho da chave privada Ed25519 |
+| `LEMONSQUEEZY_VARIANT_MONTHLY` / `_YEARLY` / `_LIFETIME` | ✅ | — | IDs das variantes por plano |
+| `LICENSE_SIGNING_KEY_PATH` | ❌ | `~/.refract/license-signing-key.pem` | Chave privada Ed25519. `*test-key*` é recusado em produção |
 | `DB_PATH` | ❌ | `./data/refract-ls.db` | Caminho do SQLite |
 | `PORT` | ❌ | `8787` | Porta HTTP |
+| `LS_RATE_LIMIT_PER_MIN` | ❌ | `120` | Rate-limit/min/IP nas rotas de licença (`0` recusado em produção) |
+| `LS_CHECKOUT_LIMIT_PER_MIN` | ❌ | `20` | Rate-limit/min/IP na criação de checkout (anti-spam) |
+| `LS_TRUST_PROXY` | ❌ | `0` | `=1` atrás de proxy (Fly.io) para `req.ip` real via X-Forwarded-For |
+| `LS_ALLOW_LEGACY_NO_HWID` | ❌ | `0` | `=1` reativa o bypass de poll p/ linhas sem hwid (compat. temporária; loga warning). Padrão é estrito: linha sem hwid → 403 |
 
 ## Deploy (Railway / Render / Fly.io)
 

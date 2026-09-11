@@ -43,9 +43,11 @@ import "./index.css"             // Estilos globais (Tailwind CSS + estilos base
 const THEME_CACHE_KEY = 'refract_resolved_theme';
 
 // ============================================================
-// MIGRAÇÃO: chaves localStorage "natively_*" → "refract_*"
+// Compatibilidade: chaves legadas do localStorage → chaves atuais
 // ============================================================
-// Copia valor antigo pro novo se existir. Roda uma única vez.
+// Preserva preferências de instalações anteriores (migração única por chave).
+// As entradas legadas podem ser removidas em versão futura, após janela
+// suficiente de migração.
 function migrateLocalStorageKey(oldKey: string, newKey: string): void {
   if (localStorage.getItem(newKey) !== null) return;
   const old = localStorage.getItem(oldKey);

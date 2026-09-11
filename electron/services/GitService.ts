@@ -5,12 +5,49 @@
  * Implementa o padrão Singleton para uso consistente em todo o aplicativo.
  */
 
-import { exec, execSync } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+/**
+ * Limites e allowlists de segurança (correção F-03 — command injection).
+ *
+ * Todo comando git abaixo roda via execFile (argv, SEM shell), então
+ * metacaracteres como $(...), backticks e $VAR nunca são expandidos.
+ * As validações extras existem como defesa em profundidade e para
+ * falhar rápido com mensagens claras:
+ */
+const MAX_PATHSPEC_LEN = 1024;
+const MAX_FILES_PER_COMMIT = 1000;
+const MAX_LOG_COUNT = 200;
+const MAX_STASH_MESSAGE_LEN = 500;
+// Nomes de branch seguros: sem opção-injection (nunca começam com '-'),
+// sem travessia, sem sintaxe de revisão do git (@{...}, ~, ^, :, ?, *, [).
+const SAFE_BRANCH_RE = /^[A-Za-z0-9][A-Za-z0-9/_.\-]{0,127}$/;
+const FORBIDDEN_BRANCH_SEQ = ['..', '@{', '//'];
+
+/** Valida um pathspec vindo do renderer (usado sempre após `--`). */
+export function assertSafePathSpec(p: unknown): asserts p is string {
+    if (typeof p !== 'string' || p.length === 0 || p.length > MAX_PATHSPEC_LEN || p.includes('\0')) {
+        throw new Error('Invalid file path');
+    }
+    // Magia de pathspec (":...", ":/...") pode escapar do contexto do repo.
+    if (p.startsWith(':')) {
+        throw new Error('Invalid file path');
+    }
+}
+
+/** Valida um nome de branch vindo do renderer. */
+export function assertSafeBranchName(name: unknown): asserts name is string {
+    if (typeof name !== 'string' || !SAFE_BRANCH_RE.test(name) ||
+        FORBIDDEN_BRANCH_SEQ.some((s) => name.includes(s)) ||
+        name.endsWith('/') || name.endsWith('.lock')) {
+        throw new Error('Invalid branch name');
+    }
+}
 
 export interface GitFileStatus {
     path: string;
@@ -86,11 +123,12 @@ export class GitService {
         try {
             const resolved = fs.realpathSync(dirPath);
             this.cwd = resolved;
-            // Testar se é um repo git válido
-            const stdout = execSync('git rev-parse --is-inside-work-tree', {
+            // Testar se é um repo git válido (argv, sem shell)
+            const stdout = execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
                 cwd: this.cwd,
                 encoding: 'utf-8',
                 timeout: 5000,
+                windowsHide: true,
             });
             if (!stdout.trim().includes('true')) {
                 this.cwd = null;
@@ -110,17 +148,27 @@ export class GitService {
     /**
      * Executa um comando git não diretório de trabalho atual.
      * Lança erro se nenhum diretório estiver configurado.
+     *
+     * Segurança (F-03): recebe argv (array) e usa execFile — NENHUM shell é
+     * envolvido, então input do renderer nunca é interpretado como comando.
      */
-    private async git(args: string): Promise<{ stdout: string; stderr: string }> {
+    private async gitArgv(argv: string[]): Promise<{ stdout: string; stderr: string }> {
         if (!this.cwd) {
             throw new Error('No git repository configured. Use git:set-cwd first.');
         }
-        return execAsync(`git ${args}`, {
+        for (const a of argv) {
+            if (typeof a !== 'string' || a.includes('\0')) {
+                throw new Error('Invalid git argument');
+            }
+        }
+        const { stdout, stderr } = await execFileAsync('git', argv, {
             cwd: this.cwd,
             maxBuffer: 10 * 1024 * 1024, // 10MB buffer para diffs grandes
             timeout: 30000,
             encoding: 'utf-8',
+            windowsHide: true,
         });
+        return { stdout: stdout as string, stderr: stderr as string };
     }
 
     /**
@@ -129,7 +177,7 @@ export class GitService {
     async isRepository(): Promise<boolean> {
         if (!this.cwd) return false;
         try {
-            const { stdout } = await this.git('rev-parse --is-inside-work-tree');
+            const { stdout } = await this.gitArgv(['rev-parse', '--is-inside-work-tree']);
             return stdout.trim() === 'true';
         } catch {
             return false;
@@ -140,14 +188,14 @@ export class GitService {
      * Retorna o status do repositório: branch, arquivos modificados, ahead/behind.
      */
     async getStatus(): Promise<GitStatusResult> {
-        const { stdout: branchOutput } = await this.git('branch --show-current');
+        const { stdout: branchOutput } = await this.gitArgv(['branch', '--show-current']);
         const branch = branchOutput.trim() || 'HEAD detached';
 
         // Verificar ahead/behind
         let ahead = 0;
         let behind = 0;
         try {
-            const { stdout: abOutput } = await this.git('rev-list --left-right --count HEAD...@{upstream}');
+            const { stdout: abOutput } = await this.gitArgv(['rev-list', '--left-right', '--count', 'HEAD...@{upstream}']);
             const [a, b] = abOutput.trim().split('\t');
             ahead = parseInt(a, 10) || 0;
             behind = parseInt(b, 10) || 0;
@@ -161,7 +209,7 @@ export class GitService {
         const isMerge = fs.existsSync(path.join(this.cwd, '.git', 'MERGE_HEAD'));
 
         // Status dos arquivos
-        const { stdout: statusOutput } = await this.git('status --porcelain=v1');
+        const { stdout: statusOutput } = await this.gitArgv(['status', '--porcelain=v1']);
         const files: GitFileStatus[] = statusOutput
             .split('\n')
             .filter(line => line.trim().length > 0)
@@ -204,14 +252,15 @@ export class GitService {
      * Retorna o diff de arquivos específicos ou de todos os arquivos modificados.
      */
     async getDiff(filePath?: string): Promise<GitDiffResult[]> {
-        const target = filePath ? `-- "${filePath}"` : '';
-        const { stdout: diffOutput } = await this.git(`diff --stat ${target}`);
+        if (filePath !== undefined) assertSafePathSpec(filePath);
+        const target = filePath ? ['--', filePath] : [];
+        const { stdout: diffOutput } = await this.gitArgv(['diff', '--stat', ...target]);
 
         const results: GitDiffResult[] = [];
 
         if (!filePath) {
             // Diff para todos os arquivos
-            const { stdout: fullDiff } = await this.git(`diff ${target}`);
+            const { stdout: fullDiff } = await this.gitArgv(['diff', ...target]);
             // Parse estatísticas
             const statLines = diffOutput.split('\n').filter(l => l.includes('|'));
             for (const line of statLines) {
@@ -221,18 +270,21 @@ export class GitService {
                 const additions = (stats.match(/\+/g) || []).length;
                 const deletions = (stats.match(/-/g) || []).length;
 
-                // Obter correção individual
-                const { stdout: patch } = await this.git(`diff -- "${file}"`);
+                // Obter correção individual. Nomes vindos da saída do próprio git
+                // viajam como argv (sem shell) — entradas malformadas são
+                // ignoradas em vez de lançar (ex.: renames "a => b").
+                if (typeof file !== 'string' || !file || file.length > MAX_PATHSPEC_LEN || file.includes('\0')) continue;
+                const { stdout: patch } = await this.gitArgv(['diff', '--', file]);
                 results.push({ file, additions, deletions, patch });
             }
 
             // Adicionar arquivos untracked
-            const { stdout: untracked } = await this.git('ls-files --others --exclude-standard');
+            const { stdout: untracked } = await this.gitArgv(['ls-files', '--others', '--exclude-standard']);
             for (const file of untracked.split('\n').filter(f => f.trim())) {
                 results.push({ file, additions: 0, deletions: 0, patch: '(new file)' });
             }
         } else {
-            const { stdout: patch } = await this.git(`diff -- "${filePath}"`);
+            const { stdout: patch } = await this.gitArgv(['diff', '--', filePath]);
             const additions = (patch.match(/^\+[^+]/gm) || []).length;
             const deletions = (patch.match(/^-[^-]/gm) || []).length;
             results.push({ file: filePath, additions, deletions, patch });
@@ -245,8 +297,10 @@ export class GitService {
      * Retorna o registro de commits recentes.
      */
     async getLog(count: number = 20): Promise<GitLogEntry[]> {
-        const { stdout } = await this.git(
-            `log --oneline -${count} --format="%H|%h|%an|%ai|%s"`,
+        // count vem do renderer — coage para inteiro e limita (evita argv gigante).
+        const n = Math.min(MAX_LOG_COUNT, Math.max(1, Math.trunc(Number(count)) || 20));
+        const { stdout } = await this.gitArgv(
+            ['log', '--oneline', `-${n}`, '--format=%H|%h|%an|%ai|%s'],
         );
 
         return stdout
@@ -275,22 +329,28 @@ export class GitService {
         try {
             // Adicionar arquivos específicos ou todos
             if (options?.files && options.files.length > 0) {
+                if (options.files.length > MAX_FILES_PER_COMMIT) {
+                    return { success: false, error: 'Too many files' };
+                }
                 for (const file of options.files) {
-                    await this.git(`add -- "${file}"`);
+                    assertSafePathSpec(file);
+                    await this.gitArgv(['add', '--', file]);
                 }
             } else {
-                await this.git('add -A');
+                await this.gitArgv(['add', '-A']);
             }
 
             // Criar commit usando --file para evitar injeção de comando via shell
-            const amendFlag = options?.amend ? ' --amend' : '';
-            const stdout = execSync(
-                `git commit${amendFlag} -F -`,
+            const argv = ['commit', ...(options?.amend ? ['--amend'] : []), '-F', '-'];
+            const stdout = execFileSync(
+                'git',
+                argv,
                 {
                     cwd: this.cwd!,
                     encoding: 'utf-8',
                     timeout: 30000,
-                    input: message,
+                    input: typeof message === 'string' ? message : '',
+                    windowsHide: true,
                 },
             );
 
@@ -308,7 +368,7 @@ export class GitService {
      * Lista branches locais e remotas.
      */
     async getBranches(): Promise<GitBranchInfo[]> {
-        const { stdout } = await this.git('branch -a --format=%(refname:short)|%(HEAD)|%(upstream:short)');
+        const { stdout } = await this.gitArgv(['branch', '-a', '--format=%(refname:short)|%(HEAD)|%(upstream:short)']);
         const branches: GitBranchInfo[] = [];
 
         for (const line of stdout.split('\n').filter(l => l.trim())) {
@@ -330,7 +390,7 @@ export class GitService {
      */
     async getRepoName(): Promise<string> {
         try {
-            const { stdout } = await this.git('remote get-url origin');
+            const { stdout } = await this.gitArgv(['remote', 'get-url', 'origin']);
             const url = stdout.trim();
             // Extrair nome do repo da URL
             const match = url.match(/[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
@@ -345,8 +405,11 @@ export class GitService {
      */
     async stash(message?: string): Promise<{ success: boolean; error?: string }> {
         try {
-            const msgFlag = message ? ` -m "${message.replace(/"/g, '\\"')}"` : '';
-            await this.git(`stash${msgFlag}`);
+            if (message !== undefined && (typeof message !== 'string' || message.length > MAX_STASH_MESSAGE_LEN || message.includes('\0'))) {
+                return { success: false, error: 'Invalid stash message' };
+            }
+            // argv (sem shell): a mensagem viaja como valor literal de -m.
+            await this.gitArgv(message ? ['stash', 'push', '-m', message] : ['stash', 'push']);
             return { success: true };
         } catch (err: any) {
             return { success: false, error: err?.message || 'Stash failed' };
@@ -358,7 +421,7 @@ export class GitService {
      */
     async stashPop(): Promise<{ success: boolean; error?: string }> {
         try {
-            await this.git('stash pop');
+            await this.gitArgv(['stash', 'pop']);
             return { success: true };
         } catch (err: any) {
             return { success: false, error: err?.message || 'Stash pop failed' };
@@ -370,7 +433,7 @@ export class GitService {
      */
     async stashDrop(): Promise<{ success: boolean; error?: string }> {
         try {
-            await this.git('stash drop');
+            await this.gitArgv(['stash', 'drop']);
             return { success: true };
         } catch (err: any) {
             return { success: false, error: err?.message || 'Stash drop failed' };
@@ -382,7 +445,8 @@ export class GitService {
      */
     async createBranch(name: string): Promise<{ success: boolean; error?: string }> {
         try {
-            await this.git(`checkout -b "${name.replace(/"/g, '\\"')}"`);
+            assertSafeBranchName(name);
+            await this.gitArgv(['checkout', '-b', name]);
             return { success: true };
         } catch (err: any) {
             return { success: false, error: err?.message || 'Failed to create branch' };
@@ -394,7 +458,8 @@ export class GitService {
      */
     async switchBranch(name: string): Promise<{ success: boolean; error?: string }> {
         try {
-            await this.git(`checkout "${name.replace(/"/g, '\\"')}"`);
+            assertSafeBranchName(name);
+            await this.gitArgv(['checkout', name]);
             return { success: true };
         } catch (err: any) {
             return { success: false, error: err?.message || 'Failed to switch branch' };
@@ -406,7 +471,7 @@ export class GitService {
      */
     async pull(): Promise<{ success: boolean; error?: string }> {
         try {
-            await this.git('pull --ff-only');
+            await this.gitArgv(['pull', '--ff-only']);
             return { success: true };
         } catch (err: any) {
             return { success: false, error: err?.message || 'Pull failed' };
@@ -418,8 +483,7 @@ export class GitService {
      */
     async push(options?: { force?: boolean }): Promise<{ success: boolean; error?: string }> {
         try {
-            const forceFlag = options?.force ? ' --force-with-lease' : '';
-            await this.git(`push${forceFlag}`);
+            await this.gitArgv(options?.force ? ['push', '--force-with-lease'] : ['push']);
             return { success: true };
         } catch (err: any) {
             return { success: false, error: err?.message || 'Push failed' };
@@ -437,12 +501,14 @@ export class GitService {
             return { success: false, error: 'No git repository configured' };
         }
         try {
+            // Sem shell: o cwd viaja como argv literal (nomes de diretório com
+            // $() ou espaços nunca são expandidos). No macOS usa caminho absoluto.
             if (process.platform === 'darwin') {
-                execSync(`open "${this.cwd}"`, { timeout: 5000 });
+                execFileSync('/usr/bin/open', [this.cwd], { timeout: 5000, windowsHide: true });
             } else if (process.platform === 'win32') {
-                execSync(`explorer "${this.cwd}"`, { timeout: 5000 });
+                execFileSync('explorer', [this.cwd], { timeout: 5000, windowsHide: true });
             } else {
-                execSync(`xdg-open "${this.cwd}"`, { timeout: 5000 });
+                execFileSync('xdg-open', [this.cwd], { timeout: 5000, windowsHide: true });
             }
             return { success: true };
         } catch (err: any) {

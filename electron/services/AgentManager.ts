@@ -22,7 +22,7 @@ import fs from 'fs';
 import { exec } from 'child_process';
 import util from 'util';
 import crypto from 'crypto';
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, shell } from 'electron';
 
 const execAsync = util.promisify(exec);
 
@@ -165,10 +165,14 @@ export class AgentManager {
                 return stdout || stderr || 'Command executed successfully with no output.';
             }
             case 'open_file': {
-                const openCmd = process.platform === 'win32'
-                    ? 'start ""'
-                    : process.platform === 'darwin' ? 'open' : 'xdg-open';
-                await execAsync(`${openCmd} "${action.path.replace(/"/g, '\\"')}"`);
+                // Sem shell: shell.openPath delega ao SO sem interpretar
+                // metacaracteres (mesma classe de correção do GitService F-03).
+                // run_command continua sendo shell intencional (aprovado na UI).
+                if (typeof action.path !== 'string' || !action.path || action.path.includes('\0')) {
+                    throw new Error('Invalid path');
+                }
+                const error = await shell.openPath(action.path);
+                if (error) throw new Error(error);
                 return `File ${action.path} opened.`;
             }
             default:

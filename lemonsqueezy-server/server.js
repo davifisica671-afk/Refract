@@ -25,9 +25,18 @@
  *                            (default ~/.refract/license-signing-key.pem)
  *   DB_PATH                 caminho do SQLite (default ./data/refract-ls.db)
  *   LS_RATE_LIMIT_PER_MIN   limite de requisições/min por IP nos endpoints de
- *                           licença (default 120; 0 desativa)
- *   LS_REQUIRE_HWID=1       modo estrito: poll sem hwid verificável é recusado
- *                           (default off — compatibilidade com clientes antigos)
+ *                           licença (default 120; 0 desativa — apenas p/ debug)
+ *   LS_CHECKOUT_LIMIT_PER_MIN limite de criações de checkout/min por IP
+ *                           (default 20; protege o POST público contra spam)
+ *   LS_TRUST_PROXY=1       confia em X-Forwarded-For p/ req.ip (obrigatório
+ *                           atrás de proxy — ex.: Fly.io — senão todos os
+ *                           clientes dividem o mesmo bucket de rate-limit)
+ *   LS_REQUIRE_HWID         (obsoleta) o modo estrito agora é o padrão;
+ *                           manter =1 não faz mal; qualquer outro valor dela
+ *                           é ignorado — use LS_ALLOW_LEGACY_NO_HWID p/ afrouxar
+ *   LS_ALLOW_LEGACY_NO_HWID=1 reativa o bypass de poll p/ linhas sem hwid
+ *                           (compatibilidade temporária; loga warning alto).
+ *                           SEM essa flag, linhas sem hwid são recusadas (403).
  *   LS_RECONCILE_DISABLED=1 desativa o job de reconciliação de checkouts abertos
  *   LS_RECONCILE_INTERVAL_MS intervalo do job (default 600000 = 10 min)
  *   LS_NO_LISTEN=1          não escuta porta (usado pelos testes com app.inject)
@@ -62,13 +71,34 @@ const VARIANT_IDS = {
 const KEY_PATH = process.env.LICENSE_SIGNING_KEY_PATH || path.join(os.homedir(), '.refract', 'license-signing-key.pem');
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'refract-ls.db');
 const RATE_LIMIT_PER_MIN = Number(process.env.LS_RATE_LIMIT_PER_MIN ?? 120);
-const STRICT_HWID = process.env.LS_REQUIRE_HWID === '1';
+const CHECKOUT_LIMIT_PER_MIN = Number(process.env.LS_CHECKOUT_LIMIT_PER_MIN ?? 20);
+// F-04: estrito por padrão (secure-by-default). O bypass legado de poll para
+// linhas sem hwid só volta com opt-out explícito LS_ALLOW_LEGACY_NO_HWID=1
+// (logado como warning). LS_REQUIRE_HWID=1 (flag antiga) continua forçando o
+// estrito; qualquer outro valor dela é ignorado em favor do padrão seguro.
+const STRICT_HWID = process.env.LS_ALLOW_LEGACY_NO_HWID === '1'
+    ? false
+    : true;
+const TRUST_PROXY = process.env.LS_TRUST_PROXY === '1';
 const RECONCILE_INTERVAL_MS = Number(process.env.LS_RECONCILE_INTERVAL_MS || 10 * 60_000);
 
 const KEY_PREFIX = 'REFRACT-PRO.';
 const PLAN_DAYS = { lifetime: null, yearly: 365, monthly: 31 };
 
 // ── validação de config ────────────────────────────────────────────────
+/**
+ * F-01: recusa valores que são claramente placeholders (ex.: copiados de um
+ * .env.example sem preencher). Só vale em produção — testes usam segredos
+ * de mentira de propósito. Exportada pura para os testes.
+ */
+export function isPlaceholderSecret(v) {
+    if (typeof v !== 'string') return true;
+    const s = v.trim();
+    if (s.length < 8) return true;
+    return /^(your_|change-?me|example|placeholder|xxx+|test-|to-?do|here\b)/i.test(s)
+        || /your_|change-?me|example\.com|placeholder/i.test(s);
+}
+
 const missing = [];
 if (!LS_API_KEY) missing.push('LEMONSQUEEZY_API_KEY');
 if (!LS_STORE_ID) missing.push('LEMONSQUEEZY_STORE_ID');
@@ -79,6 +109,29 @@ for (const [plan, variantId] of Object.entries(VARIANT_IDS)) {
 if (missing.length && !TEST_MODE) {
     console.error(`[Refract-LS] Faltam variáveis de ambiente: ${missing.join(', ')}`);
     process.exit(1);
+}
+if (!TEST_MODE) {
+    const placeholders = [
+        ['LEMONSQUEEZY_API_KEY', LS_API_KEY],
+        ['LEMONSQUEEZY_WEBHOOK_SECRET', LS_WEBHOOK_SECRET],
+        ...Object.entries(VARIANT_IDS).map(([plan, v]) => [`LEMONSQUEEZY_VARIANT_${plan.toUpperCase()}`, v]),
+    ].filter(([, v]) => isPlaceholderSecret(v)).map(([k]) => k);
+    if (placeholders.length) {
+        console.error(`[Refract-LS] Valores placeholder detectados (preencha com segredos reais): ${placeholders.join(', ')}`);
+        process.exit(1);
+    }
+    if (RATE_LIMIT_PER_MIN === 0 || CHECKOUT_LIMIT_PER_MIN === 0) {
+        console.error('[Refract-LS] Rate-limit zerado (LS_RATE_LIMIT_PER_MIN/LS_CHECKOUT_LIMIT_PER_MIN=0) — recuse em produção.');
+        process.exit(1);
+    }
+    // F-13: nunca assinar com a chave de teste em produção.
+    if (path.basename(KEY_PATH).toLowerCase().includes('test-key')) {
+        console.error(`[Refract-LS] LICENSE_SIGNING_KEY_PATH aponta para chave de teste (${KEY_PATH}) — recuse em produção.`);
+        process.exit(1);
+    }
+    if (!STRICT_HWID) {
+        console.warn('[Refract-LS] ATENÇÃO: LS_ALLOW_LEGACY_NO_HWID=1 ativo — poll de linhas sem hwid liberado (bypass legado F-04).');
+    }
 }
 if (!fs.existsSync(KEY_PATH)) {
     if (!TEST_MODE) {
@@ -123,7 +176,16 @@ db.exec(`
 `);
 
 // ── assinatura de licença (mesmo formato do issue-license.mjs) ────────
-const privateKey = crypto.createPrivateKey(fs.readFileSync(KEY_PATH, 'utf8'));
+// Chave carregada sob demanda (lazy): importar o módulo em TEST_MODE sem
+// chave no disco não deve derrubar a suíte; em produção a falta da chave
+// já causou process.exit(1) acima.
+let cachedPrivateKey = null;
+function getPrivateKey() {
+    if (!cachedPrivateKey) {
+        cachedPrivateKey = crypto.createPrivateKey(fs.readFileSync(KEY_PATH, 'utf8'));
+    }
+    return cachedPrivateKey;
+}
 
 function issueLicense({ plan, email }) {
     const now = Date.now();
@@ -137,7 +199,7 @@ function issueLicense({ plan, email }) {
         ...(days !== null ? { exp: now + days * 86_400_000 } : {}),
     };
     const payloadBuf = Buffer.from(JSON.stringify(payload), 'utf8');
-    const sig = crypto.sign(null, payloadBuf, privateKey); // Ed25519
+    const sig = crypto.sign(null, payloadBuf, getPrivateKey()); // Ed25519
     return KEY_PREFIX + payloadBuf.toString('base64url') + '.' + sig.toString('base64url');
 }
 
@@ -186,15 +248,16 @@ export function createRateLimiter({ max, windowMs }) {
 /**
  * Política de acesso ao poll por hwid (exportada pura para os testes).
  *  - linha COM hwid conhecido → exige match exato (sempre).
- *  - linha SEM hwid (legado/'unknown') → em modo estrito exige ao menos um
- *    hwid presente na query; fora do modo estrito mantém o bypass antigo
- *    (compatibilidade com clientes que ainda não enviam hwid).
+ *  - linha SEM hwid (legado/'unknown') → em modo estrito é RECUSADA (F-04:
+ *    aceitar qualquer hwid não-vazio não é prova de posse); fora do estrito
+ *    (apenas com LS_ALLOW_LEGACY_NO_HWID=1) mantém o bypass antigo para
+ *    clientes que ainda não enviam hwid.
  */
 export function hwidAllowsAccess(rowHwid, queryHwid, strict) {
     const r = String(rowHwid || '');
     const q = String(queryHwid || '');
     if (r && r !== 'unknown') return q === r;
-    return strict ? q.length > 0 : true;
+    return strict ? false : true;
 }
 
 const licenseRateLimit = createRateLimiter({
@@ -202,8 +265,24 @@ const licenseRateLimit = createRateLimiter({
     windowMs: 60_000,
 });
 
+// F-07: bucket separado e mais apertado p/ criação de checkout (rota pública
+// de escrita — sem ele, spam enche o SQLite e gera custo de API no LS).
+const checkoutRateLimit = createRateLimiter({
+    max: CHECKOUT_LIMIT_PER_MIN,
+    windowMs: 60_000,
+});
+
 function rateLimitPreHandler(req, reply, done) {
     const verdict = licenseRateLimit(req.ip || 'unknown');
+    if (!verdict.allowed) {
+        reply.code(429).header('retry-after', Math.ceil(verdict.retryAfterMs / 1000)).send({ error: 'rate_limited' });
+        return;
+    }
+    done();
+}
+
+function checkoutRateLimitPreHandler(req, reply, done) {
+    const verdict = checkoutRateLimit(req.ip || 'unknown');
     if (!verdict.allowed) {
         reply.code(429).header('retry-after', Math.ceil(verdict.retryAfterMs / 1000)).send({ error: 'rate_limited' });
         return;
@@ -222,7 +301,9 @@ async function fetchLsCheckoutStatus(checkoutId) {
 }
 
 // ── Fastify ────────────────────────────────────────────────────────────
-const app = Fastify({ logger: true });
+// F-12: trustProxy SOMENTE com opt-in explícito (sem ele, X-Forwarded-For é
+// ignorado e req.ip é o IP do proxy — todos os clientes dividiriam 1 bucket).
+const app = Fastify({ logger: true, trustProxy: TRUST_PROXY });
 
 // Captura o body cru (raw) para validação de assinatura de webhook (HMAC).
 // O LemonSqueezy assina o corpo exato da requisição; precisamos do buffer cru.
@@ -244,12 +325,16 @@ app.addContentTypeParser(
 // Healthcheck
 app.get('/health', async () => ({ ok: true, service: 'refract-lemonsqueezy' }));
 
-// Cria sessão de checkout
-app.post('/v1/checkout/lemonsqueezy', async (req, reply) => {
+// Cria sessão de checkout (pública por design, mas com rate-limit F-07)
+app.post('/v1/checkout/lemonsqueezy', { preHandler: checkoutRateLimitPreHandler }, async (req, reply) => {
     const { plan, email, hwid } = req.body || {};
     if (!['monthly', 'yearly', 'lifetime'].includes(plan)) {
         return reply.code(400).send({ error: 'invalid_plan' });
     }
+    // hwid opcional por compatibilidade, mas SEMPRE persistido quando enviado:
+    // linhas futuras carregam o fator de posse exigido no poll (F-04).
+    const cleanHwid = typeof hwid === 'string' && hwid.length <= 128 ? hwid : null;
+    const cleanEmail = typeof email === 'string' && email.length <= 320 ? email : null;
 
     try {
         // SDK oficial: createCheckout({ storeId, variantId, attributes }) — variante é obrigatória.
@@ -278,7 +363,7 @@ app.post('/v1/checkout/lemonsqueezy', async (req, reply) => {
         db.prepare(
             `INSERT INTO checkouts (id, plan, email, hwid, status, created_at, updated_at)
              VALUES (?, ?, ?, ?, 'open', ?, ?)`
-        ).run(checkoutId, plan, email || null, hwid || null, now, now);
+        ).run(checkoutId, plan, cleanEmail, cleanHwid, now, now);
 
         return { checkout_id: checkoutId, checkout_url: checkoutUrl };
     } catch (err) {
@@ -290,7 +375,8 @@ app.post('/v1/checkout/lemonsqueezy', async (req, reply) => {
 // Polling: devolve a licença quando o pagamento é confirmado.
 // O `hwid` enviado na criação do checkout é exigido como fator de verificação —
 // sem ele, qualquer um que adivinhar um checkout id poderia ler a license_key.
-// Com LS_REQUIRE_HWID=1 o bypass legado de linhas sem hwid também cai.
+// Em modo estrito (padrão; ver LS_ALLOW_LEGACY_NO_HWID) linhas SEM hwid gravado
+// são recusadas — "qualquer hwid não-vazio" não é prova de posse (F-04/F-12).
 app.get('/v1/checkout/:id/license', { preHandler: rateLimitPreHandler }, async (req, reply) => {
     const { id } = req.params;
     const row = db.prepare('SELECT * FROM checkouts WHERE id = ?').get(id);

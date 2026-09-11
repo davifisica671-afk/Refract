@@ -1,18 +1,18 @@
 ﻿/**
- * Node.js Worker Thread para ASR inference via @huggingface/transformers v3+.
+ * Node.js Worker Thread para inferência ASR via @huggingface/transformers v3+.
  *
- * Suporta two modelo families:
- *   - Whisper (and Distil-Whisper): batch-architected, 30s windows, lento mas
- *     amplamente supported e multilingual.
- *   - Moonshine: streaming-architected com encoder caching + decoder estado
- *     reuse, ~100× inferior latency than Whisper Grande v3 at comparable WER.
- *     English-only. Models carrega em 26–60MB quantized.
+ * Suporta duas famílias de modelos:
+ *   - Whisper (e Distil-Whisper): arquitetura em lote, janelas de 30s, mais
+ *     lento porém amplamente suportado e multilíngue.
+ *   - Moonshine: arquitetura de streaming com cache de encoder e reuso de
+ *     estado do decoder, ~100x menos latência que o Whisper Large v3 com WER
+ *     comparável. Apenas inglês. Modelos de 26–60MB quantizados.
  *
- * @huggingface/transformers é ESM-only. O electron tsconfig compiles to
- * CommonJS, que significa TypeScript rewrites `import()` para `require()`.
- * We bypass isso por loading o pacote através `new Function(...)` então
- * o compiler nunca sees o importar expression e Node.js gerencia it
- * natively como a verdadeiro dynamic ESM importar at runtime.
+ * @huggingface/transformers é ESM-only. O tsconfig do Electron compila para
+ * CommonJS, então o TypeScript reescreveria `import()` como `require()`.
+ * Contornamos isso carregando o pacote via `new Function(...)`, assim o
+ * compilador nunca vê a expressão de import e o Node.js a trata como um
+ * import dinâmico ESM de verdade em runtime.
  */
 import { parentPort } from 'worker_threads';
 import { WhisperProgressAggregator } from './whisperProgressAggregator';

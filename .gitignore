@@ -9,19 +9,13 @@ FIXES.md
 python-installer.pkg
 Sales20260405-60-494j8t.csv
 /Sales20260405-60-494j8t.csv
-natively-api
-/natively-api
-/natively
-natively/
-.natively
 settings.json
-natively/pro_licenses.json
 env
 /env
+# Python virtualenvs (ex.: docs/security-audit/.venv) — nunca commitar
+.venv/
+__pycache__/
 *.log
-/Users/evin/natively-cluely-ai-assistant/natively
-natively
-npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
@@ -34,8 +28,6 @@ tmp
 .cursorrules
 .windsurfrules
 change.md
-# nativelyapi is a separate git repo — exclude from parent repo tracking
-/nativelyapi
 
 # Local premium dev copy — never commit the private checkout to the public repo.
 # premium is DECLARED as a submodule (.gitmodules), but the working copy stays
@@ -323,23 +315,11 @@ FINAL_PROFILE_INTELLIGENCE_RELEASE_REPORT.md
 _verify_backend_architect.md
 _verify_code_review.md
 _verify_test_engineer.md
-\# Natively Intelligence OS — Phase-by-Ph.md
 ANSWER_DIVERSITY_REPORT.md
 BACKGROUND_JOB_ISOLATION_REPORT.md
 FINAL_PROFILE_INTELLIGENCE_PRODUCT_QUALITY_REPORT.md
 LATENCY_DEGRADATION_REPORT.md
 MANUAL_SEQUENTIAL_STRESS_REPORT.md
-NATIVELY_EXTERNAL_RESEARCH_NOTES.md
-NATIVELY_INTELLIGENCE_OS_E2E_VERIFICATION_REPORT.md
-NATIVELY_INTELLIGENCE_OS_FINAL_REPORT.md
-NATIVELY_INTELLIGENCE_OS_IMPLEMENTATION_PLAN.md
-NATIVELY_INTELLIGENCE_OS_LIVE_VERIFICATION.md
-NATIVELY_INTELLIGENCE_OS_OBSERVABILITY.md
-NATIVELY_INTELLIGENCE_OS_ROLLOUT.md
-NATIVELY_INTELLIGENCE_OS_WIRING_FINAL_REPORT.md
-NATIVELY_INTELLIGENCE_OS_WIRING_STATUS.md
-natively-intelligence-e2e-results.json
-natively-intelligence-e2e-verdict.json
 REAL_LONG_SESSION_MANUAL_TEST_REPORT.md
 Untitled-1.md
 
@@ -369,11 +349,9 @@ CREDENTIALS-INTAKE.local.md
 docs/CREDENTIALS-INTAKE.md
 
 # Local sprint reports / scratch notes / leaked-prompt reference (not vendored)
-NATIVELY_*_REPORT.md
 CORE_PIPELINE_AUDIT_REPORT.md
 reportforgpt.md
 testengineer.prompt
-cluely/
 
 # GCP service account key (never commit)
 tonal-history-*.json
@@ -406,8 +384,6 @@ tonal-history-*.json
 # ── Não versionar binários grandes nem o material do site ─────────────────────
 # Modelos ONNX (230MB): artefato baixável, não código. Ficam locais / em release.
 resources/models/
-# Demo gif da marca antiga (67MB)
-assets/natively-ai-meeting-assistant-demo.gif
 # site/: clone de referência de terceiros — não pode ir para repositório público
 # (questão de direito autoral) e tem HTML de 60MB.
 site/
