@@ -55,12 +55,13 @@ import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, shell, systemPref
 import * as crypto from "crypto"        // Criptografia para UUIDs e hashes
 import path from "path"                  // Manipulação de caminhos de arquivo
 import fs from "fs"                      // Sistema de arquivos (leitura/escrita de logs)
-import dns from "dns"                    // Resolução DNS (hack global abaixo)
 import { SystemAudioHealthClassifier } from "./audio/systemAudioHealthClassifier.mjs" // Classificador de saúde do áudio do sistema
 import { autoUpdater } from "electron-updater" // Atualizador automático do app
+import { installDnsWorkaround } from "./net/dnsWorkaround" // Workaround DNS escopado (ex-HACK CRÍTICO inline, movido p/ net/dnsWorkaround.ts)
 
 /**
- * HACK CRÍTICO: Sobrescrever dns.lookup global para resolver problemas do resolvedor
+ * WORKAROUND DNS — implementação em net/dnsWorkaround.ts (escopado por hostname,
+ * com teste de regressão e critério de remoção: TODO(REMOVE-DNS-WORKAROUND)).
  * 
  * PROBLEMA: O macOS às vezes falha ao resolver api.refract.software usando dns.lookup,
  * retornando endereços IPv6 que o servidor não suporta.
@@ -71,29 +72,8 @@ import { autoUpdater } from "electron-updater" // Atualizador automático do app
  * Por que isso é necessário: electron-updater usa dns.lookup internamente, e se a
  * resolução falhar, o app não consegue verificar atualizações.
  */
-const originalLookup = dns.lookup;
-dns.lookup = function(hostname: any, options: any, callback: any) {
-  if (typeof options === 'function') {
-    callback = options;
-    options = {};
-  }
-  if (hostname === 'api.refract.software') {
-    dns.resolve4(hostname, (err, addresses) => {
-      if (err || !addresses.length) {
-        originalLookup(hostname, options, callback);
-      } else {
-        const addr = addresses[0];
-        if (options && (options as any).all) {
-          callback(null, [{ address: addr, family: 4 }] as any);
-        } else {
-          callback(null, addr, 4);
-        }
-      }
-    });
-  } else {
-    originalLookup(hostname, options, callback);
-  }
-} as any;
+// Deve executar cedo, antes do primeiro checkForUpdates do electron-updater.
+installDnsWorkaround();
 
 if (!app.isPackaged) {
   require('dotenv').config();

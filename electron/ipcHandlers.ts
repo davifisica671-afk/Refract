@@ -71,6 +71,7 @@ import * as path from 'path';
 import { AudioDevices } from './audio/AudioDevices';
 import { DatabaseManager } from './db/DatabaseManager'; // Importar gerenciador de banco de dados
 import { AppState } from './main';
+import { resolveTccBundleId } from './appIdentity'; // Fonte única do bundle ID (bug TCC: literal stale removido daqui)
 import { CodexCliService } from './services/CodexCliService';
 import { PhoneMirrorService } from './services/PhoneMirrorService';
 import { sanitizeContextEnvelope } from './services/browser-context/sanitize';
@@ -98,6 +99,7 @@ import { InterviewCoachLLM } from './llm/InterviewCoachLLM';
 import { LanguageLearningLLM } from './llm/LanguageLearningLLM';
 import { isAssistantIdentityQuestion, profileFactsReady } from './llm/manualProfileIntelligence';
 import { buildManualProfileBackendAnswer } from './llm/profileAnswerBackend';
+import { SmartMeetingService } from './services/SmartMeetingService';
 
 export function initializeIpcHandlers(appState: AppState): void {
   const safeHandle = (
@@ -5073,18 +5075,13 @@ export function initializeIpcHandlers(appState: AppState): void {
       return { ok: false, error: 'TCC repair is macOS-only.' };
     }
 
-    // Bundle ID resolution: prefer o live Electron app identifier (gerencia
-    // signed packaged constrói e dev-mode Electron alike). Falls voltar para o
-    // package.json appId se app.getAppPath() inspection somehow fails.
-    let bundleId: string;
-    try {
-      // app.isPackaged → packaged Info.plist CFBundleIdentifier
-      //                  (== package.json build.appId para electron-builder)
-      // !app.isPackaged → 'com.github.Electron' (o dev Electron binary's
-      //                   bundle id; TCC entries land aqui em dev mmodo
-      bundleId = app.isPackaged ? 'com.electron.meeting-notes' : 'com.github.Electron';
-    } catch {
-      bundleId = 'com.electron.meeting-notes';
+    // Bundle ID resolution: sempre via appIdentity.ts (fonte única de verdade,
+    // == package.json build.appId). Nunca hardcodar o literal aqui — o bundle
+    // ID antigo ficou stale após a troca do appId e causava tccutil reset
+    // sobre a identidade ERRADA (bug TCC). Teste: AppIdentityTcc.test.mjs.
+    const { bundleId, usingDevFallback } = resolveTccBundleId(app.isPackaged);
+    if (usingDevFallback) {
+      console.log('[IPC] TCC repair em modo dev — permissões de desenvolvimento vivem sob', bundleId);
     }
 
     const { execFile } = require('node:child_process');
@@ -5679,6 +5676,31 @@ export function initializeIpcHandlers(appState: AppState): void {
       return { success: false, error: error.message };
     }
   });
+
+
+// Smart Meeting Desk — cinco camadas de inteligência local sobre reuniões já salvas.
+safeHandle('smart-meeting:workspace', async (_, params: { meetingId?: string; event?: any }) => {
+  try {
+    const meetingId = typeof params?.meetingId === 'string' ? params.meetingId : undefined;
+    const rawEvent = params?.event && typeof params.event === 'object' && !Array.isArray(params.event) ? params.event : undefined;
+    const event = rawEvent ? {
+      id: typeof rawEvent.id === 'string' ? rawEvent.id.slice(0, 200) : undefined,
+      title: typeof rawEvent.title === 'string' ? rawEvent.title.slice(0, 240) : undefined,
+      startTime: typeof rawEvent.startTime === 'string' ? rawEvent.startTime.slice(0, 80) : undefined,
+      endTime: typeof rawEvent.endTime === 'string' ? rawEvent.endTime.slice(0, 80) : undefined,
+      link: typeof rawEvent.link === 'string' ? rawEvent.link.slice(0, 1000) : undefined,
+      attendees: Array.isArray(rawEvent.attendees) ? rawEvent.attendees.slice(0, 12).filter((a: any) => a && typeof a === 'object' && typeof a.email === 'string').map((a: any) => ({
+        email: a.email.slice(0, 320),
+        name: typeof a.name === 'string' ? a.name.slice(0, 120) : undefined,
+        response: typeof a.response === 'string' ? a.response.slice(0, 40) : undefined,
+      })) : undefined,
+    } : undefined;
+    return new SmartMeetingService(DatabaseManager.getInstance()).buildWorkspace({ meetingId, event });
+  } catch (error: any) {
+    console.error('[SmartMeetingDesk] workspace failed:', error?.message || error);
+    return { preMeeting: null, decisionDrift: null, commitments: [], health: null, followUp: null };
+  }
+});
 
   // Fase 3 — Dynamic Actions IPC. Accept/dismiss/list. O ação emission
   // direção é push-only (intelligence-dynamic-action channel de principal →
