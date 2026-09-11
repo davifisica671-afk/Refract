@@ -25,18 +25,35 @@ This means `npm run build:electron` (and the CI "Build electron" step, and
 `npm test` which runs `build:electron` first) do **not** pass from a clean
 checkout today.
 
-## Workaround (local, not committed)
+## Fix (build now self-heals)
 
-Generate gitignored stubs that resolve the requires and make premium paths
-degrade to open-source mode at runtime (`LicenseManager.isPremium() === false`):
+`scripts/build-electron.js` ships an esbuild `premium-module-stub` plugin that
+intercepts `premium/electron/*` imports only when the file is absent and emits
+the canonical no-op stubs from `scripts/premium-stubs.cjs`. Result: a clean
+checkout builds with **no setup**, and the app degrades to open-source mode at
+runtime (`LicenseManager.isPremium() === false`, no-op orchestrator,
+`textHasCompEvidence() === false`). When the real premium copy is present, the
+plugin passes through and the real modules are bundled as before.
+
+Verified from a clean checkout (no `/premium`):
+
+| Check | Result |
+|---|---|
+| `npm run typecheck:electron` | ✅ 0 errors |
+| `npm run build:electron` | ✅ clean (plugin self-heal) |
+| `npm run build:electron` with `/premium` present | ✅ clean (pass-through) |
+
+## Optional workaround (not required)
+
+For IDE/typecheck convenience you can still materialize the stubs as files:
 
 ```bash
 node scripts/create-premium-stubs.mjs
-npm run build:electron
 ```
 
-The stubs live under `/premium`, which stays gitignored, so they never enter
-git. On a machine with the real premium copy, delete `/premium` and rebuild.
+The stubs live under `/premium`, which stays gitignored. The definitions are
+shared with the build plugin via `scripts/premium-stubs.cjs`, so they cannot
+drift apart.
 
 ## What was verified in this environment
 
