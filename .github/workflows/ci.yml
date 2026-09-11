@@ -60,6 +60,12 @@ jobs:
       - name: Install dependencies (sem scripts nativos)
         run: npm install --ignore-scripts
 
+      # BLOCKING: garante que o caminho de release (app:build / app:build:signed)
+      # é autossuficiente no repositório — nenhum --config/arquivo de suporte
+      # pode existir só localmente. Premium é informativo (core builda sem ele).
+      - name: Release-path reproducibility gate
+        run: npm run check:release
+
       - name: Typecheck renderer
         run: npx tsc --noEmit
 

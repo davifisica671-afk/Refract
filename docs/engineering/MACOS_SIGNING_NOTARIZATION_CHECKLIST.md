@@ -31,11 +31,22 @@ New files: `electron-builder.signed.cjs`, `assets/entitlements.mac.inherit.plist
 
 ---
 
-## Decision needed from you: appId
+## appId — ✅ RESOLVED
 
-Current `appId` is `com.electron.meeting-notes` (a stale Electron-sample-style id). For a professional notarized release you likely want something like `software.refract.desktop` or `com.refract.app`.
+`build.appId` is **`com.joaolucas.refract`** (`package.json`).
 
-⚠️ **Changing appId resets ALL macOS TCC permissions** (mic, screen recording, accessibility) for existing installs, because TCC keys grants by bundle id. It may also affect how `refract-api` associates installs/licenses if the backend keys anything to the bundle id. **Do this once, before the first notarized public release — not after.** Tell Claude the desired id and confirm the backend doesn't key on bundle id, and it will update `package.json` `build.appId`.
+- The old stale id (`com.electron.meeting-notes`) was also hardcoded in the
+  TCC repair handler, making `tccutil reset` operate on the WRONG identity.
+  Fixed: bundle id now lives ONLY in `electron/appIdentity.ts` (single source
+  of truth, mirrors `build.appId`; enforced by
+  `electron/services/__tests__/AppIdentityTcc.test.mjs`).
+- **Changing the appId resets ALL macOS TCC permissions** (mic, screen
+  recording, accessibility) for existing installs, because TCC keys grants by
+  bundle id — do not change it again casually. Backend keying on bundle id was
+  the open question when this was decided; confirm with `refract-api` before
+  any future change.
+- Source of truth: `docs/RELEASE.md` (checklist item 5).
+
 
 ---
 
