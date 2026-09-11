@@ -23,6 +23,7 @@
     "dist": "npm run app:build",
     "dist:signed": "npm run app:build:signed",
     "build:native": "node scripts/build-native.js",
+    "check:release": "node scripts/check-release-deps.cjs",
     "test": "npm run build:electron && node --test \"electron/services/__tests__/**/*.test.mjs\" \"electron/llm/__tests__/**/*.test.mjs\" \"electron/llm/codeVerification/__tests__/**/*.test.mjs\" \"electron/audio/__tests__/**/*.test.mjs\" \"electron/update/**/*.test.mjs\"",
     "test:intelligence": "npm run build:electron && node --test \"electron/intelligence/__tests__/**/*.test.mjs\"",
     "test:renderer": "node --test \"src/lib/__tests__/**/*.test.mjs\"",
@@ -204,8 +205,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "joaolucas",
-        "repo": "refract",
+        "owner": "davifisica671-afk",
+        "repo": "Refract",
         "releaseType": "release"
       }
     ]

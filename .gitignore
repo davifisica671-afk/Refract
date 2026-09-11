@@ -37,9 +37,14 @@ change.md
 # nativelyapi is a separate git repo — exclude from parent repo tracking
 /nativelyapi
 
-# Local premium dev copy — never commit to public repo
-/premium
+# Local premium dev copy — never commit the private checkout to the public repo.
+# premium is DECLARED as a submodule (.gitmodules), but the working copy stays
+# gitignored: this clone keeps a private checkout for development. Formal restore
+# for CI/release: git submodule update --init premium
+# CONTRACT: the core repo MUST build and typecheck green WITHOUT premium/ present;
 
+# premium-only test failures are reported by npm run check:release.
+/premium
 # Generated migration patches — private, not for public repo
 *.patch
 
@@ -306,7 +311,6 @@ dodopayments.llm
 ANSWER_QUALITY_FINAL_REPORT.md
 ANSWER_QUALITY_EVAL_REPORT.md
 profile.md
-electron-builder.signed.cjs
 REMAINING_ISSUES_FIX_REPORT.md
 LONG_SESSION_MEMORY_TEST_REPORT.md
 MANUAL_CHAT_PROFILE_FIX_REPORT.md
@@ -411,3 +415,5 @@ landing/*.png
 screenshot-refract-v2.png
 screenshot-refract.png
 sitereferencia.png
+
+
