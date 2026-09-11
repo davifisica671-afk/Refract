@@ -335,11 +335,11 @@ export async function runThinkingMatrix(llmHelper: LLMHelper, opts: { model?: st
 
   // Chave ROTATION (opt-in): Pro free-tier é 250 req/day/key AND tem a ~30s RPM
   // window. Rotating através vários keys multiplies effective throughput. Quando
-  // THINKING_BENCH_KEYS_FROM_REFRACT=1, carrega todo GEMINI_API_KEY* de
+  // THINKING_BENCH_KEYS_FROM_REFRACT_API=1, carrega todo GEMINI_API_KEY* de
   // refract-api/.env, build a cliente por kchave rotacionar por call, e em a 429
   // tentar novamente em o Próximo chave após a curto backoff. Falls voltar para o app ccliente
   const clients: any[] = [];
-  if (process.env.THINKING_BENCH_KEYS_FROM_REFRACT === '1') {
+  if (process.env.THINKING_BENCH_KEYS_FROM_REFRACT_API === '1') {
     try {
       const { GoogleGenAI } = require('@google/genai');
       const envPath = path.join(process.cwd(), 'refract-api/.env');

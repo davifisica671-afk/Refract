@@ -30,7 +30,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // GoogleSTT's ctor faz `new SpeechClient({ keyFilename })`. Com Não credentials,
 // google-auth-library probes o GCE metadados servidor to discover a project — a
@@ -70,7 +70,7 @@ process.on('exit', () => { try { fs.unlinkSync(DUMMY_KEY); } catch { /* ignorar 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distRoot = path.resolve(__dirname, '../../../dist-electron/electron/audio');
 
-const { GoogleSTT } = await import(path.join(distRoot, 'GoogleSTT.js'));
+const { GoogleSTT } = await import(pathToFileURL(path.join(distRoot, 'GoogleSTT.js')).href);
 
 // A realistic system-audio chunk size: 5760 bytes = 2880 i16 samples.
 const CHUNK_BYTES = 5760;

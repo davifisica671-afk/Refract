@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Module from 'node:module';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distRoot = path.resolve(__dirname, '../../../dist-electron/electron/audio');
@@ -24,7 +24,7 @@ Module._load = function patched(request, _p, _m) {
   return origLoad.apply(this, arguments);
 };
 
-const { RefractProSTT } = await import(path.join(distRoot, 'RefractProSTT.js'));
+const { RefractProSTT } = await import(pathToFileURL(path.join(distRoot, 'RefractProSTT.js')).href);
 
 const RELAY_URL = 'wss://us-relay.refract.software/ws';
 const ALT_URL = 'wss://asia-relay.refract.software/ws';
