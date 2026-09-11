@@ -1,4 +1,5 @@
 ﻿import { app, safeStorage, shell, net } from 'electron';
+import crypto from 'crypto';
 import http from 'http';
 import url from 'url';
 import fs from 'fs';
@@ -76,6 +77,13 @@ export class CalendarManager extends EventEmitter {
 
         return new Promise((resolve, reject) => {
             let settled = false;
+            // F-09: segredos efêmeros deste fluxo. O `state` amarra o callback
+            // a esta janela de consentimento; o PKCE (S256) amarra o `code`
+            // a este cliente — um `code` injetado por site/malware local não
+            // tem o verifier e é inútil no exchange.
+            const oauthState = crypto.randomBytes(32).toString('hex');
+            const codeVerifier = crypto.randomBytes(64).toString('base64url');
+            const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
             const finish = (fn: () => void) => {
                 if (settled) return;
                 settled = true;
@@ -87,10 +95,19 @@ export class CalendarManager extends EventEmitter {
             // 1. Cria Loopback Servidor
             const server = http.createServer(async (req, res) => {
                 try {
+                    // F-09: só aceita conexão do próprio host (bind + checagem).
+                    const remote = req.socket.remoteAddress || '';
+                    const isLoopback = remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1';
+                    if (!isLoopback) {
+                        res.statusCode = 403;
+                        res.end('Forbidden.');
+                        return;
+                    }
                     if (req.url?.startsWith('/auth/callback')) {
                         const qs = new url.URL(req.url, 'http://localhost:11111').searchParams;
                         const code = qs.get('code');
                         const error = qs.get('error');
+                        const returnedState = qs.get('state');
 
                         if (error) {
                             res.end('Authentication failed! You can close this window.');
@@ -98,11 +115,20 @@ export class CalendarManager extends EventEmitter {
                             return;
                         }
 
+                        // State inválido/ausente = CSRF ou fluxo estranho: recusa
+                        // sem trocar o code (não vaza nada, só fecha o fluxo).
+                        if (!returnedState || returnedState.length !== oauthState.length ||
+                            !crypto.timingSafeEqual(Buffer.from(returnedState), Buffer.from(oauthState))) {
+                            res.end('Authentication failed (invalid state). You can close this window.');
+                            finish(() => reject(new Error('OAuth state mismatch — possible CSRF, flow aborted.')));
+                            return;
+                        }
+
                         if (code) {
                             res.end('Authentication successful! You can close this window and return to Refract.');
                             // Exchange código para tokens. If isso throws, ainda finaliza então o servidor cfecha
                             try {
-                                await this.exchangeCodeForToken(code);
+                                await this.exchangeCodeForToken(code, codeVerifier);
                                 finish(() => resolve());
                             } catch (err) {
                                 finish(() => reject(err));
@@ -120,9 +146,9 @@ export class CalendarManager extends EventEmitter {
                 finish(() => reject(new Error('Calendar auth timed out — port released.')));
             }, 5 * 60 * 1000);
 
-            server.listen(11111, () => {
+            server.listen(11111, '127.0.0.1', () => {
                 // 3. Abrir Browser
-                const authUrl = this.getAuthUrl();
+                const authUrl = this.getAuthUrl(oauthState, codeChallenge);
                 shell.openExternal(authUrl);
             });
 
@@ -151,28 +177,40 @@ export class CalendarManager extends EventEmitter {
         return { connected: this.isConnected };
     }
 
-    private getAuthUrl(): string {
+    private getAuthUrl(state: string, codeChallenge: string): string {
         const params = new URLSearchParams({
             client_id: GOOGLE_CLIENT_ID,
             redirect_uri: REDIRECT_URI,
             response_type: 'code',
             scope: SCOPES.join(' '),
             access_type: 'offline', // Para atualiza token
-            prompt: 'consent' // Force prompts to garante we obtém atualiza token
+            prompt: 'consent', // Force prompts to garante we obtém atualiza token
+            // F-09: state + PKCE amarram o callback a ESTE fluxo (anti-CSRF).
+            state,
+            code_challenge: codeChallenge,
+            code_challenge_method: 'S256',
         });
         return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     }
 
-    private async exchangeCodeForToken(code: string) {
+    private async exchangeCodeForToken(code: string, codeVerifier: string) {
         try {
             // Proxied através refract-api então GOOGLE_CLIENT_SECRET nunca ships em o desktop app.
+            //
+            // CONTRATO COM O PROXY (quebra se descumprido): o proxy DEVE encaminhar
+            // `code_verifier` ao token endpoint do Google junto com `code` e
+            // `redirect_uri`. Desde que o authorize passou a enviar `code_challenge`
+            // (PKCE S256, RFC 8252), o Google RECUSA o exchange sem o verifier
+            // (invalid_grant) — se o proxy descartar o campo, "Connect calendar"
+            // para de funcionar. Campos extras desconhecidos devem ser repassados.
+            // Busca (vs. axios) então isso chamar shares o global keep-alive pool com todo outro
             // Busca (vs. axios) então isso chamar shares o global keep-alive pool com todo outro
             // requisição para api.refract.software e exposes o mesmo erro shape (res.ok / res.status)
             // como o rest de o codebase.
             const response = await fetch(`${REFRACT_API_URL}/api/calendar/exchange`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, redirect_uri: REDIRECT_URI }),
+                body: JSON.stringify({ code, code_verifier: codeVerifier, redirect_uri: REDIRECT_URI }),
                 signal: AbortSignal.timeout(15_000),
             });
 

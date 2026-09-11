@@ -7,7 +7,7 @@
  * projetada para ser discreta e não intrusiva.
  */
 import { ChevronUp, ChevronDown } from "lucide-react";
-import icon from "../icon.png";
+import { RefractLogoMark } from "../RefractLogoMark";
 import type { OverlayAppearance } from "../../lib/overlayAppearance";
 
 interface TopPillProps {
@@ -59,13 +59,7 @@ export default function TopPill({
             `}
                         style={appearance.iconStyle}
                     >
-                        <img
-                            src={icon}
-                            alt="Refract"
-                            className="w-[24px] h-[24px] object-contain opacity-95 scale-105 force-black-icon"
-                            draggable="false"
-                            onDragStart={(e) => e.preventDefault()}
-                        />
+                        <RefractLogoMark size={20} />
                     </button>
                 </div>
 

@@ -7,7 +7,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ToggleLeft, ToggleRight, Search, Calendar, ArrowRight, ArrowLeft, MoreHorizontal, Globe, Clock, ChevronRight, Settings, LayoutGrid, RefreshCw, Eye, EyeOff, Ghost, Plus, Mail, Link as LinkIcon, ChevronDown, Trash2, Bell, Check, Download, DownloadCloud, CheckCircle, AlertCircle, User, UserSearch, Sparkles, ArrowUpRight, Target, GraduationCap } from 'lucide-react';
 import { generateMeetingPDF } from '../utils/pdfGenerator';
-import icon from "./icon.png";
+import { RefractLogoMark } from './RefractLogoMark';
 import mainui from "../UI_comp/mainui.png";
 import calender from "../UI_comp/calender.png";
 import ConnectCalendarButton from './ui/ConnectCalendarButton';
@@ -974,7 +974,7 @@ const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onO
                                                             transition={{ duration: 0.2, ease: 'easeOut' }}
                                                             className="flex items-center gap-2.5"
                                                         >
-                                                            <img src={icon} alt="" className="w-[15px] h-[15px] object-contain brightness-0 invert opacity-95" />
+                                                            <RefractLogoMark size={15} className="opacity-95" />
                                                             <span className="text-[14px] leading-none tracking-[-0.01em]">Start Refract</span>
                                                         </motion.div>
                                                     )}
@@ -1377,7 +1377,7 @@ const Launcher: React.FC<LauncherProps> = ({ onStartMeeting, onOpenSettings, onO
                                                             onClick={onStartMeeting}
                                                             className="launcher-empty-primary"
                                                         >
-                                                            <img src={icon} alt="" className="w-[14px] h-[14px] object-contain brightness-0 invert" />
+                                                            <RefractLogoMark size={14} />
                                                             Start a session
                                                         </button>
                                                         <button

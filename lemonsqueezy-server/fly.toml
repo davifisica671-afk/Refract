@@ -12,6 +12,12 @@ primary_region = "gru"
 [env]
   PORT = "8787"
   DB_PATH = "/data/refract-ls.db"
+  # Segurança (auditoria 2026-09-11): atrás do proxy do Fly, req.ip sem
+  # trustProxy é o IP do proxy (rate-limit global). Ative para buckets por IP.
+  LS_TRUST_PROXY = "1"
+  # Estrito por padrão (poll exige hwid gravado). Só mude em emergência de
+  # compatibilidade com clientes antigos — e volte para "0" em seguida.
+  LS_ALLOW_LEGACY_NO_HWID = "0"
 
 # SEGREDOS (não vão aqui — set via `fly secrets set`):
 #   LEMONSQUEEZY_API_KEY, LEMONSQUEEZY_STORE_ID, LEMONSQUEEZY_WEBHOOK_SECRET,

@@ -61,6 +61,31 @@ export function getModelsDir(): string {
 }
 
 /**
+ * Segurança (F-06): o modelId que chega via IPC é input do renderer.
+ * Só ids presentes no MODEL_CATALOG são aceitos — traversal ("../../")
+ * ou ids arbitrários nunca chegam ao filesystem/rede.
+ */
+export function assertKnownModelId(modelId: unknown): asserts modelId is WhisperModelId {
+  if (typeof modelId !== 'string' || !MODEL_CATALOG.some((m) => m.id === modelId)) {
+    throw new Error(`Unknown model id: ${String(modelId)}`);
+  }
+}
+
+/**
+ * Resolve o diretório de um modelo do catálogo, garantindo contenção
+ * dentro do cache (defesa em profundidade mesmo após o allowlist).
+ */
+function resolveCatalogModelDir(modelId: WhisperModelId): string {
+  const cacheDir = path.resolve(getModelsDir());
+  const modelDir = path.resolve(cacheDir, modelIdToCacheDir(modelId));
+  const rel = path.relative(cacheDir, modelDir);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error('Model path escapes cache directory');
+  }
+  return modelDir;
+}
+
+/**
  * Configura @huggingface/transformers para uso nosso custom cache diretório
  * então models são stored em o user's dados ddiretório não node_modules.
  */
@@ -307,8 +332,8 @@ export function getModelExternalDataFormat(
  * Exclui a downloaded modelo de o cache ddiretório
  */
 export function deleteModel(modelId: WhisperModelId): void {
-  const cacheDir = getModelsDir();
-  const modelDir = path.join(cacheDir, modelIdToCacheDir(modelId));
+  assertKnownModelId(modelId);
+  const modelDir = resolveCatalogModelDir(modelId);
   if (fs.existsSync(modelDir)) {
     fs.rmSync(modelDir, { recursive: true, force: true });
     console.log(`[modelManager] Deleted model: ${modelId}`);

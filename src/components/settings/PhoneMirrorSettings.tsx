@@ -638,11 +638,11 @@ const CtxToggle: React.FC<{
   /** Mostrar a subtle amber "Experimental" chip próximo para o label. */
   experimental?: boolean;
   /**
-   * Mark o control as scaffolding para a not-yet-wired feature: shows a "Coming
-   * soon" chip, dims o row, e disables o interruptor so it can't promise
-   * behavior que doesn't exist yet. (The AI metadata classifier + JD/dev-docs
-   * auto-detect are built + tested mas não yet wired em o live auto-context
-   * caminho — tracked as a follow-up.)
+   * Marca o controle como andaime de um recurso ainda não ligado: exibe o chip
+   * "Coming soon", esmaece a linha e desabilita o interruptor, para não prometer
+   * comportamento que ainda não existe. (O classificador de metadados + a
+   * detecção automática de JD/dev-docs já existem e têm teste, mas ainda não
+   * estão ligados ao caminho de auto-contexto ao vivo — follow-up mapeado.)
    */
   comingSoon?: boolean;
 }> = ({ label, desc, checked, onChange, experimental, comingSoon }) => (

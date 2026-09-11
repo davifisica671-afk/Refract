@@ -51,6 +51,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # BLOCKING (F-01/F-02): nenhum segredo real em arquivo trackeado.
+      # Placeholders (.env.example) e canários de teste (allowlist no script)
+      # passam; chave real falha o pipeline.
+      - name: Secrets hygiene gate
+        run: node scripts/check-no-secrets.mjs
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:

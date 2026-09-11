@@ -25,6 +25,7 @@ import { useShortcuts } from '../../hooks/useShortcuts';
 import { useResolvedTheme } from '../../hooks/useResolvedTheme';
 import { isMac, getModifierSymbol } from '../../utils/platformUtils';
 import refractIcon from '../icon.png';
+import { RefractLogoMark } from '../RefractLogoMark';
 
 // ----------------------
 // Animações e Simulações
@@ -277,7 +278,7 @@ const MockMeetingInterfaceAnim = () => {
                             </div>
                             <div className="flex items-start gap-3">
                                 <div className="mt-0.5 w-5 h-5 rounded-full bg-bg-input flex items-center justify-center border border-border-subtle shrink-0">
-                                    <img src={refractIcon} alt="AI" className="w-3 h-3 opacity-50 object-contain force-black-icon" />
+                                    <RefractLogoMark size={12} className="opacity-50" />
                                 </div>
                                 <div>
                                     <div className="text-[10px] text-text-tertiary mb-1 font-medium">10:35 AM</div>
@@ -309,7 +310,7 @@ const MockMeetingChatAnim = () => {
             {/* Cabeçalho */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
                 <div className="flex items-center gap-2 text-text-tertiary">
-                    <img src={refractIcon} className="w-3.5 h-3.5 force-black-icon opacity-50" alt="logo" />
+                    <RefractLogoMark size={14} className="opacity-50" />
                     <span className="text-[13px] font-medium">Search this meeting</span>
                 </div>
                 <X size={16} className="text-text-tertiary" />
@@ -486,7 +487,7 @@ const MockPillControlsAnim = () => {
             {/* Logo → Launcher */}
             <div className="flex items-center gap-3 p-3 bg-bg-elevated border border-border-subtle rounded-xl">
                 <div className="w-8 h-8 rounded-full bg-bg-item-active flex items-center justify-center border border-border-muted shrink-0 shadow-sm">
-                    <img src={refractIcon} alt="Logo" className="w-[18px] h-[18px] object-contain force-black-icon opacity-90" />
+                    <RefractLogoMark size={18} className="opacity-90" />
                 </div>
                 <ArrowRight className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -626,7 +627,7 @@ const MockProviderSelectionAnim = () => {
     }, []);
 
     const options = [
-        { id: 'refract', label: 'Refract API', badge: '', recommended: true, desc: 'Ultra-fast low latency transcription', color: 'indigo', icon: <img src={refractIcon} className={`w-[14px] h-[14px] object-contain opacity-80 ${isLight ? '' : 'filter brightness-0 invert'}`} alt="Refract" /> },
+        { id: 'refract', label: 'Refract API', badge: '', recommended: true, desc: 'Ultra-fast low latency transcription', color: 'indigo', icon: <img src={refractIcon} className="w-[14px] h-[14px] object-contain opacity-80" alt="Refract" /> },
         { id: 'deepgram', label: 'Deepgram Nova-3', badge: 'Saved', recommended: false, desc: 'High-accuracy REST transcription', color: 'purple', icon: <Mic size={14} /> },
         { id: 'google', label: 'Google Cloud', badge: 'Saved', recommended: false, desc: 'gRPC streaming via Service Account', color: 'blue', icon: <Mic size={14} /> },
         { id: 'groq', label: 'Groq Whisper', badge: '', recommended: false, desc: 'Fast LPU whisper transcription', color: 'orange', icon: <Mic size={14} /> },

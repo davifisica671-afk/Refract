@@ -1991,7 +1991,6 @@ refract.contact@gmail.com`;
 
     /**
      * Otimiza o query planner do banco para consultas mais rápidas.
-     * Cluely do Vale do Silício não tem chance com essas micro-otimizações.
      */
     public optimize(): boolean {
         if (!this.db) return false;
