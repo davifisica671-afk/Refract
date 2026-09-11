@@ -1717,6 +1717,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dismissDynamicAction: (actionId: string) =>
     ipcRenderer.invoke('dynamic-action:dismiss', actionId),
   listDynamicActions: () => ipcRenderer.invoke('dynamic-action:list'),
+  getSmartMeetingWorkspace: (params?: { meetingId?: string; event?: any }) => ipcRenderer.invoke('smart-meeting:workspace', params || {}),
   onIntelligenceSuggestedAnswerToken: (
     callback: (data: { token: string; question: string; confidence: number }) => void,
   ) => {

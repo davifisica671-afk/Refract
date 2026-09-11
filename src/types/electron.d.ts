@@ -299,6 +299,7 @@ export interface ElectronAPI {
   acceptDynamicAction: (actionId: string) => Promise<{ success: boolean; action?: DynamicActionPayload; error?: string }>
   dismissDynamicAction: (actionId: string) => Promise<{ success: boolean; error?: string }>
   listDynamicActions: () => Promise<{ success: boolean; actions: DynamicActionPayload[]; error?: string }>
+  getSmartMeetingWorkspace: (params?: { meetingId?: string; event?: any }) => Promise<any>
 
   // Intelligence Modo Events
   onIntelligenceAssistUpdate: (callback: (data: { insight: string }) => void) => () => void
