@@ -64,7 +64,18 @@ jobs:
           cache: npm
 
       - name: Install dependencies (sem scripts nativos)
-        run: npm install --ignore-scripts
+        # --ignore-scripts pula o postinstall pesado (Rust + electron-rebuild +
+        # ~300MB de modelos) MAS também pula o postinstall do esbuild, que é o
+        # que baixa o binário nativo (@esbuild/linux-x64). Sem ele,
+        # `npm run build:electron` quebra no Linux. npm rebuild esbuild executa
+        # SÓ o install script do esbuild (seguro, <1s, sem toolchain nativa).
+        run: npm install --ignore-scripts && npm rebuild esbuild
+
+      # Preflight: falha cedo com mensagem clara se o binário nativo do
+      # esbuild não executar neste Node/OS (em vez de quebrar 1s depois
+      # dentro do build:electron com erro genérico).
+      - name: Esbuild binary preflight
+        run: node scripts/build-electron-preflight.cjs
 
       # BLOCKING: garante que o caminho de release (app:build / app:build:signed)
       # é autossuficiente no repositório — nenhum --config/arquivo de suporte
@@ -82,7 +93,7 @@ jobs:
         run: npm run typecheck:electron
         continue-on-error: true
 
-      - name: Build electron (esbuild)
+      - name: Build Electron (esbuild)
         run: npm run build:electron
 
       - name: Build renderer (vite)

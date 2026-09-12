@@ -60,6 +60,13 @@ build({
 }).then(() => {
   console.log(`[build-electron] Done in ${Date.now() - start}ms`);
 }).catch((err) => {
-  console.error('[build-electron] Build failed:', err.message);
+  console.error('[build-electron] Build failed:', err && err.message);
+  if (err && Array.isArray(err.errors)) {
+    for (const e of err.errors) {
+      const loc = e.location ? ` @ ${e.location.file}:${e.location.line}:${e.location.column}` : '';
+      console.error(`[esbuild-error] ${e.text}${loc}`);
+    }
+  }
+  if (err && err.stack) console.error(err.stack);
   process.exit(1);
 });
