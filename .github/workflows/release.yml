@@ -38,7 +38,15 @@ jobs:
         # O pós-install do repo rebuild native modules e baixa modelos Whisper (~300MB).
         # Mantemos ignore-scripts apenas para o CI de typecheck/tests;
         # para o release build, executamos o build:native depois.
-        run: npm install --ignore-scripts
+        # `npm rebuild esbuild` restaura o binário nativo do esbuild pulado
+        # pelo --ignore-scripts (sem ele, `build:electron` quebra no Linux).
+        run: npm install --ignore-scripts && npm rebuild esbuild
+
+      - name: Esbuild binary preflight
+        # Falha cedo com mensagem clara se o binário nativo do esbuild não
+        # executar neste Node/OS (em vez de quebrar dentro do esbuild
+        # com erro genérico de 1 linha).
+        run: node scripts/build-electron-preflight.cjs
 
       - name: Typecheck renderer
         run: npx tsc --noEmit
