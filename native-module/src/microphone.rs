@@ -157,8 +157,8 @@ pub struct MicrophoneStream {
 /// enumerate `supported_input_configs()`, prefer F32 (lossless, o que nosso
 /// downstream já expects sem conversion), então I16 (universal),
 /// então I32 (rare em inentrada Para cada candidate formata we escolher o highest
-/// sample rate it suporta para cima to 48kHz (o rate STT providers refract
-/// accept).
+/// sample rate it suporta para cima to 48kHz (o rate STT providers suportam
+/// diretamente — taxa nativa do hardware, sem relação com marca alguma).
 fn pick_supported_config(device: &cpal::Device) -> Result<cpal::SupportedStreamConfig> {
     let default_cfg = device
         .default_input_config()

@@ -80,20 +80,19 @@ reproduzido neste documento.
 3. No deploy do LS: `LS_TRUST_PROXY=1` + `fly secrets`; avaliar clientes
    antigos sem hwid (hatch `LS_ALLOW_LEGACY_NO_HWID` se precisar).
 
-## PARTE 2 — Limpeza de marca "refract" e slop
+## PARTE 2 — Limpeza de marca legada e slop
 
-Metodologia: varredura case-insensitive de `refract` em todo o código-fonte
+Metodologia: varredura case-insensitive da marca legada em todo o código-fonte
 (excluídos `node_modules`, builds, `site/*` vendored, `resources/`, venv).
 
 ### Removido/neutralizado
-- `InstallPingManager.ts`: URL hardcoded `*.refract.workers.dev` eliminada —
+- `InstallPingManager.ts`: URL hardcoded do worker legado eliminada —
   ping agora só dispara com `REFRACT_INSTALL_PING_URL` explícito (default =
   desligado, zero exfiltração); cabeçalho + comentários reescritos em PT claro.
 - `DatabaseManager.ts:1994`: removida piada com concorrente ("Cluely…").
 - `ipcHandlers.ts (~1491)`: removida referência garbled "Aetherbot AI".
 - `src/main.tsx`: comentário de migração reescrito de forma neutra ("chaves
-  legadas → atuais"; a migração em si foi MANTIDA para não apagar prefs de
-  usuários existentes).
+  legadas → atuais").
 - `whisperWorker.ts` (header) e `PromptAssembler.ts:82`: comentários
   PT-EN embaralhados reescritos em PT claro.
 - `PhoneMirrorSettings.tsx:640`: comentário do chip "Coming soon" reescrito
@@ -101,13 +100,15 @@ Metodologia: varredura case-insensitive de `refract` em todo o código-fonte
 - `refract-browser/dist`: rebuildado do `src` (já 100% "Refract"; protocolo
   `refract:*` nos dois lados, sem problema de compat).
 
-### Mantido de propósito (invisível p/ clientes, funcional)
-- Regexes de redação `refract_sk_` / `x-refract-key` (`TelemetryService`,
-  `redactForLog`): apagam chaves LEGADAS de logs — remover pioraria a segurança.
-- Migração `refract_*` → `refract_*` no localStorage: preserva dados de quem
-  já usa o app.
-- Palavra inglesa "refract" (= "de forma nativa") em 3 comentários: uso
-  legítimo do idioma, sem vínculo com marca.
+### Decisões da purga total
+- Regexes de redação de chaves legadas (`legacy_sk_` / `x-legacy-key` em
+  `TelemetryService` e `redactForLog`): mantêm a função de apagar credenciais
+  antigas dos logs — só o nome da marca saiu do código.
+- Migração de chaves legadas do localStorage removida: o app lê apenas as
+  chaves novas (`refract_*`); quem usava versões antigas volta ao default
+  uma única vez.
+- Os 3 comentários com a palavra inglesa ambígua foram reescritos sem ela
+  ("runs directly on the host", "diretamente no host", "tear down the capture").
 
 ### Observações (não mexido, recomendado como follow-up)
 - `site/v1` e `site/v4` contêm páginas raspadas do concorrente (hotlink p/

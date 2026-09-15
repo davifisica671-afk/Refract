@@ -43,35 +43,6 @@ import "./index.css"             // Estilos globais (Tailwind CSS + estilos base
 const THEME_CACHE_KEY = 'refract_resolved_theme';
 
 // ============================================================
-// Compatibilidade: chaves legadas do localStorage → chaves atuais
-// ============================================================
-// Preserva preferências de instalações anteriores (migração única por chave).
-// As entradas legadas podem ser removidas em versão futura, após janela
-// suficiente de migração.
-function migrateLocalStorageKey(oldKey: string, newKey: string): void {
-  if (localStorage.getItem(newKey) !== null) return;
-  const old = localStorage.getItem(oldKey);
-  if (old !== null) {
-    localStorage.setItem(newKey, old);
-    localStorage.removeItem(oldKey);
-  }
-}
-
-const LOCAL_STORAGE_MIGRATIONS: [string, string][] = [
-  ['refract_resolved_theme', 'refract_resolved_theme'],
-  ['refract_meeting_interface_theme', 'refract_meeting_interface_theme'],
-  ['refract_has_launched', 'refract_has_launched'],
-  ['refract_user_name', 'refract_user_name'],
-  ['refract_feature_interest', 'refract_feature_interest'],
-  ['refract_app_opens_count', 'refract_app_opens_count'],
-  ['refract_session_open_tracked', 'refract_session_open_tracked'],
-  ['refract_session_toaster_shown', 'refract_session_toaster_shown'],
-  ['refract_groq_fast_text', 'refract_groq_fast_text'],
-];
-
-LOCAL_STORAGE_MIGRATIONS.forEach(([oldKey, newKey]) => migrateLocalStorageKey(oldKey, newKey));
-
-// ============================================================
 // CONFIGURAÇÃO PRÉ-RENDERIZAÇÃO DA PLATAFORMA
 // ============================================================
 // Define o atributo data-platform no elemento <html> SYNCRONAMENTE,

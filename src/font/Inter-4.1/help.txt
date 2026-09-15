@@ -44,7 +44,7 @@ File index:
   3. Select "Inter.ttc", "InterVariable.ttf" and "InterVariable-Italic.ttf"
   4. Press the "Open" button
 
-  Alterrefract, if you prefer not to use Font Book, you can move or
+  Or, if you prefer not to use Font Book, you can move or
   copy the font files directly into ~/Library/Fonts/
 
 

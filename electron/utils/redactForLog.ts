@@ -52,7 +52,7 @@ const MAX_PREVIEW_LEN = 120;
  * aqui para que o redator não tenha dependência de tempo de execução no módulo de
  * telemetria (evita importação circular com main.ts).
  */
-const SENSITIVE_KEY_RE = /(api[_-]?key|authorization|bearer|token|secret|password|credential|raw[_-]?(transcript|prompt|reference|content|query)|transcript(text)?|prompt|reference(content)?|evidence(text)?|screenshot(path)?|image(path)?|error(body|response|message)?|responsebody|body|query(text|string)?|user(input|message)|chunk(text|content)?|snippet(text)?|cookie|set[_-]?cookie|signature|x[_-]?api[_-]?key|x[_-]?trial[_-]?token|x[_-]?refract[_-]?key|x[_-]?refract[_-]?key)$/i;
+const SENSITIVE_KEY_RE = /(api[_-]?key|authorization|bearer|token|secret|password|credential|raw[_-]?(transcript|prompt|reference|content|query)|transcript(text)?|prompt|reference(content)?|evidence(text)?|screenshot(path)?|image(path)?|error(body|response|message)?|responsebody|body|query(text|string)?|user(input|message)|chunk(text|content)?|snippet(text)?|cookie|set[_-]?cookie|signature|x[_-]?api[_-]?key|x[_-]?trial[_-]?token|x[_-]?refract[_-]?key|x[_-]?legacy[_-]?key)$/i;
 
 /**
  * Propriedades-chave cujo valor deve ser completamente REMOVIDO (não apenas redatado)
@@ -68,9 +68,9 @@ const REMOVE_VALUE_KEY_RE = /(raw[_-]?(transcript|prompt|reference|content|query
  */
 const VALUE_PATTERNS: Array<{ regex: RegExp; replacement: string }> = [
     { regex: /Bearer\s+[A-Za-z0-9._~+\/=:-]{12,}/gi, replacement: 'Bearer [REDACTED]' },
-    { regex: /x-(refract|refract|trial|api)-(key|token)\s*[:=]\s*[A-Za-z0-9._~+\/=:-]{8,}/gi, replacement: '$&[REDACTED]'.replace(/(=|:)\s*[A-Za-z0-9._~+\/=:-]{8,}/, '$1 [REDACTED]') },
+    { regex: /x-(refract|legacy|trial|api)-(key|token)\s*[:=]\s*[A-Za-z0-9._~+\/=:-]{8,}/gi, replacement: '$&[REDACTED]'.replace(/(=|:)\s*[A-Za-z0-9._~+\/=:-]{8,}/, '$1 [REDACTED]') },
     { regex: /refract_sk_[A-Za-z0-9._-]+/gi, replacement: REDACTED },
-    { regex: /refract_sk_[A-Za-z0-9._-]+/gi, replacement: REDACTED }, // legado — manter
+    { regex: /legacy_sk_[A-Za-z0-9._-]+/gi, replacement: REDACTED },
     { regex: /sk-[A-Za-z0-9]{20,}/gi, replacement: REDACTED },
     { regex: /gsk_[A-Za-z0-9]{20,}/gi, replacement: REDACTED },
     { regex: /dg_[A-Za-z0-9]{20,}/gi, replacement: REDACTED },

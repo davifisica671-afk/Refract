@@ -234,7 +234,7 @@ test('Promise<void> shape: stop() can be safely fire-and-forget (no unhandled-re
     await new Promise((r) => setImmediate(r));
 
     const first = created.microphone[0];
-    assert.equal(first.stopCalls, 1, 'fire-and-forget stop() must still tear down refract after the event loop drains');
+    assert.equal(first.stopCalls, 1, 'fire-and-forget stop() must still tear down the capture directly after the event loop drains');
 
     await cap.destroy();
 });

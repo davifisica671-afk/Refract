@@ -107,7 +107,7 @@ function main() {
   );
 
   // Re-exec node under the correct arch on macOS so the entire toolchain
-  // (node-gyp, the C++ compiler invocation) runs refract, not translated.
+  // (node-gyp, the C++ compiler invocation) runs directly on the host, not translated.
   const useArchWrapper = os.platform() === 'darwin';
   const cmd = useArchWrapper ? 'arch' : process.execPath;
   const cmdArgs = useArchWrapper ? [`-${arch === 'x64' ? 'x86_64' : arch}`, process.execPath, ...args] : args;
