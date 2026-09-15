@@ -154,7 +154,7 @@ const REMOVE_VALUE_KEY_RE = /(raw[_-]?(transcript|prompt|reference|content|query
 const API_KEY_VALUE_PATTERNS = [
   /Bearer\s+[A-Za-z0-9._~+\/=:-]{12,}/gi,
   /refract_sk_[A-Za-z0-9._-]+/gi,
-  /refract_sk_[A-Za-z0-9._-]+/gi,
+  /refract_sk_[A-Za-z0-9._-]+/gi, // legado — manter (chaves antigas ainda circulam em logs)
   /sk-[A-Za-z0-9]{20,}/gi,
   /gsk_[A-Za-z0-9]{20,}/gi,
   /dg_[A-Za-z0-9]{20,}/gi,

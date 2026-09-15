@@ -70,7 +70,7 @@ const VALUE_PATTERNS: Array<{ regex: RegExp; replacement: string }> = [
     { regex: /Bearer\s+[A-Za-z0-9._~+\/=:-]{12,}/gi, replacement: 'Bearer [REDACTED]' },
     { regex: /x-(refract|refract|trial|api)-(key|token)\s*[:=]\s*[A-Za-z0-9._~+\/=:-]{8,}/gi, replacement: '$&[REDACTED]'.replace(/(=|:)\s*[A-Za-z0-9._~+\/=:-]{8,}/, '$1 [REDACTED]') },
     { regex: /refract_sk_[A-Za-z0-9._-]+/gi, replacement: REDACTED },
-    { regex: /refract_sk_[A-Za-z0-9._-]+/gi, replacement: REDACTED },
+    { regex: /refract_sk_[A-Za-z0-9._-]+/gi, replacement: REDACTED }, // legado — manter
     { regex: /sk-[A-Za-z0-9]{20,}/gi, replacement: REDACTED },
     { regex: /gsk_[A-Za-z0-9]{20,}/gi, replacement: REDACTED },
     { regex: /dg_[A-Za-z0-9]{20,}/gi, replacement: REDACTED },
