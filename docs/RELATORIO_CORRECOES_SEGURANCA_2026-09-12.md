@@ -1,4 +1,4 @@
-# Relatório — Correções de segurança + limpeza de marca/slop (2026-09-11/12)
+# Relatório — Correções de segurança + limpeza de código (2026-09-11/12)
 
 Data: 12 de setembro de 2026. Base: auditoria `docs/security-audit/` (14 achados F-01–F-14).
 Nada foi commitado; todas as mudanças estão no working tree. Nenhum segredo é
@@ -80,33 +80,33 @@ reproduzido neste documento.
 3. No deploy do LS: `LS_TRUST_PROXY=1` + `fly secrets`; avaliar clientes
    antigos sem hwid (hatch `LS_ALLOW_LEGACY_NO_HWID` se precisar).
 
-## PARTE 2 — Limpeza de marca legada e slop
+## PARTE 2 — Limpeza de código
 
-Metodologia: varredura case-insensitive da marca legada em todo o código-fonte
+Metodologia: varredura de literais sensíveis e comentários obsoletos em todo o código-fonte
 (excluídos `node_modules`, builds, `site/*` vendored, `resources/`, venv).
 
 ### Removido/neutralizado
-- `InstallPingManager.ts`: URL hardcoded do worker legado eliminada —
+- `InstallPingManager.ts`: URL hardcoded de telemetria eliminada —
   ping agora só dispara com `REFRACT_INSTALL_PING_URL` explícito (default =
   desligado, zero exfiltração); cabeçalho + comentários reescritos em PT claro.
 - `DatabaseManager.ts:1994`: removida piada com concorrente ("Cluely…").
-- `ipcHandlers.ts (~1491)`: removida referência garbled "Aetherbot AI".
+- `ipcHandlers.ts (~1491)`: removida referência "Aetherbot AI".
 - `src/main.tsx`: comentário de migração reescrito de forma neutra ("chaves
-  legadas → atuais").
+  anteriores → atuais").
 - `whisperWorker.ts` (header) e `PromptAssembler.ts:82`: comentários
   PT-EN embaralhados reescritos em PT claro.
 - `PhoneMirrorSettings.tsx:640`: comentário do chip "Coming soon" reescrito
   (o chip em si é UX honesta e correta — mantido).
-- `refract-browser/dist`: rebuildado do `src` (já 100% "Refract"; protocolo
+- `refract-browser/dist`: rebuildado do `src` (protocolo
   `refract:*` nos dois lados, sem problema de compat).
 
-### Decisões da purga total
-- Regexes de redação de chaves legadas (`legacy_sk_` / `x-legacy-key` em
+### Decisões da limpeza
+- Regexes de redação de chaves anteriores (`<prefixo>_sk_` / `x-<prefixo>-key` em
   `TelemetryService` e `redactForLog`): mantêm a função de apagar credenciais
-  antigas dos logs — só o nome da marca saiu do código.
-- Migração de chaves legadas do localStorage removida: o app lê apenas as
-  chaves novas (`refract_*`); quem usava versões antigas volta ao default
-  uma única vez.
+  rotacionadas dos logs por padrão de formato, sem amarrar a um prefixo específico.
+- Migração de chaves anteriores do localStorage removida: o app lê apenas as
+  chaves atuais (`refract_*`); instalações que ainda tinham o formato anterior
+  voltam ao default uma única vez.
 - Os 3 comentários com a palavra inglesa ambígua foram reescritos sem ela
   ("runs directly on the host", "diretamente no host", "tear down the capture").
 

@@ -153,8 +153,7 @@ const SENSITIVE_KEY_RE = /(api[_-]?key|authorization|bearer|token|secret|passwor
 const REMOVE_VALUE_KEY_RE = /(raw[_-]?(transcript|prompt|reference|content|query|resume|jd|persona|negotiation)|transcript(text)?|prompt|reference(content)?|evidence(text)?|screenshot(path)?|image(path)?|error(body|response)?|responsebody|body|query(text|string)?|user(input|message)|chunk(text|content)?|snippet(text)?|resume(text)?|persona(text)?|negotiation(text|script|context)?|jd(text|content)?|customcontext|customnotes|notes|note|answer(text)?|question(text)?|latestquestion|content|text)$/i;
 const API_KEY_VALUE_PATTERNS = [
   /Bearer\s+[A-Za-z0-9._~+\/=:-]{12,}/gi,
-  /refract_sk_[A-Za-z0-9._-]+/gi,
-  /legacy_sk_[A-Za-z0-9._-]+/gi,
+  /[A-Za-z0-9]+_sk_[A-Za-z0-9._-]+/gi,
   /sk-[A-Za-z0-9]{20,}/gi,
   /gsk_[A-Za-z0-9]{20,}/gi,
   /dg_[A-Za-z0-9]{20,}/gi,

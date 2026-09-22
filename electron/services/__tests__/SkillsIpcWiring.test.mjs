@@ -195,8 +195,8 @@ test('SkillsManager.listSkills() returns the builtin humanize-ai-text skill', ()
   assert.ok(Array.isArray(list), 'listSkills() must return an array');
   // O diretório id (BUILTIN_SKILLS[0].id = 'humanize-text') and o
   // displayed skill id (slugify(frontmatter.name) = 'humanize-ai-text')
-  // são intentionally different — o disk slot é named para o legacy
-  // built-in mas o parsed frontmatter rebrands it.
+  // são intentionally different — o disk slot mantém o nome original
+  // built-in mas o parsed frontmatter usa o nome de exibição.
   const humanize = list.find(s => s.id === 'humanize-ai-text');
   assert.ok(humanize, `expected humanize-ai-text skill in: ${list.map(s => s.id).join(', ')}`);
   assert.equal(humanize.source, 'builtin');

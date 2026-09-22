@@ -391,5 +391,15 @@ landing/*.png
 screenshot-refract-v2.png
 screenshot-refract.png
 sitereferencia.png
+# ── Fósseis de naming/antigos artefatos locais — nunca versionar ───────────────
+# Removidos do índice; ficam locais se ainda existirem no disco.
+_design-ref/
+meetily.md
+perssua-full-screenshot.png
+perssua-html.txt
+refract-new-screenshot.png
+test-page.html
+assets/refract-legacy.icns
+docs/external-transcript-chunking-notes.md.bak
 
 

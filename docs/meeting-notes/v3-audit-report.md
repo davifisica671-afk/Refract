@@ -54,7 +54,7 @@ The primary summary LLM path therefore only saw the beginning of long meetings. 
 9. No recipe/export layer existed.
 10. Telemetry needed to stay counts/timings only as the pipeline became richer.
 
-## Meetily ideas reused
+## External ideas reused
 
 Ported cleanly into Electron/TypeScript:
 
@@ -67,12 +67,12 @@ Ported cleanly into Electron/TypeScript:
 - frontend-friendly note block shape
 - explicit processing states
 
-## Meetily ideas intentionally not reused
+## External ideas intentionally not reused
 
 - FastAPI/Python backend
 - Docker deployment model
 - Whisper infrastructure
-- Meetily’s direct provider stack
+- External direct provider stack
 - Separate backend schema files
 
 Refract keeps its Electron/TypeScript architecture and existing provider routing.

@@ -1,11 +1,11 @@
-﻿# Meetily — Lessons for Refract (Phase 3)
+﻿# External transcript-chunking notes (Phase 3)
 
 Date: 2026-06-20
-Source: `meetily.md` (Zackriya Solutions "meetily", a Rust/Tauri + Python backend
-meeting transcription/summary app). This extracts the *ideas* worth porting; Refract
+Source: public notes on a Rust/Tauri + Python backend meeting
+transcription/summary app. This extracts the *ideas* worth porting; Refract
 keeps its own Electron/TypeScript architecture and provider routing.
 
-## 1. How Meetily handles long transcripts
+## 1. How the reference app handles long transcripts
 A dedicated `process-transcript` endpoint (`backend/app/transcript_processor.py`) takes
 `{text, model, model_name, chunk_size, overlap}` (e.g. `chunk_size: 5000, overlap: 1000`).
 Long transcripts are split into overlapping chunks and processed in a background
@@ -27,7 +27,7 @@ structured summary persisted as `summary_processes.result`. Progress is surfaced
 UI via a `ChunkProgressDisplay` component and the `chunk_count` on the process row.
 
 ## 5. Summary schema
-Meetily stores per-transcript `summary`, `action_items`, `key_points` columns plus a
+The reference app stores per-transcript `summary`, `action_items`, `key_points` columns plus a
 block-based editable document (BlockNote editor: `Block.tsx`, `Section.tsx`,
 `BlockNoteSummaryView.tsx`, `blocknote-markdown.ts`). Summaries are **section/block
 structured**, editable, and exportable to markdown.
@@ -65,13 +65,13 @@ round-tripped to markdown for export.
   (Google/Deepgram/Soniox/11Labs/OpenAI/local Whisper + relay).
 - **Separate DB process & block-editor dependency (BlockNote)** — Refract renders its own
   React note blocks in `MeetingDetails.tsx`; no need for a third-party editor.
-- **Meetily's direct provider stack / per-model chunk_size coupling** — Refract routes
+- **External direct provider stack / per-model chunk_size coupling** — Refract routes
   through `LLMHelper`/`ProviderRouter` and estimates tokens itself.
 - **Char-based chunk sizing** — Refract uses token-estimate sizing (more provider-robust).
 
 ## 11. Net
-Meetily validates Refract's chosen architecture (chunk+overlap → per-chunk extraction →
-reduce → status-tracked background job). The remaining Meetily-inspired work is cosmetic/
+The reference approach validates Refract's chosen architecture (chunk+overlap → per-chunk extraction →
+reduce → status-tracked background job). The remaining inspired work is cosmetic/
 operational: surface chunk progress + processing metadata (`generation{}` block) and a
 regenerate affordance — both already on the Phase 6/12 plan. No architectural change is
 needed.
