@@ -1,4 +1,4 @@
-﻿export type LLMProviderId = 'refract' | 'groq' | 'codex' | 'gemini_flash' | 'gemini_pro' | 'openai' | 'claude' | 'deepseek' | 'ollama' | 'opencode_zen';
+﻿export type LLMProviderId = 'refract' | 'groq' | 'codex' | 'gemini_flash' | 'gemini_pro' | 'openai' | 'claude' | 'deepseek' | 'ollama' | 'opencode_zen' | 'opencode';
 export type ProviderCapability = 'chat' | 'stream_chat' | 'structured' | 'vision';
 export type ProviderAttemptStatus = 'available' | 'unavailable';
 export type ProviderUnavailableReason = 'missing_api_key' | 'missing_config' | 'unsupported_capability' | 'disabled';
@@ -36,6 +36,7 @@ export interface ProviderAvailabilityState {
     hasClaude?: boolean;
     hasDeepseek?: boolean;
     hasOllama?: boolean;
+    hasOpencode?: boolean;
     hasOpencodeZen?: boolean;
 }
 
@@ -49,6 +50,7 @@ export interface ProviderModelState {
     claude?: string;
     deepseek?: string;
     ollama?: string;
+    opencode?: string;
     opencodeZen?: string;
 }
 
@@ -173,6 +175,14 @@ export function routeLLMProviders(options: ProviderRouteOptions): ProviderAttemp
         unavailableReason: 'missing_config',
         supports: ['chat', 'stream_chat', 'structured', 'vision'],
     };
+    const opencode: ProviderSpec = {
+        provider: 'opencode',
+        name: `OpenCode Local (${models.opencode ?? 'default'})`,
+        model: models.opencode,
+        available: Boolean(availability.hasOpencode),
+        unavailableReason: 'missing_config',
+        supports: ['chat'],
+    };
 
     const opencodeZen: ProviderSpec = {
         provider: 'opencode_zen',
@@ -193,6 +203,9 @@ export function routeLLMProviders(options: ProviderRouteOptions): ProviderAttemp
     if (availability.hasOllama) {
         orderedSpecs.push(ollama);
     }
+    // opencode é text-only (supports: ['chat']) — excluded de o multimodal chain
+    // como DeepSeek acima.
+    if (!options.multimodal) orderedSpecs.push(opencode);
     if (availability.hasOpencodeZen && !orderedSpecs.some(s => s.provider === 'opencode_zen')) {
         orderedSpecs.push(opencodeZen);
     }

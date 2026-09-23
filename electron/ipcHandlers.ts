@@ -2936,6 +2936,69 @@ export function initializeIpcHandlers(appState: AppState): void {
     }
   });
 
+  // OpenCode Local sidecar (OpencodeManager + OpencodeService) exposed to Settings.
+  // get-status never spawns while the integration flag is off: the Settings card
+  // polls it, and spawning there would defeat toggling the provider off.
+  safeHandle('opencode:get-status', async () => {
+    try {
+      const { OpencodeManager } = require('./services/OpencodeManager') as typeof import('./services/OpencodeManager');
+      const { OpencodeService } = require('./services/OpencodeService') as typeof import('./services/OpencodeService');
+      const mgr = OpencodeManager.getInstance();
+      if (!isIntelligenceFlagEnabled('opencodeIntegration')) {
+        return { ok: false, managed: mgr.isManaged(), models: 0 };
+      }
+      const ensured = await mgr.ensureRunning().catch(() => ({ ok: false, managed: false, baseUrl: mgr.getBaseUrl() }));
+      let ok = ensured.ok;
+      let models = 0;
+      if (ok) {
+        try {
+          const svc = new OpencodeService({ baseUrl: mgr.getBaseUrl(), password: mgr.getPassword() });
+          models = (await svc.listModels()).length;
+        } catch {
+          ok = false; // degraded: sidecar up but the provider list failed
+        }
+      }
+      return { ok, managed: mgr.isManaged(), models };
+    } catch {
+      return { ok: false, managed: false, models: 0 };
+    }
+  });
+
+  // Connected-only model refs; [] (never throw) when the sidecar is unavailable.
+  safeHandle('opencode:list-models', async () => {
+    try {
+      const { OpencodeManager } = require('./services/OpencodeManager') as typeof import('./services/OpencodeManager');
+      const { OpencodeService } = require('./services/OpencodeService') as typeof import('./services/OpencodeService');
+      const mgr = OpencodeManager.getInstance();
+      const svc = new OpencodeService({ baseUrl: mgr.getBaseUrl(), password: mgr.getPassword() });
+      return await svc.listModels();
+    } catch {
+      return [];
+    }
+  });
+
+  // Flips the opencodeIntegration flag (same opencodeIntegrationEnabled setting the
+  // flag reads) via setIntelligenceFlag, then ensures/stops the sidecar accordingly.
+  safeHandle('opencode:set-enabled', async (_, on: boolean) => {
+    if (typeof on !== 'boolean') {
+      return { success: false, error: 'invalid_type' };
+    }
+    const { setIntelligenceFlag } = require('./intelligence/intelligenceFlags') as typeof import('./intelligence/intelligenceFlags');
+    if (!setIntelligenceFlag('opencodeIntegration', on)) {
+      return { success: false, error: 'settings_store_degraded' };
+    }
+    try {
+      const { OpencodeManager } = require('./services/OpencodeManager') as typeof import('./services/OpencodeManager');
+      const mgr = OpencodeManager.getInstance();
+      if (on) {
+        await mgr.ensureRunning().catch(() => ({ ok: false, managed: false, baseUrl: mgr.getBaseUrl() }));
+      } else {
+        mgr.stop();
+      }
+    } catch { /* sidecar lifecycle is best-effort; the setting already persisted */ }
+    return { success: true };
+  });
+
   safeHandle('switch-to-gemini', async (_, apiKey?: string, modelId?: string) => {
     try {
       const llmHelper = appState.processingHelper.getLLMHelper();
