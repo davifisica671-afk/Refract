@@ -297,6 +297,18 @@ const TECHNICAL_TRIGGERS: ActionTrigger[] = [
     },
 ];
 
+const CHESS_TRIGGERS: ActionTrigger[] = [
+    {
+        type: 'chess_best_move',
+        patterns: [/\b(best move|what should i play|mate in|checkmate|chess)\b/i],
+        priority: 0.9,
+        label: 'Suggest chess move',
+        promptInstruction:
+            'You are in Chess Coach mode. Analyze the visible board and suggest the best move with a short explanation. Training and casual games only.',
+        answerStyle: { maxWords: 120, format: 'bullets', tone: 'analytical' },
+    },
+];
+
 export const MODE_TRIGGERS: Record<string, ActionTrigger[]> = {
     general: GENERAL_TRIGGERS,
     negotiation: NEGOTIATION_TRIGGERS,
@@ -306,6 +318,7 @@ export const MODE_TRIGGERS: Record<string, ActionTrigger[]> = {
     interview: INTERVIEW_TRIGGERS,
     lecture: LECTURE_TRIGGERS,
     technical_interview: TECHNICAL_TRIGGERS,
+    chess: CHESS_TRIGGERS,
 };
 
 export class DynamicActionDetector {
