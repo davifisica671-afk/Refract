@@ -33,7 +33,13 @@ export class ChessCoachService {
       const explanation = await this.deps.explain({ fen: '', uci: '', turn: 'w' });
       return { verified: false as const, explanation };
     }
-    const best = await this.deps.engine.getBestMove(extracted.fen);
+    let best;
+    try {
+      best = await this.deps.engine.getBestMove(extracted.fen);
+    } catch {
+      const explanation = await this.deps.explain({ fen: extracted.fen, uci: '', turn: extracted.turn });
+      return { fen: extracted.fen, turn: extracted.turn, verified: false as const, explanation };
+    }
     const explanation = await this.deps.explain({ fen: extracted.fen, uci: best.uci, turn: extracted.turn });
     return { ...best, fen: extracted.fen, turn: extracted.turn, verified: true as const, explanation };
   }

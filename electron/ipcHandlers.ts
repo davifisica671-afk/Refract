@@ -682,6 +682,9 @@ export function initializeIpcHandlers(appState: AppState): void {
     if (typeof imageB64 !== 'string' || imageB64.length === 0) {
       throw new Error('image required');
     }
+    if (imageB64.length > 15 * 1024 * 1024) {
+      throw new Error('image exceeds 15 MB limit');
+    }
     const { parseFenReply, buildFenExtractionPrompt } = require('./llm/chessFenExtractor');
     const { ChessEngineService } = require('./services/ChessEngineService');
     const { ChessCoachService } = require('./services/ChessCoachService');

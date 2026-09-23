@@ -105,7 +105,8 @@
       "**/*.dylib",
       "**/vectorSearchWorker.js",
       "**/whisperWorker.js",
-      "**/intentClassifierWorker.js"
+      "**/intentClassifierWorker.js",
+      "**/stockfish.js/**/*"
     ],
     "directories": {
       "output": "release",

@@ -103,4 +103,18 @@ describe('chessCoachService', () => {
     const res = await svc.analyze('aGVsbG8=');
     assert.equal(res.verified, false);
   });
+
+  test('engine failure falls back to unverified with position context', async () => {
+    const mod = await import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/services/ChessCoachService.js')).href);
+    let seenUci = 'unset';
+    const svc = new mod.ChessCoachService({
+      extract: async () => ({ fen: 'r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 3 3', turn: 'w' }),
+      engine: { getBestMove: async () => { throw new Error('engine timeout'); } },
+      explain: async (args) => { seenUci = args.uci; return 'Engine unavailable — analyze this sharp line manually.'; },
+    });
+    const res = await svc.analyze('aGVsbG8=');
+    assert.equal(res.verified, false);
+    assert.equal(res.fen.startsWith('r1bqkbnr'), true);
+    assert.equal(seenUci, '');
+  });
 });
