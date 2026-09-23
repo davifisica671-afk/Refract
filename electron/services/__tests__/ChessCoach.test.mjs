@@ -66,3 +66,41 @@ describe('chessEngineService', () => {
     }
   });
 });
+
+describe('chessCoachService', () => {
+  test('happy path returns verified move with explanation', async () => {
+    const mod = await import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/services/ChessCoachService.js')).href);
+    const svc = new mod.ChessCoachService({
+      extract: async () => ({ fen: 'startpos-fen', turn: 'w' }),
+      engine: { getBestMove: async () => ({ from: 'g1', to: 'f3', uci: 'g1f3', evalCp: 40 }) },
+      explain: async () => 'Develops the knight and controls the center.',
+    });
+    const res = await svc.analyze('aGVsbG8=');
+    assert.equal(res.verified, true);
+    assert.equal(res.uci, 'g1f3');
+    assert.match(res.explanation, /knight/i);
+  });
+
+  test('oversize image rejected before any work', async () => {
+    const mod = await import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/services/ChessCoachService.js')).href);
+    let calls = 0;
+    const svc = new mod.ChessCoachService({
+      extract: async () => { calls += 1; return { fen: 'x', turn: 'w' }; },
+      engine: { getBestMove: async () => ({ from: 'a', to: 'b', uci: 'ab', evalCp: null }) },
+      explain: async () => 'x',
+    });
+    await assert.rejects(() => svc.analyze('x'.repeat(16 * 1024 * 1024)), /15 MB/);
+    assert.equal(calls, 0);
+  });
+
+  test('extractor failure falls back to unverified', async () => {
+    const mod = await import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/services/ChessCoachService.js')).href);
+    const svc = new mod.ChessCoachService({
+      extract: async () => { throw new Error('bad screenshot'); },
+      engine: { getBestMove: async () => { throw new Error('unreachable'); } },
+      explain: async () => 'Could not read the board — try a tighter crop.',
+    });
+    const res = await svc.analyze('aGVsbG8=');
+    assert.equal(res.verified, false);
+  });
+});
