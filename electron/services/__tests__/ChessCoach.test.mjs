@@ -40,3 +40,29 @@ describe('chessFenExtractor', () => {
     assert.throws(() => mod.parseFenReply('FEN: 8/8/8/8/8/8/8/8 w - - 0 1'), /king/);
   });
 });
+
+describe('chessEngineService', () => {
+  test('finds mate in 1 (Scholar mate Qxf7)', async () => {
+    const mod = await import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/services/ChessEngineService.js')).href);
+    const svc = new mod.ChessEngineService();
+    try {
+      const res = await svc.getBestMove(
+        'r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 3 3',
+        { timeoutMs: 12000 },
+      );
+      assert.equal(res.uci, 'h5f7');
+    } finally {
+      await svc.dispose();
+    }
+  });
+
+  test('rejects illegal FEN without starting the engine', async () => {
+    const mod = await import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/services/ChessEngineService.js')).href);
+    const svc = new mod.ChessEngineService();
+    try {
+      await assert.rejects(() => svc.getBestMove('8/8/8/8/8/8/8/8 w - - 0 1'), /legal|king/i);
+    } finally {
+      await svc.dispose();
+    }
+  });
+});
