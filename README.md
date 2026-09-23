@@ -828,6 +828,7 @@ Users are responsible for complying with:
 - Workplace policies
 - Academic rules
 - Local laws and regulations
+- Chess Coach is for training and casual games — engine assistance in rated online play violates fair-play rules and gets accounts banned.
 
 This project does not encourage misuse or deception.
 

@@ -31,6 +31,7 @@ import {
     MODE_COMPETITIVE_PROMPT,
     MODE_CODING_PROMPT,
     MODE_WORK_DAILY_PROMPT,
+    MODE_CHESS_PROMPT,
     SHARED_MODE_PREFIX,
     SHARED_MODE_PREFIX_SHORT,
 } from '../llm/prompts';
@@ -47,7 +48,8 @@ export type ModeTemplateType =
     | 'leetcode'
     | 'competitive'
     | 'coding'
-    | 'work-daily';
+    | 'work-daily'
+    | 'chess';
 
 export interface Mode {
     id: string;
@@ -94,6 +96,7 @@ export const MODE_TEMPLATES: Array<{
     { type: 'competitive',          label: 'Competitive',          description: 'Contest-speed solving for Codeforces, ICPC, and timed competitions.' },
     { type: 'coding',               label: 'Coding',               description: 'Pair programming on real code — debugging, reviews, and implementation.' },
     { type: 'work-daily',           label: 'Work Day',             description: 'Always-on companion tracking commitments and follow-ups across your workday.' },
+    { type: 'chess', label: 'Chess Coach', description: 'Training coach: best move with board visual and short explanation.' },
 ];
 
 // ── Split free/premium dos modos ──────────────────────────────────
@@ -106,6 +109,7 @@ export const FREE_MODE_TEMPLATES: ReadonlySet<ModeTemplateType> = new Set<ModeTe
     'general',
     'lecture',
     'language-learning',
+    'chess',
 ]);
 
 /** True quando o template dispensa licença Pro (free tier). */
@@ -217,6 +221,12 @@ export const TEMPLATE_NOTE_SECTIONS: Record<ModeTemplateType, Array<{ title: str
         { title: 'People context', description: 'Personal or situational details about colleagues worth remembering (new project, PTO, preferences).' },
         { title: 'Day summary', description: 'Concise recap of the workday: what moved, what stalled, what changed.' },
     ],
+    chess: [
+        { title: 'Position', description: 'Material, king safety, and the key features of the current position.' },
+        { title: 'Best move', description: 'The recommended move and the concrete idea behind it.' },
+        { title: 'Opponent threats', description: 'Likely replies and tactics to watch for.' },
+        { title: 'To review', description: 'Openings, motifs, or endgames worth studying after the game.' },
+    ],
 };
 
 const TEMPLATE_SYSTEM_PROMPTS: Record<ModeTemplateType, string> = {
@@ -234,6 +244,7 @@ const TEMPLATE_SYSTEM_PROMPTS: Record<ModeTemplateType, string> = {
     'competitive': MODE_COMPETITIVE_PROMPT,
     'coding': MODE_CODING_PROMPT,
     'work-daily': MODE_WORK_DAILY_PROMPT,
+    'chess': MODE_CHESS_PROMPT,
 };
 
 // Startup invariant: todo MODE_*_PROMPT precisa começa com one de o two shared

@@ -30,6 +30,7 @@ import {
   mergeRollingTranscriptPartial,
 } from '../../electron/utils/rollingTranscriptState';
 import { categorizeSttError } from '../lib/sttErrorMapper';
+import { ChessBoardView } from './chess/ChessBoardView';
 
 import type { SkillSummary } from '../types/electron';
 
@@ -279,6 +280,16 @@ interface Message {
     yourTarget: number | null;
     currency: string;
   };
+  // Chess Coach result (Task 7): set when the Task-6 chessGetBestMove bridge
+  // returns a board position — rendered as a 2D board card with best-move arrow.
+  chess?: {
+    fen: string;
+    turn: 'w' | 'b';
+    from?: string;
+    to?: string;
+    explanation: string;
+    verified: boolean;
+  };
 }
 
 interface RefractInterfaceProps {
@@ -296,6 +307,19 @@ const buildConversationContextFromMessages = (items: Message[]): string =>
     )
     .slice(-20)
     .join('\n');
+
+// Chess Coach mode detection (Task 7): the chess template carries
+// templateType 'chess' (label 'Chess Coach'). Falls back to a name match so
+// renamed custom chess modes still route to the board visual.
+const isChessModeActive = async (fallbackLabel: string | null): Promise<boolean> => {
+  try {
+    const mode = await window.electronAPI?.modesGetActive?.();
+    if (mode?.templateType === 'chess') return true;
+    return /chess/i.test(mode?.name ?? fallbackLabel ?? '');
+  } catch {
+    return /chess/i.test(fallbackLabel ?? '');
+  }
+};
 
 // PERF: HighlightedCode renderiza um único bloco de código delimitado. Elevado
 // para o escopo do módulo e envolto em React.memo então re-renderizações do pai
@@ -3473,6 +3497,61 @@ const RefractInterface: React.FC<RefractInterfaceProps> = ({
       }, 50);
     }
 
+    // Chess Coach mode (Task 7): route screenshots through the Task-6
+    // chessGetBestMove bridge and render a 2D board card. Reuses the existing
+    // screenshot/crop flow — no new capture path. Degrades gracefully to the
+    // normal answer flow where the bridge is absent.
+    if (currentAttachments.length > 0 && (await isChessModeActive(activeModeLabel))) {
+      const screenshotB64 = currentAttachments[0]?.preview ?? '';
+      if (screenshotB64 && window.electronAPI?.chessGetBestMove) {
+        const chessPlaceholderId = genMessageId();
+        pinAnswerPanel();
+        setMessages((prev) => [
+          ...prev,
+          { id: chessPlaceholderId, role: 'system', text: 'Analyzing board…', isStreaming: true },
+        ]);
+        try {
+          const result = await window.electronAPI?.chessGetBestMove?.(screenshotB64);
+          const uci = result?.uci ?? '';
+          const from = result?.from ?? (uci.length >= 4 ? uci.slice(0, 2) : undefined);
+          const to = result?.to ?? (uci.length >= 4 ? uci.slice(2, 4) : undefined);
+          const turn = result?.turn === 'b' ? 'b' : 'w';
+          if (result?.fen) {
+            const fen: string = result.fen;
+            const explanation = result.explanation ?? '';
+            const verified = result.verified === true;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === chessPlaceholderId
+                  ? { ...m, text: explanation, isStreaming: false, chess: { fen, turn, from, to, explanation, verified } }
+                  : m,
+              ),
+            );
+          } else {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === chessPlaceholderId
+                  ? { ...m, text: result?.explanation ?? 'Could not read the board — crop tighter on the squares and retry.', isStreaming: false }
+                  : m,
+              ),
+            );
+          }
+        } catch (err) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === chessPlaceholderId
+                ? { ...m, text: `Could not analyze the board: ${err instanceof Error ? err.message : String(err)}`, isStreaming: false }
+                : m,
+            ),
+          );
+        } finally {
+          endOverlayAction('what_to_say');
+          setIsProcessing(false);
+        }
+        return;
+      }
+    }
+
     // Cria AI resposta placeholder Após user mensagem então thinking dots + resposta
     // appear Abaixo o screenshot question cartão (não acima it)
     prepareIntelligenceStreamPlaceholder('what_to_answer');
@@ -4457,6 +4536,21 @@ Provide only the answer, nothing else.`;
                 ),
               );
             }}
+          />
+        );
+      }
+
+      // Chess Coach result (Task 7): 2D board with best-move arrow + caption.
+      // Rendered next to the existing answer-card branches below.
+      if (msg.chess && msg.chess.fen) {
+        return (
+          <ChessBoardView
+            fen={msg.chess.fen}
+            turn={msg.chess.turn}
+            from={msg.chess.from}
+            to={msg.chess.to}
+            explanation={msg.chess.explanation}
+            verified={msg.chess.verified}
           />
         );
       }

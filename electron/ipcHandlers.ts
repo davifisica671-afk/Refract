@@ -671,6 +671,66 @@ export function initializeIpcHandlers(appState: AppState): void {
     }
   });
 
+  // Chess Coach: base64 screenshot in, best-move analysis out. Vision goes
+  // through chatWithGemini(prompt, imagePaths) ÔÇö the closest existing vision
+  // method taking (image, prompt) ÔÇö which only accepts file paths, so the
+  // screenshot bytes are staged in a userData-jailed temp file first (same
+  // jail pattern as analyze-image-file). Text explanation uses the same
+  // chatWithGemini(prompt) text-only path. The 15 MB gate lives in the
+  // ChessCoachService orchestrator.
+  safeHandle('chess:get-best-move', async (_event, imageB64: string) => {
+    if (typeof imageB64 !== 'string' || imageB64.length === 0) {
+      throw new Error('image required');
+    }
+    if (imageB64.length > 15 * 1024 * 1024) {
+      throw new Error('image exceeds 15 MB limit');
+    }
+    const { parseFenReply, buildFenExtractionPrompt } = require('./llm/chessFenExtractor');
+    const { ChessEngineService } = require('./services/ChessEngineService');
+    const { ChessCoachService } = require('./services/ChessCoachService');
+    const userDataDir = app.getPath('userData');
+    const rawB64 =
+      imageB64.startsWith('data:') && imageB64.includes(',')
+        ? imageB64.split(',').slice(1).join(',')
+        : imageB64;
+    const tmpPath = path.join(
+      userDataDir,
+      `chess-${Date.now()}-${crypto.randomBytes(8).toString('hex')}.png`,
+    );
+    const resolved = path.resolve(tmpPath);
+    if (!resolved.startsWith(userDataDir + path.sep)) {
+      throw new Error('Path not allowed');
+    }
+    fs.writeFileSync(resolved, Buffer.from(rawB64, 'base64'));
+    try {
+      const svc = new ChessCoachService({
+        extract: async (_img: string) => {
+          const prompt: string = buildFenExtractionPrompt();
+          const reply: string = await appState.processingHelper
+            .getLLMHelper()
+            .chatWithGemini(prompt, [resolved]);
+          return parseFenReply(reply);
+        },
+        engine: new ChessEngineService(),
+        explain: async ({ fen, uci }: { fen: string; uci: string; turn: string }) => {
+          if (!fen || !uci) return 'Could not read the board ÔÇö crop tighter on the squares and retry.';
+          return appState.processingHelper
+            .getLLMHelper()
+            .chatWithGemini(
+              `Position FEN: ${fen}. Best move: ${uci}. Explain the idea in 2 sentences max for a club player.`,
+            );
+        },
+      });
+      return svc.analyze(imageB64);
+    } finally {
+      try {
+        fs.unlinkSync(resolved);
+      } catch {
+        // Best-effort temp cleanup.
+      }
+    }
+  });
+
   safeHandle(
     'gemini-chat',
     async (
