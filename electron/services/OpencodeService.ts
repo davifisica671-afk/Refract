@@ -105,7 +105,7 @@ export class OpencodeService {
         .map((p) => p.text as string)
         .join('\n');
     } finally {
-      await this.req(`/session/${session.id}`, { method: 'DELETE', signal: AbortSignal.timeout(5000) }).catch(() => undefined);
+      await this.req(`/session/${session.id}`, { method: 'DELETE', signal: AbortSignal.timeout(5000) }).catch((): void => undefined);
     }
   }
 }
