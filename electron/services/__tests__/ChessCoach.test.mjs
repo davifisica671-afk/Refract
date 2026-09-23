@@ -25,3 +25,18 @@ describe('chess mode registration', () => {
     assert.match(promptsMod.MODE_CHESS_PROMPT, /FEN/);
   });
 });
+
+describe('chessFenExtractor', () => {
+  test('parses a clean FEN line', async () => {
+    const mod = await import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/llm/chessFenExtractor.js')).href);
+    const out = mod.parseFenReply('FEN: rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1');
+    assert.equal(out.turn, 'b');
+    assert.match(out.fen, /^rnbqkbnr/);
+  });
+
+  test('rejects garbage and kingless positions', async () => {
+    const mod = await import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/llm/chessFenExtractor.js')).href);
+    assert.throws(() => mod.parseFenReply('I see a knight maybe'), /FEN/);
+    assert.throws(() => mod.parseFenReply('FEN: 8/8/8/8/8/8/8/8 w - - 0 1'), /king/);
+  });
+});
