@@ -1,128 +1,111 @@
 ﻿// electron/services/OpencodeService.ts
-// Integração com OpenCode — delega tarefas de código ao agente opencode local
+// Local opencode sidecar client (v1 session API + HTTP Basic).
+// Credentials stay in opencode; Refract only holds the per-boot sidecar password in memory.
 
-export interface OpencodeSession {
-  id: string;
-  title?: string;
+export class OpenCodeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OpenCodeError';
+  }
 }
 
-export interface OpencodeResult {
-  success: boolean;
-  output?: string;
-  error?: string;
-  sessionId?: string;
+export interface OpencodeModelRef {
+  provider: string;
+  model: string;
+  label: string;
+}
+
+export interface OpencodeServiceOptions {
+  baseUrl: string;
+  password: string | null;
+  timeoutMs?: number;
+}
+
+function parseModelRef(ref: string): { providerId: string; modelId: string } {
+  const m = /^opencode\/([^/]+)\/(.+)$/.exec(ref.trim());
+  if (!m) throw new OpenCodeError(`invalid opencode model ref: ${ref}`);
+  return { providerId: m[1], modelId: m[2] };
 }
 
 export class OpencodeService {
-  private baseUrl: string;
-  private connected = false;
-  private sessionPool: Map<string, string> = new Map(); // tarefa -> sessionId
+  private readonly baseUrl: string;
+  private readonly password: string | null;
+  private readonly timeoutMs: number;
 
-  constructor(hostname = '127.0.0.1', port = 4096) {
-    this.baseUrl = `http://${hostname}:${port}`;
+  constructor(opts: OpencodeServiceOptions) {
+    this.baseUrl = opts.baseUrl.replace(/\/+$/, '');
+    this.password = opts.password;
+    this.timeoutMs = opts.timeoutMs ?? 60000;
+  }
+
+  private headers(): Record<string, string> {
+    const h: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.password) h['Authorization'] = `Basic ${Buffer.from(`opencode:${this.password}`).toString('base64')}`;
+    return h;
+  }
+
+  private async req(path: string, init?: RequestInit): Promise<Response> {
+    return fetch(`${this.baseUrl}${path}`, {
+      ...init,
+      headers: { ...this.headers(), ...init?.headers },
+      signal: init?.signal ?? AbortSignal.timeout(this.timeoutMs),
+    });
   }
 
   async checkHealth(): Promise<boolean> {
     try {
-      const res = await fetch(`${this.baseUrl}/global/health`, { signal: AbortSignal.timeout(3000) });
+      const res = await this.req('/global/health', { signal: AbortSignal.timeout(3000) });
       if (!res.ok) return false;
-      const data = await res.json();
-      this.connected = data.healthy === true;
-      return this.connected;
+      const data = (await res.json()) as { healthy?: boolean };
+      return data.healthy === true;
     } catch {
-      this.connected = false;
       return false;
     }
   }
 
-  isConnected(): boolean {
-    return this.connected;
+  async listModels(): Promise<OpencodeModelRef[]> {
+    const res = await this.req('/provider', { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) throw new OpenCodeError(`provider list failed: ${res.status}`);
+    const data = (await res.json()) as {
+      default?: Record<string, string>;
+      connected?: string[];
+    };
+    const connected = new Set(data.connected ?? []);
+    return Object.entries(data.default ?? {})
+      .filter(([providerId]) => connected.has(providerId))
+      .map(([providerId, modelId]) => ({ provider: providerId, model: modelId, label: `${providerId}/${modelId}` }));
   }
 
-  async listSessions(): Promise<OpencodeSession[]> {
-    const res = await this.fetch('/session');
-    if (!res.ok) return [];
-    return res.json();
-  }
-
-  async createSession(title?: string): Promise<OpencodeSession | null> {
-    const res = await this.fetch('/session', {
+  async chat(prompt: string, modelRef: string, opts: { timeoutMs?: number } = {}): Promise<string> {
+    if (!prompt.trim()) throw new OpenCodeError('prompt required');
+    const { providerId, modelId } = parseModelRef(modelRef);
+    if (prompt.length > 200 * 1024) throw new OpenCodeError('prompt exceeds 200 KB limit');
+    const timeout = opts.timeoutMs ?? this.timeoutMs;
+    const created = await this.req('/session', {
       method: 'POST',
-      body: JSON.stringify({ title: title || 'Refract Code Task' }),
+      body: JSON.stringify({ title: 'Refract' }),
+      signal: AbortSignal.timeout(timeout),
     });
-    if (!res.ok) return null;
-    return res.json();
-  }
-
-  async sendPrompt(sessionId: string, prompt: string): Promise<string> {
-    const res = await this.fetch(`/session/${sessionId}/message`, {
-      method: 'POST',
-      body: JSON.stringify({
-        parts: [{ type: 'text', text: prompt }],
-      }),
-    });
-    if (!res.ok) throw new Error(`Opencode prompt failed: ${res.statusText}`);
-    const data = await res.json();
-    // Extrair texto de resposta parts
-    const parts: any[] = data.parts || [];
-    return parts
-      .filter((p: any) => p.type === 'text')
-      .map((p: any) => p.text)
-      .join('\n');
-  }
-
-  async executeTask(task: string): Promise<OpencodeResult> {
+    if (!created.ok) throw new OpenCodeError(`session create failed: ${created.status}`);
+    const session = (await created.json()) as { id: string };
     try {
-      const ok = await this.checkHealth();
-      if (!ok) {
-        return { success: false, error: 'Opencode server not available. Run `opencode serve` first.' };
-      }
-
-      const session = await this.createSession(`Code: ${task.slice(0, 60)}`);
-      if (!session) {
-        return { success: false, error: 'Failed to create opencode session' };
-      }
-
-      this.sessionPool.set(task, session.id);
-      const output = await this.sendPrompt(session.id, task);
-      return { success: true, output, sessionId: session.id };
-    } catch (err: any) {
-      return { success: false, error: err.message };
+      const replied = await this.req(`/session/${session.id}/message`, {
+        method: 'POST',
+        body: JSON.stringify({
+          agent: 'build',
+          model: { providerID: providerId, modelID: modelId },
+          parts: [{ type: 'text', text: prompt }],
+        }),
+        signal: AbortSignal.timeout(timeout),
+      });
+      if (!replied.ok) throw new OpenCodeError(`prompt failed: ${replied.status}`);
+      const data = (await replied.json()) as { parts?: Array<{ type?: string; text?: string }> };
+      return (data.parts ?? [])
+        .filter((p) => p.type === 'text' && typeof p.text === 'string')
+        .map((p) => p.text as string)
+        .join('\n');
+    } finally {
+      await this.req(`/session/${session.id}`, { method: 'DELETE', signal: AbortSignal.timeout(5000) }).catch(() => undefined);
     }
-  }
-
-  async explainCode(code: string, language: string): Promise<OpencodeResult> {
-    return this.executeTask(`Explain this ${language} code:\n\n${code}`);
-  }
-
-  async generateCode(description: string, language: string): Promise<OpencodeResult> {
-    return this.executeTask(`Generate ${language} code that: ${description}`);
-  }
-
-  async reviewCode(code: string, language: string): Promise<OpencodeResult> {
-    return this.executeTask(`Review this ${language} code for bugs and issues:\n\n${code}`);
-  }
-
-  async searchCode(query: string): Promise<OpencodeResult> {
-    return this.executeTask(`Search the codebase for: ${query}`);
-  }
-
-  async readFile(filePath: string): Promise<string | null> {
-    try {
-      const res = await this.fetch(`/file/content?path=${encodeURIComponent(filePath)}`);
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.content || null;
-    } catch {
-      return null;
-    }
-  }
-
-  private async fetch(path: string, init?: RequestInit): Promise<Response> {
-    return fetch(`${this.baseUrl}${path}`, {
-      ...init,
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
-      signal: init?.signal || AbortSignal.timeout(30000),
-    });
   }
 }

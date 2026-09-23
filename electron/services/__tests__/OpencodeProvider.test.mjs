@@ -52,3 +52,55 @@ describe('opencodeManager', () => {
     assert.equal(res.ok, false);
   });
 });
+
+describe('opencodeService', () => {
+  test('chat uses ephemeral session and Basic auth', async () => {
+    const http = await import('node:http');
+    const seen = { auth: '', deleted: '' };
+    const server = http.createServer((req, res) => {
+      seen.auth = String(req.headers.authorization ?? '');
+      const json = (obj) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(obj)); };
+      if (req.url === '/global/health') return json({ healthy: true, version: 'stub' });
+      if (req.url === '/session' && req.method === 'POST') return json({ id: 'ses_test' });
+      if (req.url === '/session/ses_test/message' && req.method === 'POST') {
+        return json({ info: {}, parts: [{ type: 'text', text: 'hello from stub' }] });
+      }
+      if (req.url === '/session/ses_test' && req.method === 'DELETE') { seen.deleted = 'yes'; return json(true); }
+      res.writeHead(404); res.end();
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const port = server.address().port;
+    const mod = await import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/services/OpencodeService.js')).href);
+    const svc = new mod.OpencodeService({ baseUrl: `http://127.0.0.1:${port}`, password: 'pw' });
+    try {
+      assert.equal(await svc.checkHealth(), true);
+      const out = await svc.chat('hi', 'opencode/stub/model');
+      assert.equal(out, 'hello from stub');
+      assert.match(seen.auth, /^Basic /);
+      assert.equal(seen.deleted, 'yes');
+    } finally {
+      server.close();
+    }
+  });
+
+  test('listModels returns connected-only entries', async () => {
+    const http = await import('node:http');
+    const server = http.createServer((req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({
+        all: [{ id: 'a' }, { id: 'b' }],
+        default: { a: 'm1' },
+        connected: ['a'],
+      }));
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const port = server.address().port;
+    const mod = await import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/services/OpencodeService.js')).href);
+    const svc = new mod.OpencodeService({ baseUrl: `http://127.0.0.1:${port}`, password: 'pw' });
+    try {
+      assert.deepEqual(await svc.listModels(), [{ provider: 'a', model: 'm1', label: 'a/m1' }]);
+    } finally {
+      server.close();
+    }
+  });
+});
