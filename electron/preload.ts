@@ -146,6 +146,9 @@ interface ElectronAPI {
     isOllama: boolean;
   }>;
   getAvailableOllamaModels: () => Promise<string[]>;
+  opencodeGetStatus: () => Promise<{ ok: boolean; managed: boolean; models: number }>;
+  opencodeListModels: () => Promise<Array<{ provider: string; model: string; label: string }>>;
+  opencodeSetEnabled: (on: boolean) => Promise<{ success: boolean; error?: string }>;
   switchToOllama: (model?: string, url?: string) => Promise<{ success: boolean; error?: string }>;
   switchToGemini: (
     apiKey?: string,
@@ -1351,6 +1354,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Gerenciamento de modelo LLM
   getCurrentLlmConfig: () => ipcRenderer.invoke('get-current-llm-config'),
   getAvailableOllamaModels: () => ipcRenderer.invoke('get-available-ollama-models'),
+  opencodeGetStatus: () => ipcRenderer.invoke('opencode:get-status'),
+  opencodeListModels: () => ipcRenderer.invoke('opencode:list-models'),
+  opencodeSetEnabled: (on: boolean) => ipcRenderer.invoke('opencode:set-enabled', on),
   switchToOllama: (model?: string, url?: string) =>
     ipcRenderer.invoke('switch-to-ollama', model, url),
   switchToGemini: (apiKey?: string, modelId?: string) =>

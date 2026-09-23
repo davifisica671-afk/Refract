@@ -187,6 +187,12 @@ export const AIProvidersSettings: React.FC = () => {
     const [codexCliStatus, setCodexCliStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
     const [codexCliError, setCodexCliError] = useState('');
 
+    // --- Local (OpenCode sidecar) ---
+    const [opencodeEnabled, setOpencodeEnabled] = useState(false);
+    const [opencodeStatus, setOpencodeStatus] = useState<'checking' | 'detected' | 'not-found'>('checking');
+    const [opencodeModels, setOpencodeModels] = useState<Array<{ provider: string; model: string; label: string }>>([]);
+    const [isRefreshingOpencode, setIsRefreshingOpencode] = useState(false);
+
     // --- Default Model ---
     const [defaultModel, setDefaultModel] = useState<string>('gemini-3.5-flash');
     const [fastResponseMode, setFastResponseMode] = useState(false);
@@ -244,6 +250,11 @@ export const AIProvidersSettings: React.FC = () => {
                 // @ts-ignore
                 const cliConfig = await window.electronAPI?.getCodexCliConfig?.();
                 if (cliConfig) setCodexCliConfig(cliConfig as typeof codexCliConfig);
+
+                // OpenCode Local toggle restores from the persisted opencodeIntegration flag.
+                const flags = await window.electronAPI?.getIntelligenceFlags?.().catch(() => null);
+                const opencodeFlag = flags?.find(f => f.key === 'opencodeIntegration');
+                if (opencodeFlag) setOpencodeEnabled(opencodeFlag.enabled);
 
                 const fastMode = await window.electronAPI?.getGroqFastTextMode();
                 if (fastMode) setFastResponseMode(fastMode.enabled);
@@ -307,6 +318,16 @@ export const AIProvidersSettings: React.FC = () => {
         const interval = setInterval(() => {
             checkOllama(false);
         }, 3000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Poll OpenCode sidecar status (cheap health probe; main never spawns while disabled).
+    useEffect(() => {
+        checkOpencode();
+
+        const interval = setInterval(() => {
+            checkOpencode();
+        }, 5000);
         return () => clearInterval(interval);
     }, []);
 
@@ -440,6 +461,48 @@ export const AIProvidersSettings: React.FC = () => {
             setCodexCliStatus('error');
             setCodexCliError(e.message || 'Codex CLI test failed');
         }
+    };
+
+    const checkOpencode = async () => {
+        try {
+            const status = await window.electronAPI?.opencodeGetStatus?.();
+            if (!status || !status.ok) {
+                // Silent failure on background checks
+                // Only set not-found if we haven't detected it yet
+                if (opencodeStatus !== 'detected') {
+                    setOpencodeStatus('not-found');
+                }
+                return;
+            }
+            setOpencodeStatus('detected');
+            const models = await window.electronAPI?.opencodeListModels?.();
+            if (models) setOpencodeModels(models);
+        } catch (e) {
+            if (opencodeStatus !== 'detected') {
+                setOpencodeStatus('not-found');
+            }
+        }
+    };
+
+    const handleToggleOpencode = async () => {
+        const next = !opencodeEnabled;
+        setOpencodeEnabled(next);
+        setOpencodeStatus('checking');
+        try {
+            await window.electronAPI?.opencodeSetEnabled?.(next);
+        } catch (e) {
+            console.error('Failed to toggle OpenCode:', e);
+        }
+        // set-enabled(true) spawns the sidecar; re-check after it has had a
+        // moment to come up (the 5s poll corrects any transient state anyway).
+        setTimeout(() => checkOpencode(), next ? 2000 : 500);
+    };
+
+    const handleRefreshOpencode = async () => {
+        setIsRefreshingOpencode(true);
+        await checkOpencode();
+        // Add a small delay for visual feedback if the check is too fast
+        setTimeout(() => setIsRefreshingOpencode(false), 500);
     };
 
     const handleSaveKey = async (provider: string, key: string, setter: (val: string) => void) => {
@@ -695,6 +758,7 @@ export const AIProvidersSettings: React.FC = () => {
                             }
                             customProviders.forEach(p => opts.push({ id: p.id, name: p.name }));
                             ollamaModels.forEach(m => opts.push({ id: `ollama-${m}`, name: `${m} (Local)` }));
+                            if (opencodeEnabled) opencodeModels.forEach(m => opts.push({ id: `opencode/${m.provider}/${m.model}`, name: `${m.label} (OpenCode Local)` }));
 
                             if (defaultModel && !opts.find(o => o.id === defaultModel)) {
                                 opts.unshift({ id: defaultModel, name: prettifyModelId(defaultModel) });
@@ -1067,6 +1131,80 @@ export const AIProvidersSettings: React.FC = () => {
                             Test CLI
                         </button>
                     </div>
+                </div>
+            </div>
+
+            {/* Local (OpenCode sidecar) Provider */}
+            <div className="space-y-5">
+                <div className="flex items-center justify-between mb-2">
+                    <div>
+                        <h3 className="text-sm font-bold text-text-primary mb-1">Local Provider (OpenCode)</h3>
+                        <p className="text-xs text-text-secondary">Route text responses through your local `opencode serve` sidecar — uses your terminal models/auth, no new API key.</p>
+                    </div>
+                    <button
+                        onClick={handleRefreshOpencode}
+                        className="p-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-input transition-colors"
+                        title="Refresh OpenCode"
+                        disabled={isRefreshingOpencode}
+                    >
+                        <RefreshCw size={18} className={isRefreshingOpencode ? "animate-spin" : ""} />
+                    </button>
+                </div>
+
+                <div className="bg-bg-item-surface rounded-xl p-5 border border-border-subtle space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="block text-xs font-medium text-text-primary uppercase tracking-wide mb-0">Enable OpenCode Local</label>
+                            <p className="text-[10px] text-text-secondary">Spawns the sidecar on demand and adds OpenCode as a selectable local backend.</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleToggleOpencode}
+                            className={`w-11 h-6 rounded-full relative transition-colors ${opencodeEnabled ? 'bg-accent-primary' : 'bg-bg-toggle-switch border border-border-muted'}`}
+                        >
+                            <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${opencodeEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                    </div>
+
+                    {opencodeStatus === 'checking' && (
+                        <div className="flex items-center gap-2 text-xs text-text-secondary">
+                            <span className="animate-spin">⏳</span> Checking OpenCode sidecar...
+                        </div>
+                    )}
+
+                    {opencodeStatus === 'not-found' && (
+                        <div className="flex items-center gap-2 text-xs text-red-400">
+                            <AlertCircle size={14} />
+                            <span>{opencodeEnabled ? 'OpenCode sidecar unavailable — install the opencode CLI or run `opencode serve`.' : 'OpenCode Local is disabled.'}</span>
+                        </div>
+                    )}
+
+                    {opencodeStatus === 'detected' && opencodeModels.length > 0 && (
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-xs text-green-400 mb-3">
+                                <CheckCircle size={14} />
+                                <span>OpenCode connected — {opencodeModels.length} model{opencodeModels.length === 1 ? '' : 's'}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3">
+                                <span className="text-[10px] font-medium text-text-secondary uppercase tracking-wide">Model</span>
+                                <ModelSelect
+                                    value={defaultModel.startsWith('opencode/') ? defaultModel : ''}
+                                    options={opencodeModels.map(m => ({ id: `opencode/${m.provider}/${m.model}`, name: `${m.label} (OpenCode Local)` }))}
+                                    onChange={(val) => {
+                                        setDefaultModel(val);
+                                        window.electronAPI?.setDefaultModel(val).catch(console.error);
+                                    }}
+                                    placeholder="Select model"
+                                />
+                            </div>
+                        </div>
+                    )}
+                    {opencodeStatus === 'detected' && opencodeModels.length === 0 && (
+                        <div className="text-xs text-text-secondary">
+                            Connected, but no models reported. Sign in to a provider in your terminal (`opencode auth login`).
+                        </div>
+                    )}
                 </div>
             </div>
 
