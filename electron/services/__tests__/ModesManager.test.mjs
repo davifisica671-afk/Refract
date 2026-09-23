@@ -26,6 +26,7 @@ const EXPECTED_MODE_TYPES = [
   'competitive',
   'coding',
   'work-daily',
+  'chess',
 ];
 
 const BASE_TIME = '2026-05-14T00:00:00.000Z';
@@ -294,7 +295,7 @@ test('isPremiumKnowledgeInterceptAllowed gates the whole premium intercept by ac
 
   // work-daily é conversa de trabalho contínua — compromissos/negociação são
   // contextualmente legítimos, então o intercept fica permitido.
-  const INTERCEPT_ALLOWED = new Set(['general', 'sales', 'recruiting', 'looking-for-work', 'work-daily']);
+  const INTERCEPT_ALLOWED = new Set(['general', 'sales', 'recruiting', 'looking-for-work', 'work-daily', 'chess']);
   const INTERCEPT_BLOCKED = new Set([
     'technical-interview', 'team-meet', 'lecture',
     // Mesma classe do issue #272 — escopo código/formato fixo, intercept sempre off-topic.
