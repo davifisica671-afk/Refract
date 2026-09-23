@@ -102,6 +102,7 @@ export interface ElectronAPI {
   windowIsMaximized: () => Promise<boolean>
 
   analyzeImageFile: (path: string) => Promise<void>
+  chessGetBestMove(imageB64: string): Promise<{ fen?: string; turn?: string; from?: string; to?: string; uci?: string; evalCp?: number | null; verified: boolean; explanation: string }>
   quitApp: () => Promise<void>
   toggleWindow: () => Promise<void>
   showWindow: (inactive?: boolean) => Promise<void>

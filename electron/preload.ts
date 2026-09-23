@@ -1232,6 +1232,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
 
   analyzeImageFile: (path: string) => ipcRenderer.invoke('analyze-image-file', path),
+  chessGetBestMove: (imageB64: string) => ipcRenderer.invoke('chess:get-best-move', imageB64),
   quitApp: () => ipcRenderer.invoke('quit-app'),
   toggleWindow: () => ipcRenderer.invoke('toggle-window'),
   showWindow: (inactive?: boolean) => ipcRenderer.invoke('show-window', inactive),
