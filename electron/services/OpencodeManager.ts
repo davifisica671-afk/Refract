@@ -30,6 +30,10 @@ export class OpencodeManager {
     return `Basic ${Buffer.from(`opencode:${this.password}`).toString('base64')}`;
   }
 
+  public getPassword(): string | null {
+    return this.password;
+  }
+
   public isManaged(): boolean {
     return this.isAppManaged;
   }

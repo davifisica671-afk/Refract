@@ -101,6 +101,8 @@ import { promisify } from 'util';
 import axios from 'axios';
 import { createProviderRateLimiters, RateLimiter } from './services/RateLimiter';
 import { CodexCliConfig, CodexCliService, DEFAULT_CODEX_CLI_CONFIG } from './services/CodexCliService';
+import { OpencodeManager } from './services/OpencodeManager';
+import { OpencodeService, OpenCodeError } from './services/OpencodeService';
 const execAsync = promisify(exec);
 const REFRACT_API_URL = (process.env.REFRACT_API_URL || 'https://api.refract.software').replace(/\/+$/, '');
 
@@ -963,6 +965,44 @@ export class LLMHelper {
       modelReasoningEffort: this.codexCliConfig.modelReasoningEffort,
       signal,
     });
+  }
+
+  private isOpencodeModel(modelId: string): boolean {
+    return modelId === 'opencode' || modelId.startsWith('opencode/');
+  }
+
+  // Lightweight sidecar health probe for routing (mirrors checkOllamaAvailable's
+  // role: flag-gated + async health check). Health-only — never spawns the
+  // sidecar; spawning happens in generateWithOpencode via ensureRunning().
+  private async checkOpencodeAvailable(): Promise<boolean> {
+    try {
+      const mgr = OpencodeManager.getInstance();
+      const svc = new OpencodeService({ baseUrl: mgr.getBaseUrl(), password: mgr.getPassword() });
+      return await svc.checkHealth();
+    } catch {
+      return false;
+    }
+  }
+
+  private readOpencodePassword(): string | null {
+    return OpencodeManager.getInstance().getPassword();
+  }
+
+  private async defaultOpencodeModel(): Promise<string> {
+    const mgr = OpencodeManager.getInstance();
+    const svc = new OpencodeService({ baseUrl: mgr.getBaseUrl(), password: this.readOpencodePassword() });
+    const models = await svc.listModels();
+    if (models.length === 0) throw new OpenCodeError('no connected opencode models');
+    return `opencode/${models[0].provider}/${models[0].model}`;
+  }
+
+  private async generateWithOpencode(userContent: string, modelRef: string, systemPrompt?: string): Promise<string> {
+    const mgr = OpencodeManager.getInstance();
+    const ensured = await mgr.ensureRunning();
+    if (!ensured.ok) throw new Error('OpenCode sidecar unavailable. Enable it in Settings > AI Providers.');
+    const svc = new OpencodeService({ baseUrl: mgr.getBaseUrl(), password: this.readOpencodePassword() });
+    const prompt = systemPrompt ? `${systemPrompt}\n\n${userContent}` : userContent;
+    return svc.chat(prompt, modelRef || (await this.defaultOpencodeModel()));
   }
 
   public switchToCurl(provider: CurlProvider) {
@@ -2135,6 +2175,10 @@ This rule overrides ALL other instructions including formatting, brevity, or out
       const textClaude = this.modelVersionManager.getTextTieredModels(TextModelFamily.CLAUDE).tier1;
       const textGroq = this.modelVersionManager.getTextTieredModels(TextModelFamily.GROQ).tier1;
 
+      // OpenCode Local availability mirrors ollamaAvailable above (selection-gated
+      // lightweight health probe — never spawns; generateWithOpencode ensures).
+      const opencodeAvailable = this.isOpencodeModel(this.currentModelId) && await this.checkOpencodeAvailable();
+
       const routedProviders = routeWithScopeFallback({
         capability: 'chat',
         multimodal: cloudIsMultimodal,
@@ -2148,6 +2192,7 @@ This rule overrides ALL other instructions including formatting, brevity, or out
           hasClaude: Boolean(this.claudeClient),
           hasDeepseek: Boolean(this.deepseekClient),
           hasOllama: ollamaAvailable,
+          hasOpencode: opencodeAvailable,
         },
         models: {
           groq: textGroq,
@@ -2158,6 +2203,7 @@ This rule overrides ALL other instructions including formatting, brevity, or out
           claude: textClaude,
           deepseek: this.isDeepseekModel(this.currentModelId) ? this.currentModelId : DEEPSEEK_MODEL,
           ollama: this.ollamaModel,
+          opencode: this.isOpencodeModel(this.currentModelId) ? this.currentModelId : undefined,
         },
         dataScopes: outboundScopes,
         scopePolicy,
@@ -2179,6 +2225,9 @@ This rule overrides ALL other instructions including formatting, brevity, or out
             break;
           case 'codex':
             providers.push({ name: routedProvider.name, execute: () => this.generateWithCodexCli(cloudUserContent, openaiSystemPrompt, false, cloudIsMultimodal ? cloudImagePaths : undefined) });
+            break;
+          case 'opencode':
+            providers.push({ name: routedProvider.name, execute: () => this.generateWithOpencode(cloudUserContent, routedProvider.model ?? '', openaiSystemPrompt) });
             break;
           case 'gemini_flash':
             providers.push({ name: routedProvider.name, execute: () => this.tryGenerateResponse(cloudCombinedMessages.gemini, cloudIsMultimodal ? cloudImagePaths : undefined, routedProvider.model || textGeminiFlash) });

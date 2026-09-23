@@ -27,6 +27,8 @@ test('routeLLMProviders returns deterministic text fallback order with availabil
       hasOpenAI: true,
       hasClaude: true,
       hasDeepseek: true,
+      hasOpencodeZen: true,
+      hasOpencode: true,
     },
     models: {
       groq: 'groq-text',
@@ -36,6 +38,8 @@ test('routeLLMProviders returns deterministic text fallback order with availabil
       openai: 'openai-text',
       claude: 'claude-text',
       deepseek: 'deepseek-v4-flash',
+      opencodeZen: 'opencode-zen-text',
+      opencode: 'opencode/anthropic/claude-sonnet-4-6',
     },
   });
 
@@ -48,6 +52,8 @@ test('routeLLMProviders returns deterministic text fallback order with availabil
     'openai',
     'claude',
     'deepseek',
+    'opencode_zen',
+    'opencode',
   ]);
   assert.equal(attempts.every(attempt => attempt.status === 'available'), true);
   assert.deepEqual(attempts.map(attempt => attempt.provider), attempts.map(attempt => attempt.provider));
@@ -107,6 +113,7 @@ test('routeLLMProviders returns multimodal fallback order', async () => {
     'claude',
     'gemini_pro',
     'groq',
+    'opencode',
   ]);
 });
 
@@ -124,8 +131,8 @@ test('routeLLMProviders marks missing providers unavailable with reasons', async
     },
   });
 
-  // 7 prior providers + deepseek
-  assert.equal(attempts.length, 8);
+  // 7 prior providers + deepseek + opencode_zen (base list) + opencode (unconditional push)
+  assert.equal(attempts.length, 10);
   assert.equal(attempts.every(attempt => attempt.status === 'unavailable'), true);
   assert.equal(attempts.find(attempt => attempt.provider === 'codex').unavailableReason, 'missing_config');
   assert.equal(attempts.find(attempt => attempt.provider === 'openai').unavailableReason, 'missing_api_key');
@@ -171,6 +178,30 @@ test('routeLLMProviders does not mutate input objects', async () => {
   await route({ capability: 'chat', availability, models });
 
   assert.equal(JSON.stringify({ availability, models }), before);
+});
+
+test('opencode available for chat when healthy', async () => {
+  const attempts = await route({
+    capability: 'chat',
+    availability: { hasOpencode: true },
+    models: { opencode: 'opencode/anthropic/claude-sonnet-4-6' },
+  });
+  const hit = attempts.find((a) => a.provider === 'opencode');
+  assert.ok(hit, 'opencode missing from route');
+  assert.equal(hit.status, 'available');
+  assert.equal(hit.model, 'opencode/anthropic/claude-sonnet-4-6');
+});
+
+test('opencode unavailable without config', async () => {
+  const attempts = await route({
+    capability: 'chat',
+    availability: {},
+    models: {},
+  });
+  const hit = attempts.find((a) => a.provider === 'opencode');
+  assert.ok(hit, 'opencode missing from route');
+  assert.equal(hit.status, 'unavailable');
+  assert.equal(hit.unavailableReason, 'missing_config');
 });
 
 test('ProviderRouter opens circuit after repeated provider failures and routes around it', async () => {
