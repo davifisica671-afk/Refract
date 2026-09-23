@@ -191,6 +191,7 @@ export const AIProvidersSettings: React.FC = () => {
     const [opencodeEnabled, setOpencodeEnabled] = useState(false);
     const [opencodeStatus, setOpencodeStatus] = useState<'checking' | 'detected' | 'not-found'>('checking');
     const [opencodeModels, setOpencodeModels] = useState<Array<{ provider: string; model: string; label: string }>>([]);
+    const [opencodeReason, setOpencodeReason] = useState<'not_installed' | 'port_occupied' | 'unavailable' | null>(null);
     const [isRefreshingOpencode, setIsRefreshingOpencode] = useState(false);
 
     // --- Default Model ---
@@ -472,15 +473,18 @@ export const AIProvidersSettings: React.FC = () => {
                 if (opencodeStatus !== 'detected') {
                     setOpencodeStatus('not-found');
                 }
+                setOpencodeReason(status?.reason ?? 'unavailable');
                 return;
             }
             setOpencodeStatus('detected');
+            setOpencodeReason(null);
             const models = await window.electronAPI?.opencodeListModels?.();
             if (models) setOpencodeModels(models);
         } catch (e) {
             if (opencodeStatus !== 'detected') {
                 setOpencodeStatus('not-found');
             }
+            setOpencodeReason('unavailable');
         }
     };
 
@@ -489,9 +493,15 @@ export const AIProvidersSettings: React.FC = () => {
         setOpencodeEnabled(next);
         setOpencodeStatus('checking');
         try {
-            await window.electronAPI?.opencodeSetEnabled?.(next);
+            const res = await window.electronAPI?.opencodeSetEnabled?.(next);
+            if (res && res.success === false) {
+                // Persist failed — roll the toggle back so UI matches stored state.
+                console.error('Failed to toggle OpenCode:', res.error);
+                setOpencodeEnabled(!next);
+            }
         } catch (e) {
             console.error('Failed to toggle OpenCode:', e);
+            setOpencodeEnabled(!next);
         }
         // set-enabled(true) spawns the sidecar; re-check after it has had a
         // moment to come up (the 5s poll corrects any transient state anyway).
@@ -1175,7 +1185,15 @@ export const AIProvidersSettings: React.FC = () => {
                     {opencodeStatus === 'not-found' && (
                         <div className="flex items-center gap-2 text-xs text-red-400">
                             <AlertCircle size={14} />
-                            <span>{opencodeEnabled ? 'OpenCode sidecar unavailable — install the opencode CLI or run `opencode serve`.' : 'OpenCode Local is disabled.'}</span>
+                            <span>{opencodeEnabled ? (
+                                opencodeReason === 'not_installed' ? (
+                                    <>OpenCode CLI not found — install it from <button type="button" className="underline hover:text-red-300" onClick={() => window.electronAPI?.openExternal('https://opencode.ai')}>opencode.ai</button> then refresh.</>
+                                ) : opencodeReason === 'port_occupied' ? (
+                                    <>Port 4097 is occupied by another server — free the port, then refresh.</>
+                                ) : (
+                                    <>OpenCode sidecar unavailable — install the opencode CLI or run `opencode serve`.</>
+                                )
+                            ) : 'OpenCode Local is disabled.'}</span>
                         </div>
                     )}
 

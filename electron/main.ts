@@ -538,6 +538,7 @@ import { PhoneMirrorService } from "./services/PhoneMirrorService"
 import { setVerboseLoggingFlag } from "./verboseLog"
 import { ReleaseNotesManager } from "./update/ReleaseNotesManager"
 import { OllamaManager } from './services/OllamaManager'
+import { OpencodeManager } from './services/OpencodeManager'
 import { decideToggle, decideDockTransition } from './services/toggleStateReducer'
 
 /**
@@ -6368,6 +6369,11 @@ if (process.env.THINKING_MATRIX === '1') {
 
     // Kill Ollama se we started it
     OllamaManager.getInstance().stop();
+
+    // Kill Opencode sidecar se we started it (mirror Ollama lifecycle)
+    try {
+      OpencodeManager.getInstance().stop();
+    } catch { /* already gone */ }
 
     // Tear abaixo o Espelho do Telefone serviço então o OS port é freed cleanly.
     PhoneMirrorService.getInstance().dispose().catch((err) =>

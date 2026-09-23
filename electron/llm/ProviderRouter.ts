@@ -203,7 +203,9 @@ export function routeLLMProviders(options: ProviderRouteOptions): ProviderAttemp
     if (availability.hasOllama) {
         orderedSpecs.push(ollama);
     }
-    orderedSpecs.push(opencode);
+    // opencode é text-only (supports: ['chat']) — excluded de o multimodal chain
+    // como DeepSeek acima.
+    if (!options.multimodal) orderedSpecs.push(opencode);
     if (availability.hasOpencodeZen && !orderedSpecs.some(s => s.provider === 'opencode_zen')) {
         orderedSpecs.push(opencodeZen);
     }

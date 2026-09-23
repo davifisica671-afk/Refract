@@ -145,7 +145,7 @@ export interface ElectronAPI {
   // LLM Model Management
   getCurrentLlmConfig: () => Promise<{ provider: "ollama" | "gemini" | "custom" | "codex-cli"; model: string; isOllama: boolean }>
   getAvailableOllamaModels: () => Promise<string[]>
-  opencodeGetStatus: () => Promise<{ ok: boolean; managed: boolean; models: number }>
+  opencodeGetStatus: () => Promise<{ ok: boolean; managed: boolean; models: number; reason?: 'not_installed' | 'port_occupied' | 'unavailable' }>
   opencodeListModels: () => Promise<Array<{ provider: string; model: string; label: string }>>
   opencodeSetEnabled: (on: boolean) => Promise<{ success: boolean; error?: string }>
   switchToOllama: (model?: string, url?: string) => Promise<{ success: boolean; error?: string }>

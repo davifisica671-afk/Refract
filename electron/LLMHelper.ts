@@ -976,6 +976,8 @@ export class LLMHelper {
   // sidecar; spawning happens in generateWithOpencode via ensureRunning().
   private async checkOpencodeAvailable(): Promise<boolean> {
     try {
+      const { isIntelligenceFlagEnabled } = require('./intelligence/intelligenceFlags') as typeof import('./intelligence/intelligenceFlags');
+      if (!isIntelligenceFlagEnabled('opencodeIntegration')) return false;
       const mgr = OpencodeManager.getInstance();
       const svc = new OpencodeService({ baseUrl: mgr.getBaseUrl(), password: mgr.getPassword() });
       return await svc.checkHealth();
@@ -997,12 +999,17 @@ export class LLMHelper {
   }
 
   private async generateWithOpencode(userContent: string, modelRef: string, systemPrompt?: string): Promise<string> {
+    const { isIntelligenceFlagEnabled } = require('./intelligence/intelligenceFlags') as typeof import('./intelligence/intelligenceFlags');
+    if (!isIntelligenceFlagEnabled('opencodeIntegration')) {
+      throw new Error('OpenCode integration is disabled. Enable it in Settings > AI Providers.');
+    }
     const mgr = OpencodeManager.getInstance();
     const ensured = await mgr.ensureRunning();
     if (!ensured.ok) throw new Error('OpenCode sidecar unavailable. Enable it in Settings > AI Providers.');
     const svc = new OpencodeService({ baseUrl: mgr.getBaseUrl(), password: this.readOpencodePassword() });
     const prompt = systemPrompt ? `${systemPrompt}\n\n${userContent}` : userContent;
-    return svc.chat(prompt, modelRef || (await this.defaultOpencodeModel()));
+    const ref = (!modelRef || modelRef === 'opencode') ? await this.defaultOpencodeModel() : modelRef;
+    return svc.chat(prompt, ref);
   }
 
   public switchToCurl(provider: CurlProvider) {

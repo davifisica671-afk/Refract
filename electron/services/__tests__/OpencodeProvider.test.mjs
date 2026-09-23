@@ -14,7 +14,7 @@ function writeFakeServe(dir) {
   const p = path.join(dir, process.platform === 'win32' ? 'fakeserve.cmd' : 'fakeserve.sh');
   const body = process.platform === 'win32'
     ? '@echo off\r\nnode "%~dp0fakeserve.js" %*\r\n'
-    : '#!/bin/sh\nexec node "$(dirname "$0")/fakeserver.js" "$@"\n';
+    : '#!/bin/sh\nexec node "$(dirname "$0")/fakeserve.js" "$@"\n';
   fs.writeFileSync(p, body);
   const js = `const http = require('http');
 const port = Number(process.argv.includes('--port') ? process.argv[process.argv.indexOf('--port') + 1] : 4097);

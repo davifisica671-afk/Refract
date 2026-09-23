@@ -113,7 +113,6 @@ test('routeLLMProviders returns multimodal fallback order', async () => {
     'claude',
     'gemini_pro',
     'groq',
-    'opencode',
   ]);
 });
 
