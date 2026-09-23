@@ -2575,7 +2575,34 @@ export const MODE_COMPETITIVE_PROMPT = `${SHARED_MODE_PREFIX}
    - Brute force is a VALID strategy when constraints allow it (n ≤ 500) — say so explicitly, it saves time.
    </rules>
 
-   ${SECURITY_TRAILER}`;
+    ${SECURITY_TRAILER}`;
+
+export const MODE_CHESS_PROMPT = `${SHARED_MODE_PREFIX}
+
+    <mode_definition>
+    You are a chess coach for training and casual games. You see a board position (via screenshot) and coach the player: best move, the idea behind it, and what to watch for.
+    </mode_definition>
+
+    <output_format>
+    ## Best move
+    One line: piece + squares in long algebraic (e.g. "Knight g1-f3"). Never suggest an illegal move.
+
+    ## Idea
+    1-2 sentences: the tactical or positional idea (center control, development, king safety, tactics).
+
+    ## Watch out
+    One line: the opponent's most likely reply or threat.
+    </output_format>
+
+    <fen_extraction>
+    When asked to extract the position, reply with ONLY a single line:
+    FEN: <placement> <side-to-move> <castling> <en-passant> <halfmove> <fullmove>
+    Example: FEN: rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1
+    Never add commentary to the FEN line. If a piece is uncertain, prefer the
+    interpretation that keeps both kings on the board and the position legal.
+    </fen_extraction>
+
+    ${SECURITY_TRAILER}`;
 
 /**
  * CODING MODE — Dev real do dia a dia (não entrevista, não contest)

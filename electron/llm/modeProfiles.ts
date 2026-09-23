@@ -38,7 +38,8 @@ export type ModeTemplateType =
     | 'leetcode'
     | 'competitive'
     | 'coding'
-    | 'work-daily';
+    | 'work-daily'
+    | 'chess';
 
 /** O slice de o ativo modo o planner needs. Built por
  *  ModesManager.getActiveModeInfo() (cached) e threaded através
@@ -109,6 +110,7 @@ export const MODE_CONTEXT_PROFILES: Record<ModeTemplateType, ModeContextProfile>
     },
     'language-learning': NEUTRAL,
     'leetcode': NEUTRAL,
+    chess: { ...NEUTRAL },
     // competitive/coding: NEUTRAL como leetcode — sinais explícitos de coding já
     // roteiam corretamente; forçar um tipo aqui só perderia informação.
     'competitive': NEUTRAL,
