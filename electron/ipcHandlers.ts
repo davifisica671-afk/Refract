@@ -10824,8 +10824,8 @@ export function initializeIpcHandlers(appState: AppState): void {
               result.code,
               result.error,
             );
-            const reverted = cm.revertRefractAutoDefaults('Refract key refused by server');
-            if (reverted.defaultModel) {
+            const reverted = cm.revertRefractAutoDefaults?.('Refract key refused by server') as { defaultModel?: string; sttProvider?: unknown } | undefined;
+            if (reverted?.defaultModel) {
               const revertedProviders = [
                 ...(cm.getCurlProviders() || []),
                 ...(cm.getCustomProviders() || []),
@@ -10833,7 +10833,7 @@ export function initializeIpcHandlers(appState: AppState): void {
               llmHelper.setModel(reverted.defaultModel, revertedProviders);
               appState.sendModelChanged(reverted.defaultModel);
             }
-            if (reverted.sttProvider) {
+            if (reverted?.sttProvider) {
               await appState.reconfigureSttProvider();
             }
             broadcastCredentialsChanged();
