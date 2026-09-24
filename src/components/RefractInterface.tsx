@@ -1322,7 +1322,7 @@ const RefractInterface: React.FC<RefractInterfaceProps> = ({
             // Bloco mermaid não-vazio renderiza como diagrama SVG (lazy +
             // sanitizado); erro cai no mesmo HighlightedCode acima.
             if (lang.toLowerCase() === 'mermaid' && code.trim() !== '') {
-              return <DiagramView code={code} isLightTheme={isLightTheme} fallback={highlighted} />;
+              return <DiagramView code={code} isLightTheme={!useDarkCodeTheme} fallback={highlighted} />;
             }
             return highlighted;
           }
