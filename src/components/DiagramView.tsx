@@ -23,48 +23,56 @@ export function DiagramView({ code, isLightTheme, fallback }: DiagramViewProps) 
   // por chamada de render (streaming re-renderiza a cada token).
   const baseId = useId().replace(/[^a-zA-Z0-9]/g, '');
   const renderCount = useRef(0);
+  const hasSucceeded = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    setSvg(null);
     setFailed(false);
     if (!code.trim()) return;
     renderCount.current += 1;
     const renderId = `mermaid-${baseId}-${renderCount.current}`;
-    (async () => {
-      try {
-        // LAZY: mermaid nunca entra no chunk inicial (dynamic import).
-        const { default: mermaid } = await import('mermaid');
-        mermaid.initialize({ startOnLoad: false, theme: isLightTheme ? 'neutral' : 'dark' });
-        const { svg: rawSvg } = await mermaid.render(renderId, code);
-        if (!cancelled) setSvg(DOMPurify.sanitize(rawSvg));
-      } catch {
-        if (!cancelled) setFailed(true);
-      }
-    })();
+    const timer = setTimeout(() => {
+      (async () => {
+        try {
+          // LAZY: mermaid nunca entra no chunk inicial (dynamic import).
+          const { default: mermaid } = await import('mermaid');
+          mermaid.initialize({ startOnLoad: false, theme: isLightTheme ? 'neutral' : 'dark' });
+          const { svg: rawSvg } = await mermaid.render(renderId, code);
+          if (!cancelled) {
+            setSvg(DOMPurify.sanitize(rawSvg));
+            hasSucceeded.current = true;
+          }
+        } catch {
+          // Stale-while-revalidate: transient parse failures keep the last
+          // good SVG; only fall back if render never succeeded.
+          if (!cancelled && !hasSucceeded.current) setFailed(true);
+        }
+      })();
+    }, 250);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [code, isLightTheme, baseId]);
 
-  if (!code.trim() || failed) return <>{fallback}</>;
-  if (svg === null) {
+  if (svg !== null) {
     return (
       <div
-        aria-busy="true"
-        aria-label="Rendering diagram"
-        className="my-3 rounded-xl border px-4 py-6 text-center text-[12px] opacity-60 animate-pulse overlay-code-block-surface overlay-text-muted"
-      >
-        Rendering diagram…
-      </div>
+        role="img"
+        aria-label="Mermaid diagram"
+        className="my-3 rounded-xl border overflow-x-auto px-4 py-3 overlay-code-block-surface"
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
     );
   }
+  if (!code.trim() || failed) return <>{fallback}</>;
   return (
     <div
-      role="img"
-      aria-label="Mermaid diagram"
-      className="my-3 rounded-xl border overflow-x-auto px-4 py-3 overlay-code-block-surface"
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+      aria-busy="true"
+      aria-label="Rendering diagram"
+      className="my-3 rounded-xl border px-4 py-6 text-center text-[12px] opacity-60 animate-pulse overlay-code-block-surface overlay-text-muted"
+    >
+      Rendering diagram…
+    </div>
   );
 }
