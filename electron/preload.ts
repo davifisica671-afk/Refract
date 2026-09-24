@@ -1,6 +1,35 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { SkillUploadPayload } from './services/skills/SkillValidator';
-import type { NativelyUsageResponse, NativelyPlansResponse } from '../src/types/nativelyUsage';
+/**
+ * Refract usage/plan response shapes. These used to be imported from a
+ * module under src/types that never existed in the repo, which broke the
+ * electron build. Defined inline here instead; the usage shape mirrors the renderer contract in
+ * src/types/electron.d.ts (getRefractUsage), the plans shape mirrors what
+ * the 'get-refract-plans' handler returns ({ ok:true, ...serverFields } on
+ * success, { ok:false, error, status? } on failure, plus `stale` when a
+ * cached catalog is served).
+ */
+interface RefractUsageResponse {
+  ok: boolean;
+  error?: string;
+  status?: number;
+  stale?: boolean;
+  plan?: string;
+  quota?: {
+    transcription: { used: number; limit: number; remaining: number };
+    ai: { used: number; limit: number; remaining: number };
+    search: { used: number; limit: number; remaining: number };
+    resets_at: string;
+  };
+  member_since?: string;
+}
+interface RefractPlansResponse {
+  ok: boolean;
+  error?: string;
+  status?: number;
+  stale?: boolean;
+  [key: string]: unknown;
+}
 import { PAGE_CAPTURE_FALLBACK_CHANNEL, PAGE_CAPTURE_STARTED_CHANNEL, type PageCaptureFallbackNotice } from './services/pageCaptureFallback';
 
 /**
@@ -187,7 +216,7 @@ interface ElectronAPI {
   getDisabledProviders: () => Promise<string[]>;
   setDisabledProviders: (providers: string[]) => Promise<{ success: boolean; error?: string }>;
   setCloudEnabledModels: (provider: string, models: string[]) => Promise<{ success: boolean; error?: string }>;
-  setNativelyApiKey: (apiKey: string) => Promise<{ success: boolean; error?: string; proPending?: boolean; proError?: string }>;
+  setRefractApiKey: (apiKey: string) => Promise<{ success: boolean; error?: string; proPending?: boolean; proError?: string }>;
   // ── In-app review / testimonial prompt ─────────────────────────────────
   reviewGetPromptState: () => Promise<{
     ok: boolean;
@@ -222,10 +251,10 @@ interface ElectronAPI {
   // Shape imported, not restated. This used to be written out here AND in
   // src/types/electron.d.ts, so the resource model would have had to be
   // remembered in three places.
-  getNativelyUsage: (force?: boolean) => Promise<NativelyUsageResponse>;
+  getRefractUsage: (force?: boolean) => Promise<RefractUsageResponse>;
   /** The plan catalog — allowances and prices, straight from the server, so the
    *  plan table never carries its own copy of numbers the server enforces. */
-  getNativelyPlans: () => Promise<NativelyPlansResponse>;
+  getRefractPlans: () => Promise<RefractPlansResponse>;
   getStoredCredentials: () => Promise<{
     hasGeminiKey: boolean;
     hasGroqKey: boolean;
@@ -238,7 +267,7 @@ interface ElectronAPI {
     fluxionProtocol?: 'openai' | 'anthropic';
     disabledProviders?: string[];
     cloudEnabledModels?: Record<string, string[]>;
-    hasNativelyKey: boolean;
+    hasRefractKey: boolean;
     googleServiceAccountPath: string | null;
     sttProvider: string;
     hasSttGroqKey: boolean;
@@ -306,7 +335,7 @@ interface ElectronAPI {
       | 'ibmwatson'
       | 'soniox'
       | 'nvidia_nim'
-      | 'natively'
+      | 'refract'
       | 'local-whisper' | 'apple-speech',
   ) => Promise<{ success: boolean; error?: string }>;
   getAppleSpeechLocales: () => Promise<{ available: boolean; supported: string[]; installed: string[]; reserved: string[]; maxReserved: number }>;
@@ -499,7 +528,7 @@ interface ElectronAPI {
   startMeeting: (metadata?: any) => Promise<{ success: boolean; error?: string }>;
   endMeeting: () => Promise<{ success: boolean; error?: string }>;
   /** Test-only (deep-run 2 issue 10): inject transcript segments with origin
-   *  'test'. No-ops unless NATIVELY_TEST_TRANSCRIPT_INJECTION=1 AND the build
+   *  'test'. No-ops unless REFRACT_TEST_TRANSCRIPT_INJECTION=1 AND the build
    *  is unpackaged — the gate lives in the main-process handler. */
   debugInjectTranscript: (segments: Array<{ speaker?: string; text: string; timestamp?: number; confidence?: number }>)
     => Promise<{ success: boolean; injected?: number; error?: string }>;
@@ -524,7 +553,7 @@ interface ElectronAPI {
   }>;
   getEmbeddingCatalog: () => Promise<{
     providers: Array<{
-      id: 'natively' | 'ollama' | 'custom' | 'openrouter' | 'voyage' | 'openai' | 'gemini' | 'local'
+      id: 'refract' | 'ollama' | 'custom' | 'openrouter' | 'voyage' | 'openai' | 'gemini' | 'local'
       name: string
       cloud: boolean
       managed?: boolean
@@ -706,7 +735,7 @@ interface ElectronAPI {
   // ChatGPT OAuth IPCs — replace the old `codex login` CLI subprocess flow.
   // startLogin kicks off the PKCE flow + opens the system browser; the
   // renderer listens for codex:login:complete / :failed events to update UI.
-  codexLoginStatus: () => Promise<{ success: boolean; signedIn: boolean; source?: 'natively' | 'codex-cli' | null; cliLogin?: 'ok' | 'expired' | 'missing' | 'api-key' | 'invalid'; email?: string; expiresAt?: number; error?: string }>;
+  codexLoginStatus: () => Promise<{ success: boolean; signedIn: boolean; source?: 'refract' | 'codex-cli' | null; cliLogin?: 'ok' | 'expired' | 'missing' | 'api-key' | 'invalid'; email?: string; expiresAt?: number; error?: string }>;
   antigravityStatus: () => Promise<{ signedIn: boolean; inProgress: boolean; expiresAt?: number; projectId?: string; error?: string }>;
   antigravityStartLogin: () => Promise<{ success: boolean; error?: string }>;
   antigravityCancelLogin: () => Promise<void>;
@@ -1158,7 +1187,7 @@ interface ElectronAPI {
     persisted?: boolean;
     error?: string;
   }>;
-  /** Present only in NATIVELY_E2E=1 sessions (F-117). */
+  /** Present only in REFRACT_E2E=1 sessions (F-117). */
   e2eInvoke?: (channel: string, ...args: any[]) => Promise<any>;
   modesUpdate: (
     id: string,
@@ -1179,7 +1208,7 @@ interface ElectronAPI {
   // Context Intelligence V3 rollout controls. Their handlers were registered in
   // ipcHandlers.ts and had NO bridge here and no caller anywhere in the repo,
   // so neither was reachable from a shipped app (`e2eInvoke`, the only generic
-  // passthrough, is undefined unless NATIVELY_E2E=1).
+  // passthrough, is undefined unless REFRACT_E2E=1).
   contextIntelligenceFlagGet: () => Promise<{
     ok: boolean; enabled?: boolean; persisted?: boolean | null;
     default?: boolean; envOverride?: string | null; error?: string;
@@ -1324,7 +1353,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Overlay renderer → main: hover hit-test (margins click-through gate).
   setOverlayHoverInteractive: (interactive: boolean) =>
     ipcRenderer.invoke('overlay-hover-interactive', interactive),
-  // Any Natively window → main: dismiss the overlay dropdowns (settings /
+  // Any Refract window → main: dismiss the overlay dropdowns (settings /
   // model selector). Used by the click-catcher, the aux windows, and the
   // overlay renderer's click-outside handler.
   dismissOverlayPopovers: (opts?: { settings?: boolean; model?: boolean }) =>
@@ -1634,7 +1663,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDisabledProviders: () => ipcRenderer.invoke('get-disabled-providers'),
   setDisabledProviders: (providers: string[]) => ipcRenderer.invoke('set-disabled-providers', providers),
   setCloudEnabledModels: (provider: string, models: string[]) => ipcRenderer.invoke('set-cloud-enabled-models', provider, models),
-  setNativelyApiKey: (apiKey: string) => ipcRenderer.invoke('set-natively-api-key', apiKey),
+  setRefractApiKey: (apiKey: string) => ipcRenderer.invoke('set-refract-api-key', apiKey),
 
   // ── In-app review / testimonial prompt ─────────────────────────────────
   reviewGetPromptState: () => ipcRenderer.invoke('review:get-prompt-state'),
@@ -1652,8 +1681,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     can_use_publicly: boolean;
     display_name_publicly: boolean;
   }) => ipcRenderer.invoke('review:update-testimonial', payload),
-  getNativelyUsage: (force?: boolean) => ipcRenderer.invoke('get-natively-usage', force ? { force: true } : undefined),
-  getNativelyPlans: () => ipcRenderer.invoke('get-natively-plans'),
+  getRefractUsage: (force?: boolean) => ipcRenderer.invoke('get-refract-usage', force ? { force: true } : undefined),
+  getRefractPlans: () => ipcRenderer.invoke('get-refract-plans'),
   getStoredCredentials: () => ipcRenderer.invoke('get-stored-credentials'),
   // R-10 resolution flow: ambiguous credential stores (names + last-4 only).
   getAmbiguousCredentialStores: () => ipcRenderer.invoke('credentials:get-ambiguous-stores'),
@@ -1691,7 +1720,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       | 'ibmwatson'
       | 'soniox'
       | 'nvidia_nim'
-      | 'natively'
+      | 'refract'
       | 'local-whisper' | 'apple-speech',
   ) => ipcRenderer.invoke('set-stt-provider', provider),
   getSttProvider: () => ipcRenderer.invoke('get-stt-provider'),
@@ -2032,11 +2061,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Was 'local' | 'openrouter' — already missing 'jina' before this change.
     // The object is forwarded opaquely so the omission never failed at runtime,
     // which is exactly why it went unnoticed; kept in step with the handler now.
-    provider?: 'local' | 'natively' | 'openrouter' | 'jina' | 'voyage' | 'custom';
+    provider?: 'local' | 'refract' | 'openrouter' | 'jina' | 'voyage' | 'custom';
     openrouterModel?: string;
     jinaModel?: string;
     voyageModel?: string;
-    nativelyModel?: string;
+    refractModel?: string;
     customModel?: string;
     candidateCount?: number;
     fallbackToLocal?: boolean;
@@ -2989,13 +3018,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   }) => ipcRenderer.invoke('modes:generate-from-brief', params),
   // E2E test bridge — generic invoke for the __e2e__:* handlers. GATED on the
   // same env that registers those handlers: the previous comment claimed this
-  // was a "no-op surface in a shipped app", but NATIVELY_E2E gates only the
+  // was a "no-op surface in a shipped app", but REFRACT_E2E gates only the
   // __e2e__:* HANDLERS, not the channel argument — an unconditional
   // passthrough let any renderer code reach every production channel
   // ('quit-app', 'set-openai-api-key', 'delete-meeting', …), defeating the
   // curated bridge's containment (F-117, live-reproduced in
   // scripts/audit/F-117-repro.mjs). Undefined in shipped sessions.
-  ...(process.env.NATIVELY_E2E === '1'
+  ...(process.env.REFRACT_E2E === '1'
     ? {
         e2eInvoke: (channel: string, ...args: any[]) =>
           ipcRenderer.invoke(channel, ...args),
@@ -3145,7 +3174,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 // Renderer-side console forwarding to main-process log file.
 // When verbose logging is on, patch console.log/warn/error so that renderer
-// output appears in ~/Documents/natively_debug.log alongside main-process logs.
+// output appears in ~/Documents/refract_debug.log alongside main-process logs.
 (function patchRendererConsole() {
   let _verbose = false;
 
