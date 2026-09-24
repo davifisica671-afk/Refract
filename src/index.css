@@ -280,14 +280,18 @@
   filter: brightness(0) invert(1) !important;
 }
 
-/* liquid-glass and modern themes always have a dark background panel,
-   so the logo must always render white regardless of system light/dark mode. */
+/* liquid-glass, modern and aurora themes always have a dark background panel,
+   so the logo must always render white regardless of system light/dark mode.
+   (mono follows the system theme, so the base rules already handle it.) */
 [data-interface-theme="liquid-glass"] .force-black-icon,
 [data-theme='light'] [data-interface-theme="liquid-glass"] .force-black-icon,
 [data-theme='dark'] [data-interface-theme="liquid-glass"] .force-black-icon,
 [data-interface-theme="modern"] .force-black-icon,
 [data-theme='light'] [data-interface-theme="modern"] .force-black-icon,
-[data-theme='dark'] [data-interface-theme="modern"] .force-black-icon {
+[data-theme='dark'] [data-interface-theme="modern"] .force-black-icon,
+[data-interface-theme="aurora"] .force-black-icon,
+[data-theme='light'] [data-interface-theme="aurora"] .force-black-icon,
+[data-theme='dark'] [data-interface-theme="aurora"] .force-black-icon {
   filter: brightness(0) invert(1) !important;
 }
 
@@ -1958,6 +1962,338 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.30),
     inset 0 0 0 1px rgba(255, 255, 255, 0.10),
     0 4px 12px rgba(0, 0, 0, 0.28) !important;
+}
+
+/* ── Meeting Interface: Aurora Theme ────────────────────────────────────────
+   Dark panel with an aurora-borealis gradient glow (violet → cyan) over
+   deep navy. Follows the modern recipe shape (token block + per-surface
+   rules) but keeps the set compact: `!important` only on background/border
+   normal-state, where the inline appearance styles must be beaten.
+   Hover/focus states need no rules — they inherit via the token overrides.
+   Applied via data-interface-theme="aurora" on the RefractInterface outer
+   container. Always reads dark, regardless of system theme.
+   ─────────────────────────────────────────────────────────────────────── */
+[data-interface-theme="aurora"],
+[data-theme='light'] [data-interface-theme="aurora"] {
+  /* Force white text regardless of system theme — aurora always reads dark */
+  --overlay-text-primary:     rgba(255, 255, 255, 0.97);
+  --overlay-text-secondary:   rgba(226, 232, 255, 0.85);
+  --overlay-text-muted:       rgba(199, 210, 254, 0.66);
+  --overlay-text-placeholder: rgba(199, 210, 254, 0.45);
+  --overlay-text-strong:      #ffffff;
+
+  /* Deep-navy surfaces with aurora tint */
+  --overlay-panel-bg:           rgba(13, 15, 30, 0.90);
+  --overlay-pill-bg:            rgba(13, 15, 30, 0.72);
+  --overlay-border:             rgba(167, 139, 250, 0.28);
+  --overlay-border-soft:        rgba(167, 139, 250, 0.16);
+  --overlay-chip-bg:            rgba(139, 92, 246, 0.12);
+  --overlay-chip-hover-bg:      rgba(139, 92, 246, 0.22);
+  --overlay-input-bg:           rgba(13, 15, 30, 0.60);
+  --overlay-input-hover-bg:     rgba(139, 92, 246, 0.14);
+  --overlay-input-focus-bg:     rgba(139, 92, 246, 0.18);
+  --overlay-control-bg:         rgba(139, 92, 246, 0.10);
+  --overlay-control-hover-bg:   rgba(139, 92, 246, 0.20);
+  --overlay-icon-bg:            rgba(139, 92, 246, 0.12);
+  --overlay-icon-hover-bg:      rgba(34, 211, 238, 0.22);
+  --overlay-code-bg:            rgba(10, 10, 25, 0.85);
+  --overlay-code-border:        rgba(167, 139, 250, 0.25);
+  --overlay-code-header-bg:     rgba(139, 92, 246, 0.12);
+  --overlay-inline-code-bg:     rgba(139, 92, 246, 0.18);
+  --overlay-panel-shadow:       rgba(76, 29, 149, 0.55);
+  --overlay-pill-shadow:        rgba(76, 29, 149, 0.35);
+  --overlay-shell-blur:         18px;
+  --overlay-pill-blur:          12px;
+}
+
+/* Aurora shell — deep-navy gradient with violet/cyan ambient glow.
+   The opacity slider keeps working via --overlay-opacity scaling. */
+[data-interface-theme="aurora"] .overlay-shell-surface {
+  background: linear-gradient(150deg,
+      rgba(30, 27, 75, calc(var(--overlay-opacity) * 1.15)) 0%,
+      rgba(15, 16, 38, calc(var(--overlay-opacity) * 1.2)) 48%,
+      rgba(8, 20, 42, calc(var(--overlay-opacity) * 1.2)) 100%
+    ) !important;
+  border-color: rgba(167, 139, 250, 0.35) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(196, 181, 253, 0.22),
+    0 0 24px rgba(139, 92, 246, 0.28),
+    0 0 64px rgba(34, 211, 238, 0.14),
+    0 24px 64px -8px rgba(0, 0, 0, 0.55);
+  position: relative;
+}
+
+/* Aurora-borealis sheen — violet→cyan top glow strip, the theme signature. */
+[data-interface-theme="aurora"] .overlay-shell-surface::before {
+  content: '';
+  position: absolute;
+  inset: 2px 4px auto 4px;
+  height: 45%;
+  border-radius: inherit;
+  background: linear-gradient(105deg,
+      rgba(167, 139, 250, 0.22) 0%,
+      rgba(34, 211, 238, 0.10) 55%,
+      rgba(34, 211, 238, 0.00) 100%
+    );
+  filter: blur(6px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* TopPill — same aurora material, quieter glow */
+[data-interface-theme="aurora"] .overlay-pill-surface {
+  background: linear-gradient(150deg,
+      rgba(30, 27, 75, calc(var(--overlay-opacity) * 1.1)) 0%,
+      rgba(15, 16, 38, calc(var(--overlay-opacity) * 1.15)) 60%,
+      rgba(8, 20, 42, calc(var(--overlay-opacity) * 1.15)) 100%
+    ) !important;
+  border-color: rgba(167, 139, 250, 0.30) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(196, 181, 253, 0.18),
+    0 0 18px rgba(139, 92, 246, 0.22);
+  position: relative;
+}
+
+/* Code blocks — near-black indigo with violet edge */
+[data-interface-theme="aurora"] .overlay-code-block-surface {
+  background: rgba(8, 8, 22, 0.88) !important;
+  border-color: rgba(167, 139, 250, 0.28) !important;
+}
+
+[data-interface-theme="aurora"] .overlay-code-header-surface {
+  background: rgba(139, 92, 246, 0.14) !important;
+  border-bottom-color: rgba(167, 139, 250, 0.25) !important;
+}
+
+/* Chips / inputs / controls / icons / subtle — violet-tinted dark.
+   These beat the light inline appearance styles when the system theme
+   is light; hover/focus states follow the token block, no rules needed. */
+[data-interface-theme="aurora"] .overlay-chip-surface {
+  background: rgba(139, 92, 246, 0.14) !important;
+  border-color: rgba(167, 139, 250, 0.25) !important;
+}
+
+[data-interface-theme="aurora"] .overlay-input-surface {
+  background: rgba(10, 10, 26, 0.72) !important;
+  border-color: rgba(167, 139, 250, 0.28) !important;
+}
+
+[data-interface-theme="aurora"] .overlay-control-surface {
+  background: rgba(139, 92, 246, 0.12) !important;
+  border-color: rgba(167, 139, 250, 0.25) !important;
+}
+
+[data-interface-theme="aurora"] .overlay-icon-surface {
+  background: rgba(139, 92, 246, 0.14) !important;
+  border-color: rgba(167, 139, 250, 0.22) !important;
+}
+
+[data-interface-theme="aurora"] .overlay-subtle-surface {
+  background: rgba(139, 92, 246, 0.10) !important;
+  border-color: rgba(167, 139, 250, 0.18) !important;
+}
+
+/* AI response cards — the aurora panel is always dark, so force light
+   text under both system themes with a single system-agnostic rule. */
+[data-interface-theme="aurora"] .ai-response-card p,
+[data-interface-theme="aurora"] .ai-response-card span:not(.token):not(code span):not(pre span),
+[data-interface-theme="aurora"] .ai-response-card li,
+[data-interface-theme="aurora"] .ai-response-card h1,
+[data-interface-theme="aurora"] .ai-response-card h2,
+[data-interface-theme="aurora"] .ai-response-card h3 {
+  color: rgba(255, 255, 255, 0.96) !important;
+}
+
+[data-interface-theme="aurora"] .ai-response-card a {
+  color: #67e8f9 !important;
+}
+
+/* ── Meeting Interface: Mono Theme ──────────────────────────────────────────
+   High-contrast monochrome: flat near-black / paper-white, strong hairline
+   borders, zero gradients, zero glow. Unlike the other themes it follows
+   the system light/dark theme instead of forcing dark.
+   Applied via data-interface-theme="mono" on the RefractInterface outer
+   container. Same compact recipe as aurora: token blocks carry text and
+   hover states, per-surface rules only beat inline background/border.
+   ─────────────────────────────────────────────────────────────────────── */
+[data-interface-theme="mono"] {
+  --overlay-text-primary:     #ffffff;
+  --overlay-text-secondary:   rgba(255, 255, 255, 0.85);
+  --overlay-text-muted:       rgba(255, 255, 255, 0.65);
+  --overlay-text-placeholder: rgba(255, 255, 255, 0.45);
+  --overlay-text-strong:      #ffffff;
+
+  --overlay-panel-bg:           rgba(0, 0, 0, 0.92);
+  --overlay-pill-bg:            rgba(0, 0, 0, 0.85);
+  --overlay-border:             rgba(255, 255, 255, 0.45);
+  --overlay-border-soft:        rgba(255, 255, 255, 0.25);
+  --overlay-chip-bg:            rgba(255, 255, 255, 0.08);
+  --overlay-chip-hover-bg:      rgba(255, 255, 255, 0.16);
+  --overlay-input-bg:           rgba(255, 255, 255, 0.06);
+  --overlay-input-hover-bg:     rgba(255, 255, 255, 0.10);
+  --overlay-input-focus-bg:     rgba(255, 255, 255, 0.12);
+  --overlay-control-bg:         rgba(255, 255, 255, 0.06);
+  --overlay-control-hover-bg:   rgba(255, 255, 255, 0.12);
+  --overlay-icon-bg:            rgba(255, 255, 255, 0.08);
+  --overlay-icon-hover-bg:      rgba(255, 255, 255, 0.16);
+  --overlay-code-bg:            rgba(255, 255, 255, 0.05);
+  --overlay-code-border:        rgba(255, 255, 255, 0.30);
+  --overlay-code-header-bg:     rgba(255, 255, 255, 0.08);
+  --overlay-inline-code-bg:     rgba(255, 255, 255, 0.12);
+  --overlay-panel-shadow:       rgba(0, 0, 0, 0.60);
+  --overlay-pill-shadow:        rgba(0, 0, 0, 0.45);
+  --overlay-shell-blur:         8px;
+  --overlay-pill-blur:          6px;
+}
+
+/* Mono light — flat paper, black text, strong black hairlines */
+[data-theme='light'] [data-interface-theme="mono"] {
+  --overlay-text-primary:     #000000;
+  --overlay-text-secondary:   rgba(0, 0, 0, 0.80);
+  --overlay-text-muted:       rgba(0, 0, 0, 0.60);
+  --overlay-text-placeholder: rgba(0, 0, 0, 0.40);
+  --overlay-text-strong:      #000000;
+
+  --overlay-panel-bg:           rgba(255, 255, 255, 0.94);
+  --overlay-pill-bg:            rgba(255, 255, 255, 0.90);
+  --overlay-border:             rgba(0, 0, 0, 0.55);
+  --overlay-border-soft:        rgba(0, 0, 0, 0.28);
+  --overlay-chip-bg:            rgba(0, 0, 0, 0.05);
+  --overlay-chip-hover-bg:      rgba(0, 0, 0, 0.09);
+  --overlay-input-bg:           rgba(0, 0, 0, 0.04);
+  --overlay-input-hover-bg:     rgba(0, 0, 0, 0.07);
+  --overlay-input-focus-bg:     rgba(0, 0, 0, 0.08);
+  --overlay-control-bg:         rgba(0, 0, 0, 0.04);
+  --overlay-control-hover-bg:   rgba(0, 0, 0, 0.08);
+  --overlay-icon-bg:            rgba(0, 0, 0, 0.05);
+  --overlay-icon-hover-bg:      rgba(0, 0, 0, 0.09);
+  --overlay-code-bg:            rgba(0, 0, 0, 0.05);
+  --overlay-code-border:        rgba(0, 0, 0, 0.35);
+  --overlay-code-header-bg:     rgba(0, 0, 0, 0.06);
+  --overlay-inline-code-bg:     rgba(0, 0, 0, 0.08);
+  --overlay-panel-shadow:       rgba(0, 0, 0, 0.25);
+  --overlay-pill-shadow:        rgba(0, 0, 0, 0.15);
+}
+
+/* Flat shells — solid fill, hairline-strong border, hard shadow, no glow */
+[data-interface-theme="mono"] .overlay-shell-surface {
+  background: rgba(0, 0, 0, calc(var(--overlay-opacity) * 1.15)) !important;
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme='light'] [data-interface-theme="mono"] .overlay-shell-surface {
+  background: rgba(255, 255, 255, calc(var(--overlay-opacity) * 1.15)) !important;
+  border-color: rgba(0, 0, 0, 0.55) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+}
+
+[data-interface-theme="mono"] .overlay-pill-surface {
+  background: rgba(0, 0, 0, calc(var(--overlay-opacity) * 1.1)) !important;
+  border-color: rgba(255, 255, 255, 0.40) !important;
+}
+
+[data-theme='light'] [data-interface-theme="mono"] .overlay-pill-surface {
+  background: rgba(255, 255, 255, calc(var(--overlay-opacity) * 1.1)) !important;
+  border-color: rgba(0, 0, 0, 0.50) !important;
+}
+
+[data-interface-theme="mono"] .overlay-code-block-surface {
+  background: rgba(0, 0, 0, 0.85) !important;
+  border-color: rgba(255, 255, 255, 0.30) !important;
+}
+
+[data-theme='light'] [data-interface-theme="mono"] .overlay-code-block-surface {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(0, 0, 0, 0.35) !important;
+}
+
+[data-interface-theme="mono"] .overlay-code-header-surface {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.30) !important;
+}
+
+[data-theme='light'] [data-interface-theme="mono"] .overlay-code-header-surface {
+  background: rgba(0, 0, 0, 0.06) !important;
+  border-bottom-color: rgba(0, 0, 0, 0.35) !important;
+}
+
+[data-interface-theme="mono"] .overlay-chip-surface {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.30) !important;
+}
+
+[data-theme='light'] [data-interface-theme="mono"] .overlay-chip-surface {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.35) !important;
+}
+
+[data-interface-theme="mono"] .overlay-input-surface {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.30) !important;
+}
+
+[data-theme='light'] [data-interface-theme="mono"] .overlay-input-surface {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.35) !important;
+}
+
+[data-interface-theme="mono"] .overlay-control-surface {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.30) !important;
+}
+
+[data-theme='light'] [data-interface-theme="mono"] .overlay-control-surface {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.35) !important;
+}
+
+[data-interface-theme="mono"] .overlay-icon-surface {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+[data-theme='light'] [data-interface-theme="mono"] .overlay-icon-surface {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.30) !important;
+}
+
+[data-interface-theme="mono"] .overlay-subtle-surface {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
+
+[data-theme='light'] [data-interface-theme="mono"] .overlay-subtle-surface {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.25) !important;
+}
+
+/* AI response cards — monochrome text per system theme (the unqualified
+   rule covers dark; the light-qualified rule wins on specificity in light) */
+[data-interface-theme="mono"] .ai-response-card p,
+[data-interface-theme="mono"] .ai-response-card span:not(.token):not(code span):not(pre span),
+[data-interface-theme="mono"] .ai-response-card li,
+[data-interface-theme="mono"] .ai-response-card h1,
+[data-interface-theme="mono"] .ai-response-card h2,
+[data-interface-theme="mono"] .ai-response-card h3 {
+  color: #ffffff !important;
+}
+
+[data-theme='light'] [data-interface-theme="mono"] .ai-response-card p,
+[data-theme='light'] [data-interface-theme="mono"] .ai-response-card span:not(.token):not(code span):not(pre span),
+[data-theme='light'] [data-interface-theme="mono"] .ai-response-card li,
+[data-theme='light'] [data-interface-theme="mono"] .ai-response-card h1,
+[data-theme='light'] [data-interface-theme="mono"] .ai-response-card h2,
+[data-theme='light'] [data-interface-theme="mono"] .ai-response-card h3 {
+  color: #000000 !important;
+}
+
+[data-interface-theme="mono"] .ai-response-card a {
+  color: #ffffff !important;
+}
+
+[data-theme='light'] [data-interface-theme="mono"] .ai-response-card a {
+  color: #000000 !important;
 }
 
 /* ─── Light mode elevation system ────────────────────────────────────────

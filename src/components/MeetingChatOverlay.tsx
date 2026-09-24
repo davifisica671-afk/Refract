@@ -148,7 +148,10 @@ const TypingIndicator: React.FC = () => {
     const isLightTheme = useResolvedTheme() === 'light';
     const isModernTheme = !!document.querySelector('[data-interface-theme="modern"]');
     const isGlassTheme = !!document.querySelector('[data-interface-theme="liquid-glass"]');
-    const isWhiteDots = isModernTheme || isGlassTheme;
+    const isAuroraTheme = !!document.querySelector('[data-interface-theme="aurora"]');
+    const isMonoTheme = !!document.querySelector('[data-interface-theme="mono"]');
+    // aurora always reads dark; mono follows system so mono-light keeps emerald dots
+    const isWhiteDots = isModernTheme || isGlassTheme || isAuroraTheme || (isMonoTheme && !isLightTheme);
     const cardBgBorderClass = isLightTheme
         ? 'bg-emerald-500/10 backdrop-blur-md border border-emerald-500/20 text-emerald-900'
         : 'bg-emerald-600/20 backdrop-blur-md border border-emerald-500/30 text-emerald-100';

@@ -85,7 +85,7 @@ const SettingsPopup = () => {
         window.addEventListener('storage', handleStorage);
         // @ts-ignore
         const unsubscribe = window.electronAPI?.onMeetingInterfaceThemeChanged?.((theme: string) => {
-            const valid: MeetingInterfaceTheme[] = ['default', 'liquid-glass', 'modern'];
+            const valid: MeetingInterfaceTheme[] = ['default', 'liquid-glass', 'modern', 'aurora', 'mono'];
             if (valid.includes(theme as MeetingInterfaceTheme)) {
                 setInterfaceTheme(theme as MeetingInterfaceTheme);
             }
@@ -210,7 +210,7 @@ const SettingsPopup = () => {
     }, []);
 
     // Determinar se o fundo é escuro (temas de vidro sempre são vidro escuro)
-    const isDarkBg = interfaceTheme === 'liquid-glass' || interfaceTheme === 'modern' || !isLightTheme;
+    const isDarkBg = interfaceTheme === 'liquid-glass' || interfaceTheme === 'modern' || interfaceTheme === 'aurora' || !isLightTheme;
 
     const popupPanelClass = isDarkBg
         ? 'bg-[#1E1E1E]/80 border-white/10 shadow-black/40'
