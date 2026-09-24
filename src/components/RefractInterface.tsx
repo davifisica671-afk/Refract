@@ -31,6 +31,7 @@ import {
 } from '../../electron/utils/rollingTranscriptState';
 import { categorizeSttError } from '../lib/sttErrorMapper';
 import { ChessBoardView } from './chess/ChessBoardView';
+import { DiagramView } from './DiagramView';
 
 import type { SkillSummary } from '../types/electron';
 
@@ -1301,7 +1302,7 @@ const RefractInterface: React.FC<RefractInterfaceProps> = ({
           if (!isInline) {
             const lang = match ? match[1] : '';
             const code = String(children).replace(/\n$/, '');
-            return (
+            const highlighted = (
               <HighlightedCode
                 code={code}
                 lang={lang}
@@ -1318,6 +1319,12 @@ const RefractInterface: React.FC<RefractInterfaceProps> = ({
                 isMonoTheme={isMonoTheme}
               />
             );
+            // Bloco mermaid não-vazio renderiza como diagrama SVG (lazy +
+            // sanitizado); erro cai no mesmo HighlightedCode acima.
+            if (lang.toLowerCase() === 'mermaid' && code.trim() !== '') {
+              return <DiagramView code={code} isLightTheme={isLightTheme} fallback={highlighted} />;
+            }
+            return highlighted;
           }
           return (
             <code
