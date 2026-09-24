@@ -86,12 +86,16 @@ const CardCopyButton = ({
   isLightTheme,
   isModernTheme: _isModernTheme,
   isGlassTheme: _isGlassTheme,
+  isAuroraTheme: _isAuroraTheme,
+  isMonoTheme: _isMonoTheme,
 }: {
   text: string;
   onCopy: (text: string) => void;
   isLightTheme?: boolean;
   isModernTheme?: boolean;
   isGlassTheme?: boolean;
+  isAuroraTheme?: boolean;
+  isMonoTheme?: boolean;
 }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
@@ -350,6 +354,8 @@ interface HighlightedCodeProps {
   appearance: any;
   isModernTheme?: boolean;
   isGlassTheme?: boolean;
+  isAuroraTheme?: boolean;
+  isMonoTheme?: boolean;
 }
 
 const mapLanguageForPrism = (lang: string, code: string): string => {
@@ -413,8 +419,10 @@ const HighlightedCode = React.memo(
     appearance,
     isModernTheme,
     isGlassTheme,
+    isAuroraTheme,
+    isMonoTheme,
   }: HighlightedCodeProps) {
-    const isSpecialTheme = isModernTheme || isGlassTheme;
+    const isSpecialTheme = isModernTheme || isGlassTheme || isAuroraTheme || isMonoTheme;
     return (
       <div
         className={`my-3 rounded-xl overflow-hidden border shadow-lg ${codeBlockClass}`}
@@ -463,7 +471,9 @@ const HighlightedCode = React.memo(
     prev.lang === next.lang &&
     prev.appearance === next.appearance &&
     prev.isModernTheme === next.isModernTheme &&
-    prev.isGlassTheme === next.isGlassTheme,
+    prev.isGlassTheme === next.isGlassTheme &&
+    prev.isAuroraTheme === next.isAuroraTheme &&
+    prev.isMonoTheme === next.isMonoTheme,
 );
 
 // PERF: MessageRow renderiza um balão de mensagem de chat. Escopo do módulo +
@@ -1228,7 +1238,7 @@ const RefractInterface: React.FC<RefractInterfaceProps> = ({
     };
   }, []);
 
-  const useDarkCodeTheme = !isLightTheme || isGlassTheme || isModernTheme;
+  const useDarkCodeTheme = !isLightTheme || isGlassTheme || isModernTheme || isAuroraTheme;
   const codeTheme = useDarkCodeTheme ? vscDarkPlus : oneLight;
   const codeLineNumberColor = useDarkCodeTheme ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.35)';
   const appearance = useMemo(
@@ -1304,6 +1314,8 @@ const RefractInterface: React.FC<RefractInterfaceProps> = ({
                 appearance={appearance}
                 isModernTheme={isModernTheme}
                 isGlassTheme={isGlassTheme}
+                isAuroraTheme={isAuroraTheme}
+                isMonoTheme={isMonoTheme}
               />
             );
           }
@@ -4571,6 +4583,8 @@ Provide only the answer, nothing else.`;
                 isLightTheme={isLightTheme}
                 isModernTheme={isModernTheme}
                 isGlassTheme={isGlassTheme}
+                isAuroraTheme={isAuroraTheme}
+                isMonoTheme={isMonoTheme}
               />
             </div>
             <div className="space-y-2 text-[14.5px] leading-relaxed">
@@ -4596,6 +4610,8 @@ Provide only the answer, nothing else.`;
                         appearance={appearance}
                         isModernTheme={isModernTheme}
                         isGlassTheme={isGlassTheme}
+                        isAuroraTheme={isAuroraTheme}
+                        isMonoTheme={isMonoTheme}
                       />
                     );
                   }
@@ -4629,6 +4645,8 @@ Provide only the answer, nothing else.`;
                 isLightTheme={isLightTheme}
                 isModernTheme={isModernTheme}
                 isGlassTheme={isGlassTheme}
+                isAuroraTheme={isAuroraTheme}
+                isMonoTheme={isMonoTheme}
               />
             </div>
             <div className="text-[14.5px] leading-relaxed markdown-content">
@@ -4654,6 +4672,8 @@ Provide only the answer, nothing else.`;
                 isLightTheme={isLightTheme}
                 isModernTheme={isModernTheme}
                 isGlassTheme={isGlassTheme}
+                isAuroraTheme={isAuroraTheme}
+                isMonoTheme={isMonoTheme}
               />
             </div>
             <div className="text-[14.5px] leading-relaxed markdown-content">
@@ -4679,6 +4699,8 @@ Provide only the answer, nothing else.`;
                 isLightTheme={isLightTheme}
                 isModernTheme={isModernTheme}
                 isGlassTheme={isGlassTheme}
+                isAuroraTheme={isAuroraTheme}
+                isMonoTheme={isMonoTheme}
               />
             </div>
             <div className="text-[14.5px] leading-relaxed markdown-content">
@@ -4707,6 +4729,8 @@ Provide only the answer, nothing else.`;
                 isLightTheme={isLightTheme}
                 isModernTheme={isModernTheme}
                 isGlassTheme={isGlassTheme}
+                isAuroraTheme={isAuroraTheme}
+                isMonoTheme={isMonoTheme}
               />
             </div>
             <div className="text-[14.5px] leading-relaxed">
@@ -4744,6 +4768,8 @@ Provide only the answer, nothing else.`;
                         appearance={appearance}
                         isModernTheme={isModernTheme}
                         isGlassTheme={isGlassTheme}
+                        isAuroraTheme={isAuroraTheme}
+                        isMonoTheme={isMonoTheme}
                       />
                     );
                   }
@@ -4777,6 +4803,8 @@ Provide only the answer, nothing else.`;
                 isLightTheme={isLightTheme}
                 isModernTheme={isModernTheme}
                 isGlassTheme={isGlassTheme}
+                isAuroraTheme={isAuroraTheme}
+                isMonoTheme={isMonoTheme}
               />
             </div>
             <div className="text-[14.5px] leading-relaxed markdown-content">

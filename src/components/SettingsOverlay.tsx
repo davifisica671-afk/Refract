@@ -1831,7 +1831,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                 <div className="flex items-center justify-between px-4 py-3">
                                                     <div className="flex items-center gap-4">
                                                         <div className={`w-10 h-10 bg-bg-item-surface rounded-lg border flex items-center justify-center shrink-0 transition-all duration-200 ${
-                                                            (meetingInterfaceTheme === 'liquid-glass' || meetingInterfaceTheme === 'modern')
+                                                            (meetingInterfaceTheme === 'liquid-glass' || meetingInterfaceTheme === 'modern' || meetingInterfaceTheme === 'aurora' || meetingInterfaceTheme === 'mono')
                                                                 ? isLight
                                                                     ? 'border-sky-500/30 text-sky-600 bg-sky-50/50'
                                                                     : 'border-sky-500/40 text-sky-400 bg-sky-500/5'
@@ -1846,7 +1846,11 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                                     ? 'Liquid glass — Apple-inspired transparent overlay'
                                                                     : meetingInterfaceTheme === 'modern'
                                                                         ? 'Modern — polished dark glass with cobalt accents'
-                                                                        : 'Default overlay appearance'}
+                                                                        : meetingInterfaceTheme === 'aurora'
+                                                                            ? 'Aurora — dark theme with gradient glow on surfaces'
+                                                                            : meetingInterfaceTheme === 'mono'
+                                                                                ? 'Mono — high-contrast monochrome, follows system'
+                                                                                : 'Default overlay appearance'}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -1861,7 +1865,11 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                                     ? 'Liquid Glass'
                                                                     : meetingInterfaceTheme === 'modern'
                                                                         ? 'Modern'
-                                                                        : 'Default'}
+                                                                        : meetingInterfaceTheme === 'aurora'
+                                                                            ? 'Aurora'
+                                                                            : meetingInterfaceTheme === 'mono'
+                                                                                ? 'Mono'
+                                                                                : 'Default'}
                                                             </span>
                                                             <ChevronDown size={12} className={`shrink-0 transition-transform ${isInterfaceThemeDropdownOpen ? 'rotate-180' : ''}`} />
                                                         </button>
