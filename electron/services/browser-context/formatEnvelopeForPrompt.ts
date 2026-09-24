@@ -1,18 +1,18 @@
 ﻿/**
- * Smart Browser Contexto v2 — formata a structured envelope dentro de a prompt block.
+ * Smart Browser Context v2 — format a structured envelope into a prompt block.
  *
- * Produces o `BROWSER_CONTEXT_KIND: coding_problem ...` block o prompt
- * composer injects. This é prepended para o existing `domContext` string então it
- * flows através o Mesmo proven seam (PromptAssembler.buildDomContextBlock →
- * `<dom_context source="browser_dom">`) — não novo prompt pcaminho não WTA signature
- * change. Quando lá é não envelope, behaviour é byte-identical para today.
+ * Produces the `BROWSER_CONTEXT_KIND: coding_problem ...` block the prompt
+ * composer injects. This is prepended to the existing `domContext` string so it
+ * flows through the SAME proven seam (PromptAssembler.buildDomContextBlock →
+ * `<dom_context source="browser_dom">`) — no new prompt path, no WTA signature
+ * change. When there is no envelope, behaviour is byte-identical to today.
  *
- * Pure + dependency-free então it unit-tests de dist-electron.
+ * Pure + dependency-free so it unit-tests from dist-electron.
  */
 
 import type { CodingProblemPayload, ContextEnvelope } from './types';
 
-/** Categories que obtém o rich structured coding block. */
+/** Categories that get the rich structured coding block. */
 const CODING_CATEGORIES = new Set(['coding_problem', 'coding_editor', 'interview_assessment']);
 
 function section(label: string, value: string | undefined): string {
@@ -22,10 +22,10 @@ function section(label: string, value: string | undefined): string {
 }
 
 /**
- * Formata an envelope dentro de a structured cabeçalho block. Retorna '' quando o envelope
- * é absent ou não a coding category (non-coding captures keep using o legacy
- * plain-string dom onapenas O result é meant para ser PREPENDED para o legacy
- * domContext sstring
+ * Format an envelope into a structured header block. Returns '' when the envelope
+ * is absent or not a coding category (non-coding captures keep using the legacy
+ * plain-string dom only). The result is meant to be PREPENDED to the legacy
+ * domContext string.
  */
 export function formatEnvelopeForPrompt(envelope: ContextEnvelope | null | undefined): string {
   if (!envelope || typeof envelope !== 'object') return '';
@@ -49,7 +49,7 @@ export function formatEnvelopeForPrompt(envelope: ContextEnvelope | null | undef
   if (p.language) block += section('LANGUAGE', p.language);
   if (p.selectedText) block += section('SELECTED_TEXT', p.selectedText);
 
-  // Guidance o modelo deve follow quando using isso structured ccontexto
+  // Guidance the model should follow when using this structured context.
   block +=
     '\nRULES: Preserve the exact starter code / function signature. Use the visible ' +
     'examples and constraints. Do not invent requirements not present above. If the ' +
