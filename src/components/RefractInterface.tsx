@@ -702,6 +702,8 @@ const RefractInterface: React.FC<RefractInterfaceProps> = ({
   const isLightTheme = useResolvedTheme() === 'light';
   const isGlassTheme = interfaceTheme === 'liquid-glass';
   const isModernTheme = interfaceTheme === 'modern';
+  const isAuroraTheme = interfaceTheme === 'aurora';
+  const isMonoTheme = interfaceTheme === 'mono';
   const shellRef = React.useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);
   const [inputValue, setInputValue] = useState('');
@@ -5730,14 +5732,14 @@ Provide only the answer, nothing else.`;
         expanded={isShellWide}
         onToggle={handleManualResizeToggle}
         appearance={appearance}
-        interfaceTheme={isGlassTheme ? 'liquid-glass' : isModernTheme ? 'modern' : undefined}
+        interfaceTheme={isGlassTheme ? 'liquid-glass' : isModernTheme ? 'modern' : isAuroraTheme ? 'aurora' : isMonoTheme ? 'mono' : undefined}
         rightOffset={buttonRight}
         topOffset={buttonTop}
       />
     )}
     <div
       ref={contentRef}
-      data-interface-theme={isGlassTheme ? 'liquid-glass' : isModernTheme ? 'modern' : 'default'}
+      data-interface-theme={isGlassTheme ? 'liquid-glass' : isModernTheme ? 'modern' : isAuroraTheme ? 'aurora' : isMonoTheme ? 'mono' : 'default'}
       className="overlay-workspace flex flex-col items-center w-fit mx-auto h-fit min-h-0 bg-transparent p-0 rounded-[22px] font-sans gap-2 overlay-text-primary"
     >
       <AnimatePresence initial={false}>

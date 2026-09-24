@@ -548,7 +548,7 @@ const App: React.FC = () => {
     const handleStorage = () => setMeetingInterfaceThemeState(getMeetingInterfaceTheme());
     window.addEventListener('storage', handleStorage);
     const unsubscribeIpc = window.electronAPI?.onMeetingInterfaceThemeChanged?.((theme) => {
-      const valid: MeetingInterfaceTheme[] = ['default', 'liquid-glass', 'modern'];
+      const valid: MeetingInterfaceTheme[] = ['default', 'liquid-glass', 'modern', 'aurora', 'mono'];
       if (valid.includes(theme as MeetingInterfaceTheme)) {
         setMeetingInterfaceThemeState(theme as MeetingInterfaceTheme);
       }

@@ -830,7 +830,7 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
         };
         window.addEventListener('storage', handleStorage);
         const unsubscribeIpc = window.electronAPI?.onMeetingInterfaceThemeChanged?.((theme) => {
-            const valid: MeetingInterfaceTheme[] = ['default', 'liquid-glass', 'modern'];
+            const valid: MeetingInterfaceTheme[] = ['default', 'liquid-glass', 'modern', 'aurora', 'mono'];
             if (valid.includes(theme as MeetingInterfaceTheme)) {
                 setMeetingInterfaceThemeState(theme as MeetingInterfaceTheme);
             }
@@ -1872,6 +1872,8 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                                     { mode: 'default' as MeetingInterfaceTheme, label: 'Default' },
                                                                     { mode: 'liquid-glass' as MeetingInterfaceTheme, label: 'Liquid Glass' },
                                                                     { mode: 'modern' as MeetingInterfaceTheme, label: 'Modern' },
+                                                                    { mode: 'aurora' as MeetingInterfaceTheme, label: 'Aurora' },
+                                                                    { mode: 'mono' as MeetingInterfaceTheme, label: 'Mono' },
                                                                 ] as const).map((option) => (
                                                                     <button
                                                                         key={option.mode}

@@ -85,7 +85,7 @@ const SettingsPopup = () => {
         window.addEventListener('storage', handleStorage);
         // @ts-ignore
         const unsubscribe = window.electronAPI?.onMeetingInterfaceThemeChanged?.((theme: string) => {
-            const valid: MeetingInterfaceTheme[] = ['default', 'liquid-glass', 'modern'];
+            const valid: MeetingInterfaceTheme[] = ['default', 'liquid-glass', 'modern', 'aurora', 'mono'];
             if (valid.includes(theme as MeetingInterfaceTheme)) {
                 setInterfaceTheme(theme as MeetingInterfaceTheme);
             }

@@ -10,6 +10,11 @@
  * - 'default': Tema padrão com efeito de vidro fosco
  * - 'liquid-glass': Efeito de vidro líquido (mais moderno)
  * - 'modern': Tema moderno com design atualizado
+ * - 'aurora': Tema escuro com glow em gradiente nas surfaces
+ * - 'mono': Tema monocromático de alto contraste (claro + escuro)
+ * 
+ * A lista canônica vive em `overlayThemeList.mjs` (FONTE ÚNICA, testável
+ * via `node --test`); a union e o conjunto abaixo derivam dela.
  * 
  * COMO FUNCIONA:
  * 1. O tema é armazenado no localStorage
@@ -23,10 +28,13 @@
  * ============================================================
  */
 
+import { OVERLAY_THEMES } from './overlayThemeList.mjs';
+
 /**
  * Tipo que representa os temas disponíveis para a interface de reunião.
+ * Derivado da FONTE ÚNICA (`overlayThemeList.mjs`).
  */
-export type MeetingInterfaceTheme = 'default' | 'liquid-glass' | 'modern';
+export type MeetingInterfaceTheme = (typeof OVERLAY_THEMES)[number];
 
 /** Chave do localStorage para armazenar o tema selecionado */
 const STORAGE_KEY = 'refract_meeting_interface_theme';
@@ -34,12 +42,9 @@ const STORAGE_KEY = 'refract_meeting_interface_theme';
 /**
  * Conjunto de temas válidos para validação.
  * Usado para rejeitar valores desconhecidos ou legados.
+ * Derivado da FONTE ÚNICA (`overlayThemeList.mjs`).
  */
-const VALID_THEMES: ReadonlySet<MeetingInterfaceTheme> = new Set([
-    'default',      // Tema padrão
-    'liquid-glass', // Efeito vidro líquido
-    'modern',       // Tema moderno
-]);
+const VALID_THEMES: ReadonlySet<MeetingInterfaceTheme> = new Set(OVERLAY_THEMES);
 
 /**
  * Lê o tema atual da interface de reunião do localStorage.
