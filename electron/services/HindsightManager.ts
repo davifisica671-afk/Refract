@@ -39,6 +39,73 @@ const AVAILABILITY_TTL_MS = 30_000;   // cache de health para que chamadas retai
 const SPAWN_POLL_INTERVAL_MS = 5000;  // polling para prontidão (como OllamaManager)
 const SPAWN_MAX_ATTEMPTS = 36;        // 36 * 5s = 180s (primeiro boot baixa modelos de embedding)
 
+const SHELL_METACHARS = /[;&|`$(){}!#~*?<>^\n\r]/;
+const KNOWN_INTERPRETERS = new Set(['bash', 'sh', 'python', 'python3', 'node']);
+export interface ServerCommandValidation { ok: boolean; argv?: string[]; error?: string; }
+function splitArgv(raw: string): { tokens: string[]; quoted: boolean[] } | null {
+  const tokens: string[] = []; const quoted: boolean[] = [];
+  let cur = '', q: string | null = null, curQuoted = false, esc = false;
+  for (const ch of raw) {
+    if (esc) { cur += ch; esc = false; continue; }
+    if (ch === '\\' && !q) { esc = true; continue; }
+    if (q) { if (ch === q) { q = null; } else { cur += ch; } continue; }
+    if (ch === '"' || ch === "'") { q = ch; curQuoted = true; continue; }
+    if (/\s/.test(ch)) { if (cur) { tokens.push(cur); quoted.push(curQuoted); cur = ''; curQuoted = false; } continue; }
+    cur += ch;
+  }
+  if (q) return null;
+  if (cur) { tokens.push(cur); quoted.push(curQuoted); }
+  return { tokens, quoted };
+}
+function resolveOnPath(name: string): string | null {
+  const path = require('path') as typeof import('path');
+  const fs = require('fs') as typeof import('fs');
+  if (path.isAbsolute(name)) {
+    try { return fs.statSync(name).isFile() ? name : null; } catch { return null; }
+  }
+  if (name.includes('/') || name.includes('\\')) return null;
+  const exts = process.platform === 'win32' ? (process.env.PATHEXT || '.EXE').split(';') : [''];
+  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
+    for (const ext of exts) {
+      const cand = path.join(dir, name + ext);
+      try {
+        const st = fs.statSync(cand);
+        if (st.isFile()) {
+          if (process.platform === 'win32') return cand;
+          try { fs.accessSync(cand, fs.constants.X_OK); return cand; } catch { /* not executable */ }
+        }
+      } catch { /* next */ }
+    }
+  }
+  return null;
+}
+export function validateHindsightServerCommand(raw: string): ServerCommandValidation {
+  const cmd = (raw || '').trim();
+  if (!cmd) return { ok: true, argv: [] };
+  const split = splitArgv(cmd);
+  if (!split || !split.tokens.length) return { ok: false, error: 'empty command' };
+  for (let i = 0; i < split.tokens.length; i += 1) {
+    if (!split.quoted[i] && SHELL_METACHARS.test(split.tokens[i])) {
+      return { ok: false, error: 'shell metacharacters are not allowed' };
+    }
+  }
+  const bin = resolveOnPath(split.tokens[0]);
+  if (!bin) return { ok: false, error: 'executable not found' };
+  const base = require('path').basename(bin).toLowerCase().replace(/\.(exe|cmd|bat)$/, '');
+  if (KNOWN_INTERPRETERS.has(base)) {
+    if (split.tokens.length < 2) return { ok: false, error: 'interpreter requires a script' };
+    const path = require('path') as typeof import('path');
+    const fs = require('fs') as typeof import('fs');
+    const script = split.tokens[1].startsWith('-')
+      ? null
+      : (path.isAbsolute(split.tokens[1]) ? split.tokens[1] : path.resolve(process.cwd(), split.tokens[1]));
+    if (!script) return { ok: false, error: 'interpreter requires a script file' };
+    try { if (!fs.statSync(script).isFile()) return { ok: false, error: 'script file not found' }; }
+    catch { return { ok: false, error: 'script file not found' }; }
+  }
+  return { ok: true, argv: split.tokens };
+}
+
 export class HindsightManager {
   private static instance: HindsightManager | null = null;
   static getInstance(): HindsightManager {
@@ -295,14 +362,22 @@ export class HindsightManager {
     return extra;
   }
 
-  /** Inicia o comando de servidor configurado (forma shell, como `bash scripts/hindsight-start.sh`).
-   *  Degrada graciosamente em erro ("python/script não encontrado") — app não é afetado. */
+  /** Inicia o comando de servidor configurado (forma argv validada, sem shell).
+   *  Recusa comandos inválidos (metacaracteres shell, binário inexistente, interpretador
+   *  sem script) — nunca executa string arbitrária via shell. Degrada graciosamente. */
   private spawnServer(command: string): void {
     try {
+      const v = validateHindsightServerCommand(command);
+      if (!v.ok || !v.argv || !v.argv.length) {
+        console.error('[HindsightManager] refusing to start server: invalid command:', v.error || 'empty command');
+        this.isAppManaged = false;
+        return;
+      }
       const { spawn } = require('child_process') as typeof import('child_process');
       this.isAppManaged = true;
-      // Forma shell para que comandos com múltiplos tokens (`bash scripts/...`) funcionem
-      // entre plataformas. detached:true no POSIX coloca o servidor em seu próprio grupo de
+      // Forma argv SEM shell: o comando foi validado (binário existente resolvido, sem
+      // metacaracteres) e é executado diretamente, sem interpretação shell. detached:true
+      // no POSIX coloca o servidor em seu próprio grupo de
       // processos para que ao sair possamos matar sincronicamente toda a árvore (Python +
       // workers Postgres embarcados, que re-parent/daemonize) com um `process.kill(-pid)`
       // dentro do before-quit — tree-kill é assíncrono e o app pode sair antes que finalize,
@@ -310,8 +385,8 @@ export class HindsightManager {
       // em stopSync.)
 
       const isWin = process.platform === 'win32';
-      this.serverProcess = spawn(command, {
-        shell: true,
+      this.serverProcess = spawn(v.argv[0], v.argv.slice(1), {
+        shell: false,
         detached: !isWin,   // próprio processo agrupar em POSIX para group-kill em quit
         windowsHide: true,
         stdio: 'ignore',

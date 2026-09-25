@@ -7648,7 +7648,7 @@ export function initializeIpcHandlers(appState: AppState): void {
     }
   });
 
-  safeHandle('hindsight-config:set', async (_, cfg: { baseUrl?: string; apiKey?: string; autoStart?: boolean; serverCommand?: string; llmProvider?: string }) => {
+  safeHandle('hindsight-config:set', async (event, cfg: { baseUrl?: string; apiKey?: string; autoStart?: boolean; serverCommand?: string; llmProvider?: string }) => {
     try {
       const sm = SettingsManager.getInstance();
       // R-24: this handler writes up to six keys. A refused write must not be
@@ -7656,6 +7656,38 @@ export function initializeIpcHandlers(appState: AppState): void {
       // config that was never persisted. Collect the outcomes and fail as one.
       let persisted = true;
       const put = (key: any, value: any): void => { if (!sm.set(key, value)) persisted = false; };
+      // SECURITY: validate serverCommand BEFORE persisting anything. An invalid
+      // command (shell metachars, unknown binary, interpreter without script) is
+      // refused without persisting ANY key; a valid change vs the stored value
+      // requires native reconfirmation (fail-closed: exception/no-window/Cancel
+      // → refused without persisting).
+      if (typeof cfg?.serverCommand === 'string') {
+        const { validateHindsightServerCommand } = require('./services/HindsightManager') as typeof import('./services/HindsightManager');
+        const cmd = cfg.serverCommand.trim();
+        const v = validateHindsightServerCommand(cmd);
+        if (!v.ok) return { success: false, error: `invalid server command: ${v.error}` };
+        const stored = String(sm.get('hindsightServerCommand') || '');
+        if (cmd !== stored) {
+          let allowed = false;
+          try {
+            const parentWin = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+            if (!parentWin || parentWin.isDestroyed()) return { success: false, error: 'cancelled' };
+            const choice = dialog.showMessageBoxSync(parentWin, {
+              type: 'warning',
+              buttons: ['Cancel', 'Allow once'],
+              defaultId: 0,
+              cancelId: 0,
+              title: 'Refract',
+              message: 'Allow this Hindsight server command?',
+              detail: cmd,
+            });
+            allowed = choice === 1;
+          } catch {
+            return { success: false, error: 'cancelled' };
+          }
+          if (!allowed) return { success: false, error: 'cancelled' };
+        }
+      }
       if (typeof cfg?.baseUrl === 'string') put('hindsightBaseUrl', cfg.baseUrl.trim());
       // Blank apiKey on resave = KEEP the stored one (don't wipe a saved key with an empty
       // field — the documented blank-key-on-resave gotcha). Only write a non-empty value.

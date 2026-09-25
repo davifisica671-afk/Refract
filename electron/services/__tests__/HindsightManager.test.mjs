@@ -4,7 +4,10 @@
 // and verifica graceful degrade quando nada é configured / o servidor é absent.
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { HindsightManager } from '../../../dist-electron/electron/services/HindsightManager.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { HindsightManager, validateHindsightServerCommand } from '../../../dist-electron/electron/services/HindsightManager.js';
 
 const ENV_KEYS = ['HINDSIGHT_BASE_URL', 'HINDSIGHT_API_KEY', 'HINDSIGHT_TIMEOUT_MS'];
 function clearEnv() { for (const k of ENV_KEYS) delete process.env[k]; }
@@ -81,5 +84,56 @@ describe('HindsightManager.healthCheck + isAvailable', () => {
     const mgr = HindsightManager.getInstance();
     assert.equal(await mgr.healthCheck(), true);
     assert.equal(mgr.isAvailable(), true);
+  });
+});
+
+describe('validateHindsightServerCommand (security: no-shell RCE guard)', () => {
+  test('empty string → ok with empty argv (feature off)', () => {
+    assert.deepEqual(validateHindsightServerCommand(''), { ok: true, argv: [] });
+    assert.deepEqual(validateHindsightServerCommand('   '), { ok: true, argv: [] });
+  });
+
+  test('unquoted shell metacharacters are rejected', () => {
+    for (const evil of ['node`id`', 'node$(id)', 'node;rm -rf ~', 'node|cat /etc/passwd']) {
+      const r = validateHindsightServerCommand(evil);
+      assert.equal(r.ok, false, evil);
+    }
+  });
+
+  test('nonexistent binary is rejected', () => {
+    const r = validateHindsightServerCommand('definitely-not-a-real-binary-xyz123 --flag');
+    assert.equal(r.ok, false);
+  });
+
+  test('interpreter without a script is rejected', () => {
+    const r = validateHindsightServerCommand('node');
+    assert.equal(r.ok, false);
+    assert.match(r.error || '', /script/);
+  });
+
+  test('quoted path with spaces to a real temp file → ok with argv', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hindsight cmd '));
+    const exe = path.join(dir, 'my server.sh');
+    fs.writeFileSync(exe, '#!/bin/sh\necho hi\n');
+    try {
+      const r = validateHindsightServerCommand(`"${exe}" --port 8888`);
+      assert.equal(r.ok, true);
+      assert.deepEqual(r.argv, [exe, '--port', '8888']);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('bash with a real temp script → ok', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hindsight bash '));
+    const script = path.join(dir, 'start.sh');
+    fs.writeFileSync(script, '#!/bin/sh\necho hi\n');
+    try {
+      const r = validateHindsightServerCommand(`bash "${script}"`);
+      assert.equal(r.ok, true);
+      assert.deepEqual(r.argv, ['bash', script]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
