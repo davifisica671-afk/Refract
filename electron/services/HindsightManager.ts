@@ -40,7 +40,7 @@ const SPAWN_POLL_INTERVAL_MS = 5000;  // polling para prontidão (como OllamaMan
 const SPAWN_MAX_ATTEMPTS = 36;        // 36 * 5s = 180s (primeiro boot baixa modelos de embedding)
 
 const SHELL_METACHARS = /[;&|`$(){}!#~*?<>^\n\r]/;
-const KNOWN_INTERPRETERS = new Set(['bash', 'sh', 'python', 'python3', 'node']);
+const KNOWN_INTERPRETERS = new Set(['bash', 'sh', 'python', 'python3', 'node', 'cmd', 'powershell', 'pwsh', 'perl', 'ruby', 'php', 'dash', 'zsh', 'fish', 'deno', 'bun']);
 export interface ServerCommandValidation { ok: boolean; argv?: string[]; error?: string; }
 function splitArgv(raw: string): { tokens: string[]; quoted: boolean[] } | null {
   const tokens: string[] = []; const quoted: boolean[] = [];
@@ -92,7 +92,8 @@ export function validateHindsightServerCommand(raw: string): ServerCommandValida
   const bin = resolveOnPath(split.tokens[0]);
   if (!bin) return { ok: false, error: 'executable not found' };
   const base = require('path').basename(bin).toLowerCase().replace(/\.(exe|cmd|bat)$/, '');
-  if (KNOWN_INTERPRETERS.has(base)) {
+  const versionStripped = base.replace(/[\d.]+$/, '');
+  if (KNOWN_INTERPRETERS.has(base) || (versionStripped && KNOWN_INTERPRETERS.has(versionStripped))) {
     if (split.tokens.length < 2) return { ok: false, error: 'interpreter requires a script' };
     const path = require('path') as typeof import('path');
     const fs = require('fs') as typeof import('fs');

@@ -136,4 +136,60 @@ describe('validateHindsightServerCommand (security: no-shell RCE guard)', () => 
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  test('cmd /c calc → rejected (interpreter gate)', () => {
+    const r = validateHindsightServerCommand('cmd /c calc');
+    assert.equal(r.ok, false);
+    assert.match(r.error || '', /script/i);
+  });
+
+  test('powershell -Command "x" → rejected (interpreter gate)', () => {
+    const r = validateHindsightServerCommand('powershell -Command "x"');
+    assert.equal(r.ok, false);
+    assert.match(r.error || '', /script/i);
+  });
+
+  test('version-suffixed interpreter python3.11 -c "x" → rejected', () => {
+    // Shim python3.11 onto PATH so version-stripping is exercised where it isn't installed.
+    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hindsight pybin '));
+    const prevPath = process.env.PATH || '';
+    try {
+      for (const name of ['python3.11', 'python3.11.exe']) {
+        const p = path.join(binDir, name);
+        fs.writeFileSync(p, 'stub');
+        try { fs.chmodSync(p, 0o755); } catch { /* windows */ }
+      }
+      process.env.PATH = binDir + path.delimiter + prevPath;
+      const r = validateHindsightServerCommand('python3.11 -c "x"');
+      assert.equal(r.ok, false);
+      assert.match(r.error || '', /script/i);
+    } finally {
+      process.env.PATH = prevPath;
+      fs.rmSync(binDir, { recursive: true, force: true });
+    }
+  });
+
+  test('perl with a real temp script → ok', () => {
+    // Shim perl onto PATH so the test passes where perl isn't installed.
+    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hindsight perlbin '));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hindsight perl '));
+    const script = path.join(dir, 'script.pl');
+    fs.writeFileSync(script, 'print "hi";\n');
+    const prevPath = process.env.PATH || '';
+    try {
+      for (const name of ['perl', 'perl.exe']) {
+        const p = path.join(binDir, name);
+        fs.writeFileSync(p, 'stub');
+        try { fs.chmodSync(p, 0o755); } catch { /* windows */ }
+      }
+      process.env.PATH = binDir + path.delimiter + prevPath;
+      const r = validateHindsightServerCommand(`perl "${script}"`);
+      assert.equal(r.ok, true);
+      assert.deepEqual(r.argv, ['perl', script]);
+    } finally {
+      process.env.PATH = prevPath;
+      fs.rmSync(binDir, { recursive: true, force: true });
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
