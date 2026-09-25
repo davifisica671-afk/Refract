@@ -6365,7 +6365,10 @@ export function initializeIpcHandlers(appState: AppState): void {
   });
 
   safeHandle('delete-meeting', async (_, id: string) => {
-    return DatabaseManager.getInstance().deleteMeeting(id);
+    if (typeof id !== 'string' || id.trim().length === 0 || !/^[0-9a-fA-F-]{1,64}$/.test(id.trim())) {
+      throw new Error('Invalid meeting id');
+    }
+    return DatabaseManager.getInstance().deleteMeeting(id.trim());
   });
 
   safeHandle('check-for-updates', async () => {
