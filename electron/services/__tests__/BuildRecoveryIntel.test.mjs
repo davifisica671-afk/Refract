@@ -125,8 +125,8 @@ test('context-os: memory recall renders nothing (degraded)', () => {
   assert.equal(renderHindsightRecallBlock([]), '');
 });
 
-test('context-os: property gate fails open, refusal line stays honest (degraded)', () => {
-  assert.equal(textCanProveProperty('some block', 'unknown'), true);
+test('context-os: property gate fails closed, refusal line stays honest (degraded)', () => {
+  assert.equal(textCanProveProperty('some block', 'unknown'), false);
   const line = buildInsufficientPropertyAnswer({ property: 'unknown' });
   assert.ok(line.length > 0);
 });

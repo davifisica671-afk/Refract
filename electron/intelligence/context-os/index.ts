@@ -32,11 +32,10 @@
 //   hasReferenceFiles }) -> false (:3900).
 // - toRecalledMemoryEvidence(memories, contract) + renderHindsightRecallBlock
 //   -> '' so the legacy <long_term_memory> block is used (:3670-3676).
-// - textCanProveProperty(block, requestedProperty) -> TRUE (fail-open):
-//   false would mark every doc-grounded answer property_unsupported and
-//   replace it with a refusal; the surrounding try/catch already fails open
-//   (`catch { propertyUnsupported = false }`), so true matches the designed
-//   gate-failure posture. UNCERTAIN (no real prover) — noted in report.
+// - textCanProveProperty(block, requestedProperty) -> FALSE (fail-closed):
+//   no prover exists in this stub, so text proves nothing; the caller
+//   (ipcHandlers.ts) downgrades to the honest refusal line via
+//   buildInsufficientPropertyAnswer. Fail-closed matches every sibling gate.
 // - buildInsufficientPropertyAnswer({ property }) -> honest string (only
 //   reachable when the gate above fires, i.e. never via this stub).
 // - buildAssistantClaims({ answer, contract, evidencePack }) -> [] (a stub
@@ -314,7 +313,7 @@ export function renderHindsightRecallBlock(_evidence: unknown): string {
 }
 
 export function textCanProveProperty(_block: string, _property: unknown): boolean {
-  return true;
+  return false;
 }
 
 export function buildInsufficientPropertyAnswer(_args: { property?: unknown }): string {
