@@ -481,3 +481,16 @@ export class ProviderRouter {
         return health;
     }
 }
+
+// ── Build-recovery degraded export (appended 2026-09-25; existing code above untouched) ──
+// ipcHandlers merges the Privacy-panel payload over the stored policy and persists
+// the MERGED object (:7495-7496, broadcasting it at :7502-7509). Degraded merge is a
+// key-preserving spread: stored keys the payload omits (notably code_execution —
+// the exact erasure bug the call-site comment documents) survive, payload keys win.
+// Never throws on undefined inputs.
+export function mergeProviderDataScopes(
+    stored: ProviderDataScopePolicy | undefined,
+    incoming: ProviderDataScopePolicy | undefined,
+): ProviderDataScopePolicy {
+    return { ...(stored ?? {}), ...(incoming ?? {}) };
+}

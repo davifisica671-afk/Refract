@@ -295,3 +295,19 @@ export function setIntelligenceFlag(key: IntelligenceFlagKey, value: boolean | n
 export function __resetIntelligenceFlagsCache(): void {
   /* intentionally vazio — não cached estado (see readEnvOverride). */
 }
+
+// ── Build-recovery degraded export (appended 2026-09-25; existing code above untouched) ──
+// ipcHandlers compares the result to 'off' (:3091): staged source-owner enforcement
+// (plan §6 — `off` bypasses the resolver; every other stage honors it). Degraded
+// default is the blocking posture ('enforce') so the pass stays leak-safe unless
+// explicitly dialed to `off` via REFRACT_SOURCE_OWNER_ENFORCEMENT_STAGE (:3086-3090).
+// Never throws.
+export function getSourceOwnerEnforcementStage(): 'off' | 'observe' | 'soft_block' | 'enforce' {
+  try {
+    const raw = (process.env.REFRACT_SOURCE_OWNER_ENFORCEMENT_STAGE || '').trim().toLowerCase();
+    if (raw === 'off' || raw === 'observe' || raw === 'soft_block' || raw === 'enforce') return raw;
+  } catch {
+    /* fall through to the blocking default */
+  }
+  return 'enforce';
+}

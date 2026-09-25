@@ -209,3 +209,45 @@ export {
 export type { ModelCapabilities, ModelTier, PromptTier, OpenAiReasoningEffort } from "./modelCapabilities";
 export { LanguageLearningLLM } from "./LanguageLearningLLM";
 export type { TranslationResult } from "./LanguageLearningLLM";
+
+// ── Build-recovery degraded exports (appended 2026-09-25; existing lines above untouched) ──
+// Defined locally in this barrel because no other tracked module provides them;
+// ipcHandlers imports them from './llm' (:35).
+// - totalHardTimeoutMs({ isLocal, isVisionTurn, viaServerCascade }) (:4304): mirrors
+//   LIVE_TOTAL_HARD_TIMEOUT_MS / LIVE_LOCAL_TOTAL_HARD_TIMEOUT_MS (liveDeadlines.ts:62/68)
+//   — a local cold-load gets the 30s ceiling, cloud the 8s one.
+// - repairDeadlineMs({ ..., minMs }) (:88): honors the caller's floor, defaulting to
+//   the 7000 previous value repairFirstUsefulMs carries (:86).
+// - CODING_REGEN_ABORT_CHARS (:4466/:4576): 4000 — the truncation guard the F-305
+//   comment documents ("shouldAbort cuts this regen at 4000 chars", :4472).
+// - acceptRepairedAnswer({ original, repaired, stillInvalid }) (:4709): conservative
+//   reject — keeps the original so a degraded repair can never ship a leaked-artifact
+//   or truncated answer (verdict.accepted/.text/.reason are read at :4714-:4719).
+export const CODING_REGEN_ABORT_CHARS = 4000;
+
+export function totalHardTimeoutMs(opts: {
+  isLocal?: boolean;
+  isVisionTurn?: boolean;
+  viaServerCascade?: boolean;
+}): number {
+  return opts.isLocal ? 30000 : 8000;
+}
+
+export function repairDeadlineMs(opts: {
+  hasImages?: boolean;
+  isLocal?: boolean;
+  viaServerCascade?: boolean;
+  isUserEndpoint?: boolean;
+  observedUserEndpointLatency?: number | null;
+  minMs?: number;
+}): number {
+  return opts.minMs ?? 7000;
+}
+
+export function acceptRepairedAnswer(input: {
+  original: string;
+  repaired: string;
+  stillInvalid: boolean;
+}): { accepted: boolean; text: string; reason: string } {
+  return { accepted: false, text: input.original, reason: 'unavailable' };
+}
