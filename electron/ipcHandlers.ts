@@ -284,13 +284,23 @@ const GATE_GENERIC_TOKENS = new Set<string>([
 
 let appleSpeechLocalesCache: { available: boolean; supported: string[]; installed: string[]; reserved: string[]; maxReserved: number } | null = null;
 
+function assertAppSender(event: any, channel: string): void {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) {
+    throw new Error(`forbidden sender for channel ${channel}`);
+  }
+}
+
 export function initializeIpcHandlers(appState: AppState): void {
   const safeHandle = (
     channel: string,
     listener: (event: any, ...args: any[]) => Promise<any> | any,
   ) => {
     ipcMain.removeHandler(channel);
-    ipcMain.handle(channel, listener);
+    ipcMain.handle(channel, async (event, ...args) => {
+      assertAppSender(event, channel);
+      return listener(event, ...args);
+    });
   };
 
   const safeOn = (
@@ -298,7 +308,15 @@ export function initializeIpcHandlers(appState: AppState): void {
     listener: (event: any, ...args: any[]) => void,
   ) => {
     ipcMain.removeAllListeners(channel);
-    ipcMain.on(channel, listener);
+    ipcMain.on(channel, (event, ...args) => {
+      try {
+        assertAppSender(event, channel);
+      } catch (err) {
+        console.warn(`[IPC] forbidden sender for channel ${channel} — ignored`);
+        return;
+      }
+      listener(event, ...args);
+    });
   };
 
   const broadcastCredentialsChanged = (): void => {
