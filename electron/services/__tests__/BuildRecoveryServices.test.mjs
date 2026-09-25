@@ -52,6 +52,11 @@ import {
   PAGE_CAPTURE_FALLBACK_CHANNEL,
   PAGE_CAPTURE_STARTED_CHANNEL,
 } from '../../../dist-electron/electron/services/pageCaptureFallback.js';
+import {
+  releaseAppleSpeechLocale,
+  installAppleSpeechLocale,
+  readAppleSpeechLocales,
+} from '../../../dist-electron/electron/audio/AppleSpeechSTT.js';
 
 test('AntigravityService: signed out, no models, login throws, lifecycle noop', async () => {
   assert.equal(typeof initializeAntigravityLifecycle, 'function');
@@ -203,4 +208,19 @@ test('pageCaptureFallback: distinct non-empty channels', () => {
   assert.equal(PAGE_CAPTURE_FALLBACK_CHANNEL, 'page-capture-fallback');
   assert.equal(PAGE_CAPTURE_STARTED_CHANNEL, 'page-capture-started');
   assert.notEqual(PAGE_CAPTURE_FALLBACK_CHANNEL, PAGE_CAPTURE_STARTED_CHANNEL);
+});
+
+test('AppleSpeechSTT: release/install fail, locales unavailable (degraded)', async () => {
+  assert.deepEqual(await releaseAppleSpeechLocale('en-US'), { ok: false, error: 'unavailable' });
+  assert.deepEqual(await installAppleSpeechLocale('en-US', () => undefined), {
+    ok: false,
+    error: 'unavailable',
+  });
+  assert.deepEqual(await readAppleSpeechLocales(), {
+    available: false,
+    supported: [],
+    installed: [],
+    reserved: [],
+    maxReserved: 0,
+  });
 });

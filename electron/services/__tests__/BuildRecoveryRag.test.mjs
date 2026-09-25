@@ -180,6 +180,8 @@ test('ExtensionInstaller: refused stage (sync) + failed registry fetch', async (
   assert.equal(staged.ok, false);
   assert.equal(staged.manifestJson, null);
   assert.equal(staged.payloadDir, null);
+  assert.deepEqual(staged.errors, ['not-available']); // install handler reads staged.errors (Task 5)
+  assert.deepEqual(staged.warnings, []); // install handler spreads staged.warnings ?? [] (Task 5)
   const remote = await fetchRemoteRegistry('https://example.invalid/registry.json');
   assert.equal(remote.ok, false);
   assert.deepEqual(remote.entries, []);

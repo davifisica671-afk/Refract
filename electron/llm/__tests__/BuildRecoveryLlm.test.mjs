@@ -134,7 +134,7 @@ test('performance/wiring: hooks shape + identity ttft (degraded)', () => {
     onDiagnostics: () => undefined,
   });
   assert.equal(typeof hooks.observe, 'function');
-  assert.equal(hooks.interTokenStallMs, 5000);
+  assert.equal(hooks.interTokenStallMs, 8000); // aligned to LIVE_INTER_TOKEN_STALL_MS (Task 5)
   assert.equal(applyAdaptiveTtft(7000, { llmHelper: null, hasImages: false, inputTokens: 10 }), 7000);
   assert.equal(typeof secondaryStreamObserver('regeneration'), 'function');
 });
