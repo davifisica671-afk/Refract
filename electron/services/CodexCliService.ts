@@ -448,3 +448,26 @@ export class CodexCliService {
     return text.replace(/\s+/g, ' ').trim().slice(0, 1000);
   }
 }
+
+// ── Build-recovery degraded exports (appended 2026-09-25; existing code above untouched) ──
+// ipcHandlers imports getCodexAuthStatus/isCodexAuthError statically (:15) but the
+// planned counterparts were never written. Degraded contract: signed-out (the only
+// leak-safe posture — getCodexAuthStatus() never carries a token, ipcHandlers:13256)
+// and unclassified errors (callers fall back to the generic message instead of
+// echoing provider text, ipcHandlers:6254). Shape mirrors the preload
+// codexLoginStatus contract (preload.ts:738): signedIn/source/cliLogin/email.
+export interface CodexAuthStatus {
+  signedIn: boolean;
+  email: string | null;
+  source: 'refract' | 'codex-cli' | null;
+  cliLogin: 'ok' | 'expired' | 'missing' | 'api-key' | 'invalid';
+}
+
+export function getCodexAuthStatus(): CodexAuthStatus {
+  return { signedIn: false, email: null, source: null, cliLogin: 'missing' };
+}
+
+export function isCodexAuthError(error: unknown): boolean {
+  void error;
+  return false;
+}

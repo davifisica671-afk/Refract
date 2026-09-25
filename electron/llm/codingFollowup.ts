@@ -196,3 +196,19 @@ ${NO_LEAK_RULES}
 export function explicitContractProducesCode(explicitContract: ExplicitCodingContract): boolean {
   return explicitContract === null || explicitContract === 'code_only';
 }
+
+// ── Build-recovery degraded exports (appended 2026-09-25; existing code above untouched) ──
+// ipcHandlers calls isBareCodeRequest(msg) (:1856/:1868/:2696/:2704) and
+// looksLikeCodingAnswer(text) (:1870/:2706) as boolean guards paired with
+// isCodingContinuation. Degraded: false — turns fall back to the continuation
+// classifier and the full six-section contract instead of the bare-code fast path.
+// Never throws; an empty input is not a bare request and holds no coding answer.
+export function isBareCodeRequest(question: string): boolean {
+  void question;
+  return false;
+}
+
+export function looksLikeCodingAnswer(text: string): boolean {
+  void text;
+  return false;
+}

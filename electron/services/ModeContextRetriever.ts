@@ -328,3 +328,10 @@ export class ModeContextRetriever {
 
     private _hybridRetriever: ModeHybridRetriever | null = null;
 }
+
+// ── Build-recovery degraded export (appended 2026-09-25; existing code above untouched) ──
+// ipcHandlers passes it as the token budget to buildRetrievedActiveModeContextBlock
+// for the validator's re-retrieval (:5184 — "use the expanded doc-grounded budget").
+// Degraded value equals this module's own DEFAULT_TOKEN_BUDGET (1800): the expanded
+// doc-grounded sizing lives in the owning WIP and is not guessed here.
+export const DOC_GROUNDED_TOKEN_BUDGET = 1800;
