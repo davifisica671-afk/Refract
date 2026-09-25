@@ -34,6 +34,26 @@ interface SettingsLike {
   get(key: string): unknown;
 }
 
+/**
+ * Minimal encrypted-store surface for the Hindsight Cloud API key
+ * (satisfied by CredentialsManager; faked in tests).
+ */
+export interface HindsightApiKeyStore {
+  getHindsightApiKey(): string | undefined;
+  setHindsightApiKey(key: string): void;
+  isPersistenceAvailable(): boolean;
+}
+
+/**
+ * Minimal settings surface for the one-time legacy key migration: read the
+ * plaintext fallback, then clear it once the key lives in safeStorage.
+ * (Satisfied by SettingsManager; faked in tests.)
+ */
+export interface HindsightLegacySettings {
+  get(key: string): unknown;
+  set(key: string, value: unknown): void;
+}
+
 const HEALTH_TIMEOUT_MS = 1000;       // corresponde a OllamaManager.checkIsRunning
 const AVAILABILITY_TTL_MS = 30_000;   // cache de health para que chamadas retain/recall sejam baratas
 const SPAWN_POLL_INTERVAL_MS = 5000;  // polling para prontidão (como OllamaManager)
@@ -107,6 +127,61 @@ export function validateHindsightServerCommand(raw: string): ServerCommandValida
   return { ok: true, argv: split.tokens };
 }
 
+/**
+ * Resolve the Hindsight Cloud API key: encrypted store (CredentialsManager /
+ * OS safeStorage) first, with a ONE-TIME fallback to the legacy plaintext
+ * `hindsightApiKey` in settings.json — on fallback hit the key is written to
+ * the store and the legacy copy cleared, so later reads are store-only.
+ *
+ * Fail-closed rules (never leak, never destroy the only durable copy):
+ * - No key material is ever written to logs (static log strings only).
+ * - When encryption is unavailable the in-memory store copy is still set for
+ *   this session, but the legacy copy is KEPT (it is the only durable copy).
+ * - When the store itself is unavailable (headless), the legacy value is
+ *   passed through WITHOUT clearing, preserving legacy read behavior.
+ * - No key anywhere → undefined (no writes, no behavior change).
+ */
+export function resolveHindsightApiKey(
+  store: HindsightApiKeyStore | null,
+  legacySettings: HindsightLegacySettings | null,
+): string | undefined {
+  let fromStore: string | undefined;
+  try {
+    fromStore = store?.getHindsightApiKey() ?? undefined;
+  } catch {
+    fromStore = undefined;
+  }
+  if (fromStore && fromStore.trim()) return fromStore.trim();
+
+  let legacy: string | undefined;
+  try {
+    const raw: unknown = legacySettings?.get('hindsightApiKey');
+    legacy = typeof raw === 'string' ? raw.trim() || undefined : undefined;
+  } catch {
+    legacy = undefined;
+  }
+  if (!legacy) return undefined;
+
+  if (store) {
+    try {
+      store.setHindsightApiKey(legacy);
+      if (store.isPersistenceAvailable()) {
+        try {
+          legacySettings?.set('hindsightApiKey', undefined);
+        } catch {
+          // Best-effort clear — migration retries on the next read.
+        }
+        console.log('[HindsightManager] Migrated legacy hindsight API key to safeStorage');
+      } else {
+        console.warn('[HindsightManager] Encryption unavailable; legacy hindsight API key kept in settings until persistence is available');
+      }
+    } catch {
+      // Fail closed: leave the legacy copy untouched.
+    }
+  }
+  return legacy;
+}
+
 export class HindsightManager {
   private static instance: HindsightManager | null = null;
   static getInstance(): HindsightManager {
@@ -134,6 +209,26 @@ export class HindsightManager {
     }
   }
 
+  /** Full settings access (get+set) for the one-time legacy key migration. */
+  private mutableSettings(): HindsightLegacySettings | null {
+    try {
+      const { SettingsManager } = require('./SettingsManager') as typeof import('./SettingsManager');
+      return SettingsManager.getInstance();
+    } catch {
+      return null;
+    }
+  }
+
+  /** Lazy CredentialsManager access — same headless-safe pattern as settings(). */
+  private apiKeyStore(): HindsightApiKeyStore | null {
+    try {
+      const { CredentialsManager } = require('./CredentialsManager') as typeof import('./CredentialsManager');
+      return CredentialsManager.getInstance();
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Resolve a configuração do Hindsight: env (dev) tem precedência sobre a configuração
    * persistida (app empacotado). Retorna null quando nenhum baseUrl está configurado
@@ -147,7 +242,7 @@ export class HindsightManager {
         || '').trim();
       if (!baseUrl) return null;
       const apiKey = (process.env.HINDSIGHT_API_KEY
-        || (s?.get('hindsightApiKey') as string | undefined)
+        || resolveHindsightApiKey(this.apiKeyStore(), this.mutableSettings())
         || '').trim() || undefined;
       const timeoutMs = Number(process.env.HINDSIGHT_TIMEOUT_MS) || 800;
       return { baseUrl, apiKey, timeoutMs };

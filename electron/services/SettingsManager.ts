@@ -24,6 +24,9 @@ export interface AppSettings {
     // these para dev. apiKey apenas para Hindsight Cloud. autoStart/serverCommand reserved para
     // o deferred auto-spawn follow-up (auto-start-when-installed, como Ollama).
     hindsightBaseUrl?: string;
+    // LEGACY plaintext fallback for the Hindsight Cloud API key — superseded by
+    // CredentialsManager (OS safeStorage). Kept only so the one-time migration
+    // (resolveHindsightApiKey) can read + clear it. Never write new keys here.
     hindsightApiKey?: string;
     hindsightAutoStart?: boolean;
     hindsightServerCommand?: string;

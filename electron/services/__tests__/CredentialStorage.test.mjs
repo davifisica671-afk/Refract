@@ -96,3 +96,64 @@ test('SettingsManager does not log full settings JSON', () => {
   assert.doesNotMatch(source, /console\.(?:log|warn|error)\([^\n]*,\s*this\.settings\s*[),]/);
   assert.doesNotMatch(source, /console\.(?:log|warn|error)\([^\n]*,\s*parsed\s*[),]/);
 });
+
+test('CredentialsManager stores the Hindsight API key in safeStorage (no plaintext settings)', () => {
+  const source = read('electron/services/CredentialsManager.ts');
+
+  // Field lives in the encrypted store …
+  assert.match(source, /hindsightApiKey\?: string;/);
+  // … with the standard getter / setter / clearer trio mirroring neighboring keys.
+  assert.match(source, /public getHindsightApiKey\(\): string \| undefined/);
+  assert.match(source, /return this\.credentials\.hindsightApiKey;/);
+  assert.match(source, /public setHindsightApiKey\(key: string\): void/);
+  assert.match(source, /public clearHindsightApiKey\(\): void/);
+
+  // Setter follows the neighboring trim-or-undefined + saveCredentials pattern.
+  const setStart = source.indexOf('public setHindsightApiKey(');
+  assert.ok(setStart >= 0, 'setHindsightApiKey should exist');
+  const setEnd = source.indexOf('public ', setStart + 1);
+  const setSource = source.slice(setStart, setEnd);
+  assert.match(setSource, /key\.trim\(\) \|\| undefined/);
+  assert.match(setSource, /this\.saveCredentials\(\);/);
+  // No key material in logs: the log line must not interpolate the key.
+  assert.match(setSource, /console\.log\('\[CredentialsManager\] Hindsight API Key updated'\)/);
+  assert.doesNotMatch(setSource, /\$\{(key|trimmed)\}/);
+  // No `any` in the new setter.
+  assert.doesNotMatch(setSource, /any/);
+
+  // Clearer drops the key and persists.
+  const clearStart = source.indexOf('public clearHindsightApiKey(');
+  assert.ok(clearStart >= 0, 'clearHindsightApiKey should exist');
+  const clearEnd = source.indexOf('public ', clearStart + 1);
+  const clearSource = source.slice(clearStart, clearEnd === -1 ? undefined : clearEnd);
+  assert.match(clearSource, /this\.credentials\.hindsightApiKey = undefined;/);
+  assert.match(clearSource, /this\.saveCredentials\(\);/);
+  assert.doesNotMatch(clearSource, /any/);
+});
+
+test('Hindsight key migration never logs key material', () => {
+  const hmSource = read('electron/services/HindsightManager.ts');
+  const migStart = hmSource.indexOf('resolveHindsightApiKey');
+  assert.ok(migStart >= 0, 'resolveHindsightApiKey should exist');
+  const migSource = hmSource.slice(migStart);
+  // Migration log lines must be static strings — no interpolation of key values.
+  assert.doesNotMatch(migSource, /console\.(log|warn)\(`[^`]*\$\{(legacy|apiKey|key|stored|value)/);
+  assert.doesNotMatch(migSource, /console\.(log|warn)\([^)]*(legacy|apiKey)\s*[,)]/);
+
+  const ipcSource = read('electron/ipcHandlers.ts');
+  for (const id of ['hindsight-config:get', 'hindsight-config:set']) {
+    const start = ipcSource.indexOf(`'${id}'`);
+    assert.ok(start >= 0, `${id} handler should exist`);
+  }
+  // The get handler must not return the raw key — only a boolean presence flag.
+  const getStart = ipcSource.indexOf("'hindsight-config:get'");
+  const getEnd = ipcSource.indexOf("'hindsight-config:set'", getStart);
+  const getSource = ipcSource.slice(getStart, getEnd);
+  assert.match(getSource, /hasApiKey/);
+  assert.doesNotMatch(getSource, /\bapiKey:\s*(cfg|key\b|apiKey)/);
+  // The set handler must route the key to CredentialsManager, never settings.json.
+  const setStart = ipcSource.indexOf("'hindsight-config:set'");
+  const setSource = ipcSource.slice(setStart, setStart + 6000);
+  assert.match(setSource, /setHindsightApiKey/);
+  assert.doesNotMatch(setSource, /put\('hindsightApiKey'/);
+});

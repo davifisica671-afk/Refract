@@ -88,6 +88,9 @@ export interface StoredCredentials {
     aiResponseLanguage?: string;
     // Tavily Busca
     tavilyApiKey?: string;
+    // Hindsight Cloud — migrated from plaintext settings.json (see
+    // resolveHindsightApiKey in HindsightManager). Never store in settings.
+    hindsightApiKey?: string;
     // Dynamic Modelo Discovery – preferred models por provedor
     geminiPreferredModel?: string;
     groqPreferredModel?: string;
@@ -252,6 +255,10 @@ export class CredentialsManager {
 
     public getTavilyApiKey(): string | undefined {
         return this.credentials.tavilyApiKey;
+    }
+
+    public getHindsightApiKey(): string | undefined {
+        return this.credentials.hindsightApiKey;
     }
 
     public getSttLanguage(): string {
@@ -496,6 +503,19 @@ export class CredentialsManager {
         this.credentials.tavilyApiKey = key.trim() || undefined;
         this.saveCredentials();
         console.log('[CredentialsManager] Tavily API Key updated');
+    }
+
+    public setHindsightApiKey(key: string): void {
+        // Store undefined (not empty string) when removing, so hasKey() checks stay consistent.
+        this.credentials.hindsightApiKey = key.trim() || undefined;
+        this.saveCredentials();
+        console.log('[CredentialsManager] Hindsight API Key updated');
+    }
+
+    public clearHindsightApiKey(): void {
+        this.credentials.hindsightApiKey = undefined;
+        this.saveCredentials();
+        console.log('[CredentialsManager] Hindsight API Key cleared');
     }
 
     public setSttLanguage(language: string): void {

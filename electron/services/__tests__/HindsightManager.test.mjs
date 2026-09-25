@@ -7,7 +7,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { HindsightManager, validateHindsightServerCommand } from '../../../dist-electron/electron/services/HindsightManager.js';
+
+const requireCjs = createRequire(import.meta.url);
+const HM = requireCjs('../../../dist-electron/electron/services/HindsightManager.js');
+const resolveHindsightApiKey = HM.resolveHindsightApiKey;
 
 const ENV_KEYS = ['HINDSIGHT_BASE_URL', 'HINDSIGHT_API_KEY', 'HINDSIGHT_TIMEOUT_MS'];
 function clearEnv() { for (const k of ENV_KEYS) delete process.env[k]; }
@@ -191,5 +196,100 @@ describe('validateHindsightServerCommand (security: no-shell RCE guard)', () => 
       fs.rmSync(binDir, { recursive: true, force: true });
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('resolveHindsightApiKey (security: safeStorage migration, one-time legacy fallback)', () => {
+  // Fakes: in-memory stand-ins for CredentialsManager (encrypted store) and
+  // SettingsManager (legacy plaintext settings.json).
+  function makeStore(initial, persist = true) {
+    let value = initial;
+    const calls = { sets: [] };
+    return {
+      store: {
+        getHindsightApiKey: () => value,
+        setHindsightApiKey: (k) => { value = k; calls.sets.push(k); },
+        isPersistenceAvailable: () => persist,
+      },
+      calls,
+      peek: () => value,
+    };
+  }
+  function makeLegacy(initial) {
+    let value = initial;
+    const calls = { sets: [] };
+    return {
+      settings: {
+        get: (k) => (k === 'hindsightApiKey' ? value : undefined),
+        set: (k, v) => { if (k === 'hindsightApiKey') { value = v; calls.sets.push(v); } },
+      },
+      calls,
+      peek: () => value,
+    };
+  }
+
+  test('exports resolveHindsightApiKey', () => {
+    assert.equal(typeof resolveHindsightApiKey, 'function', 'HindsightManager.js must export resolveHindsightApiKey');
+  });
+
+  test('legacy present → moved to store + legacy cleared', () => {
+    const s = makeStore(undefined, true);
+    const l = makeLegacy('  legacy-key-123  ');
+    const out = resolveHindsightApiKey(s.store, l.settings);
+    assert.equal(out, 'legacy-key-123');
+    assert.equal(s.peek(), 'legacy-key-123');
+    assert.deepEqual(s.calls.sets, ['legacy-key-123']);
+    assert.equal(l.peek(), undefined, 'legacy plaintext key must be cleared after migration');
+    assert.deepEqual(l.calls.sets, [undefined]);
+  });
+
+  test('store hit wins; legacy left untouched', () => {
+    const s = makeStore('cm-key', true);
+    const l = makeLegacy('legacy-key');
+    const out = resolveHindsightApiKey(s.store, l.settings);
+    assert.equal(out, 'cm-key');
+    assert.deepEqual(s.calls.sets, []);
+    assert.deepEqual(l.calls.sets, []);
+    assert.equal(l.peek(), 'legacy-key');
+  });
+
+  test('nothing anywhere → undefined, no writes', () => {
+    const s = makeStore(undefined, true);
+    const l = makeLegacy(undefined);
+    assert.equal(resolveHindsightApiKey(s.store, l.settings), undefined);
+    assert.deepEqual(s.calls.sets, []);
+    assert.deepEqual(l.calls.sets, []);
+  });
+
+  test('whitespace-only legacy treated as absent (no migration writes)', () => {
+    const s = makeStore(undefined, true);
+    const l = makeLegacy('   ');
+    assert.equal(resolveHindsightApiKey(s.store, l.settings), undefined);
+    assert.deepEqual(s.calls.sets, []);
+    assert.deepEqual(l.calls.sets, []);
+  });
+
+  test('encryption unavailable → value usable this session but legacy KEPT (fail closed)', () => {
+    const s = makeStore(undefined, false);
+    const l = makeLegacy('legacy-key');
+    const out = resolveHindsightApiKey(s.store, l.settings);
+    assert.equal(out, 'legacy-key');
+    assert.deepEqual(s.calls.sets, ['legacy-key'], 'memory-only copy still set for this session');
+    assert.deepEqual(l.calls.sets, [], 'durable legacy copy must NOT be cleared');
+    assert.equal(l.peek(), 'legacy-key');
+  });
+
+  test('store unavailable (null) → legacy passthrough without clearing', () => {
+    const l = makeLegacy('legacy-key');
+    assert.equal(resolveHindsightApiKey(null, l.settings), 'legacy-key');
+    assert.deepEqual(l.calls.sets, []);
+    assert.equal(l.peek(), 'legacy-key');
+  });
+
+  test('store value is trimmed on return', () => {
+    const s = makeStore('  cm-key  ', true);
+    const l = makeLegacy(undefined);
+    assert.equal(resolveHindsightApiKey(s.store, l.settings), 'cm-key');
+    assert.deepEqual(l.calls.sets, []);
   });
 });

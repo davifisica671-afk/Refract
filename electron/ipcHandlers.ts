@@ -7616,7 +7616,7 @@ export function initializeIpcHandlers(appState: AppState): void {
   safeHandle('hindsight-config:get', async () => {
     try {
       const sm = SettingsManager.getInstance();
-      const { HindsightManager } = require('./services/HindsightManager') as typeof import('./services/HindsightManager');
+      const { HindsightManager, resolveHindsightApiKey } = require('./services/HindsightManager') as typeof import('./services/HindsightManager');
       // Fresh probe (not the cached isAvailable): the settings panel polls this while open, and
       // the local server takes ~15-20s to load embedding models before /health answers. A cached
       // value would leave the chip stuck on "Can't connect" even after the server comes up.
@@ -7630,9 +7630,19 @@ export function initializeIpcHandlers(appState: AppState): void {
       // uses it to label the URL as "(using local default)". We mirror it from the resolved
       // config so the renderer never has to re-derive isLocalTarget itself.
       const storedUrl = String(sm.get('hindsightBaseUrl') || '');
+      // The API key lives in OS safeStorage (CredentialsManager); settings.json
+      // holds only a legacy plaintext fallback, migrated on first read. The raw
+      // key is NEVER returned — only a boolean presence flag.
+      let hasApiKey = false;
+      try {
+        const { CredentialsManager } = require('./services/CredentialsManager') as typeof import('./services/CredentialsManager');
+        hasApiKey = Boolean(resolveHindsightApiKey(CredentialsManager.getInstance(), sm));
+      } catch {
+        hasApiKey = Boolean(sm.get('hindsightApiKey'));
+      }
       return {
         baseUrl: cfg?.baseUrl || 'http://localhost:8888',
-        hasApiKey: Boolean(sm.get('hindsightApiKey')),
+        hasApiKey,
         autoStart: sm.get('hindsightAutoStart') !== false, // default on
         serverCommand: String(sm.get('hindsightServerCommand') || ''),
         llmProvider: String(sm.get('hindsightLlmProvider') || ''),
@@ -7689,9 +7699,34 @@ export function initializeIpcHandlers(appState: AppState): void {
         }
       }
       if (typeof cfg?.baseUrl === 'string') put('hindsightBaseUrl', cfg.baseUrl.trim());
-      // Blank apiKey on resave = KEEP the stored one (don't wipe a saved key with an empty
-      // field — the documented blank-key-on-resave gotcha). Only write a non-empty value.
-      if (typeof cfg?.apiKey === 'string' && cfg.apiKey.trim()) put('hindsightApiKey', cfg.apiKey.trim());
+      // The API key lives in OS safeStorage, never in settings.json. A non-empty
+      // value replaces the stored key; a blank value keeps the stored one (same
+      // documented blank-key-on-resave behavior as before). Fail closed: a store
+      // failure is reported, and any stale legacy plaintext copy is dropped only
+      // after the encrypted write is confirmed durable.
+      if (typeof cfg?.apiKey === 'string' && cfg.apiKey.trim()) {
+        let keyStored = false;
+        try {
+          const { CredentialsManager } = require('./services/CredentialsManager') as typeof import('./services/CredentialsManager');
+          const cm = CredentialsManager.getInstance();
+          cm.setHindsightApiKey(cfg.apiKey.trim());
+          keyStored = cm.isPersistenceAvailable();
+          if (!keyStored) {
+            console.warn('[HindsightConfig] encryption unavailable; Hindsight API key kept in memory only');
+          }
+        } catch {
+          keyStored = false;
+        }
+        if (!keyStored) {
+          persisted = false;
+        } else {
+          try {
+            sm.set('hindsightApiKey', undefined);
+          } catch {
+            // Best-effort legacy clear — the reader migrates/clears on next read.
+          }
+        }
+      }
       if (typeof cfg?.autoStart === 'boolean') put('hindsightAutoStart', cfg.autoStart);
       if (typeof cfg?.serverCommand === 'string') put('hindsightServerCommand', cfg.serverCommand.trim());
       if (typeof cfg?.llmProvider === 'string') put('hindsightLlmProvider', cfg.llmProvider.trim());
