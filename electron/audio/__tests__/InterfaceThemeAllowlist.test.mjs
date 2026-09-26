@@ -7,8 +7,8 @@
 // at best a CSS selector mismatch and at worst an attribute-injection
 // vector if qualquer consumidor já switches to template literals.
 //
-// Fix: a `VALID_INTERFACE_THEMES` Conjunto com exatamente o three known keys
-// ('default', 'liquid-glass', 'modern'), guarded Antes o
+// Fix: a `VALID_INTERFACE_THEMES` Conjunto com exatamente the known keys
+// ('default', 'liquid-glass', 'modern', 'aurora', 'mono'), guarded Antes o
 // BrowserWindow.getAllWindows().forEach broadcast.
 //
 // SEstratégia source-level static verifica em electron/ipcHandlers.ts. Importing
@@ -16,7 +16,8 @@
 // LLM auxiliar wiring, etetc então we uso o brace-balancing extraction pattern
 // de MicRecoveryUsesCanonicalWiring.test.mjs to isolate apenas o
 // 'interface-theme:set' manipulador bcorpo We também cross-check that o
-// allowlist matches o fonte de truth em src/lib/meetingInterfaceTheme.ts.
+// allowlist matches a fonte única de verdade (src/lib/overlayThemeList.mjs,
+// da qual src/lib/meetingInterfaceTheme.ts deriva).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -53,9 +54,9 @@ function extractInterfaceThemeSetHandlerBody(src) {
 
 const handlerBody = extractInterfaceThemeSetHandlerBody(ipcSource);
 
-const EXPECTED_THEMES = ['default', 'liquid-glass', 'modern'];
+const EXPECTED_THEMES = ['default', 'liquid-glass', 'modern', 'aurora', 'mono'];
 
-test('ipcHandlers.ts declares VALID_INTERFACE_THEMES Set with exactly the three valid keys', () => {
+test('ipcHandlers.ts declares VALID_INTERFACE_THEMES Set with exactly the valid keys', () => {
     // Locate o Conjunto declaration. Accept qualquer um `new Set([...])` ou
     // `new Set<string>([...])` flavours.
     const setDeclRe = /VALID_INTERFACE_THEMES\s*=\s*new\s+Set\s*(?:<[^>]+>)?\s*\(\s*\[([^\]]+)\]\s*\)/;
@@ -114,45 +115,37 @@ test('guard returns BEFORE BrowserWindow.getAllWindows().forEach broadcast', () 
     );
 });
 
-test('ipcHandlers.ts allowlist matches src/lib/meetingInterfaceTheme.ts source of truth', () => {
-    // Cross-check: o tipo alias and o VALID_THEMES Conjunto em
-    // meetingInterfaceTheme.ts precisa declare o mesmo three keys.
-    const aliasRe = /export\s+type\s+MeetingInterfaceTheme\s*=\s*([^;]+);/;
-    const aliasMatch = aliasRe.exec(themeSource);
-    assert.ok(aliasMatch, 'could not locate MeetingInterfaceTheme type alias in meetingInterfaceTheme.ts');
-    const aliasLiterals = [...aliasMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map((mm) => mm[1]);
+test('overlay theme single source of truth lists exactly the expected themes', () => {
+    // Since aurora/mono, the canonical list lives in src/lib/overlayThemeList.mjs
+    // (OVERLAY_THEMES frozen array); meetingInterfaceTheme.ts derives from it.
+    const listPath = path.resolve(__dirname, '../../../src/lib/overlayThemeList.mjs');
+    const listSource = readFileSync(listPath, 'utf8');
+    const listMatch = /OVERLAY_THEMES\s*=\s*Object\.freeze\s*\(\s*\[([^\]]+)\]\s*\)/.exec(listSource);
+    assert.ok(listMatch, 'could not locate OVERLAY_THEMES frozen list in overlayThemeList.mjs');
+    const listLiterals = [...listMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map((mm) => mm[1]);
     assert.deepEqual(
-        aliasLiterals.slice().sort(),
+        listLiterals.slice().sort(),
         EXPECTED_THEMES.slice().sort(),
-        `MeetingInterfaceTheme type alias drifted from expected ${JSON.stringify(EXPECTED_THEMES)}: ` +
-        `found ${JSON.stringify(aliasLiterals)}. If this is intentional, update both this test ` +
-        'and the ipcHandlers.ts allowlist together.',
+        `OVERLAY_THEMES drifted from expected ${JSON.stringify(EXPECTED_THEMES)}: ` +
+        `found ${JSON.stringify(listLiterals)}.`,
+    );
+    // meetingInterfaceTheme.ts must derive from the single source, not redeclare.
+    assert.ok(
+        /from\s*['"]\.\/overlayThemeList\.mjs['"]/.test(themeSource),
+        'meetingInterfaceTheme.ts must import the theme list from overlayThemeList.mjs (single source of truth).',
     );
 
-    const validThemesRe = /VALID_THEMES\s*:\s*[^=]+=\s*new\s+Set\s*(?:<[^>]+>)?\s*\(\s*\[([^\]]+)\]\s*\)/;
-    const validThemesMatch = validThemesRe.exec(themeSource);
-    assert.ok(validThemesMatch, 'could not locate VALID_THEMES Set in meetingInterfaceTheme.ts');
-    const validThemesLiterals = [...validThemesMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map((mm) => mm[1]);
-    assert.deepEqual(
-        validThemesLiterals.slice().sort(),
-        EXPECTED_THEMES.slice().sort(),
-        `VALID_THEMES Set in meetingInterfaceTheme.ts drifted from expected ${JSON.stringify(EXPECTED_THEMES)}: ` +
-        `found ${JSON.stringify(validThemesLiterals)}.`,
-    );
-
-    // Final cross-file cverifica o ipcHandlers allowlist literals precisa equal
-    // o meetingInterfaceTheme.ts VALID_THEMES literals eexatamente This é o
-    // assertion that catches "alguém added a theme em one side onapenas
+    // Final cross-file: o ipcHandlers allowlist precisa equal a fonte única.
+    // This is the assertion that catches "alguém added a theme em one side apenas".
     const ipcSetMatch = /VALID_INTERFACE_THEMES\s*=\s*new\s+Set\s*(?:<[^>]+>)?\s*\(\s*\[([^\]]+)\]\s*\)/.exec(ipcSource);
     assert.ok(ipcSetMatch, 'ipcHandlers.ts VALID_INTERFACE_THEMES declaration not found');
     const ipcLiterals = [...ipcSetMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map((mm) => mm[1]);
-
     assert.deepEqual(
         ipcLiterals.slice().sort(),
-        validThemesLiterals.slice().sort(),
+        listLiterals.slice().sort(),
         'BUG: ipcHandlers.ts VALID_INTERFACE_THEMES is out of sync with ' +
-        'src/lib/meetingInterfaceTheme.ts VALID_THEMES. The two allowlists must ' +
+        'src/lib/overlayThemeList.mjs. The two allowlists must ' +
         'be kept identical — the IPC guard is the trust boundary that enforces ' +
-        'the type alias on the wire.',
+        'the theme list on the wire.',
     );
 });
