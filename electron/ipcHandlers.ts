@@ -1261,6 +1261,37 @@ export function initializeIpcHandlers(appState: AppState): void {
     }
   });
 
+  // ── F-05: single image-path boundary for both manual-chat channels ──────
+  // Renderer-provided imagePaths are untrusted IPC input: cap the count
+  // (prompt-inflation DoS) and confine every path to userData via the
+  // shared validateImagePath util (symlink-aware). Fail-closed: anything
+  // unexpected throws and the caller reports without touching the LLM.
+  const MAX_CHAT_IMAGE_PATHS = 5;
+  const validateChatImagePaths = (imagePaths: unknown, channel: string): string[] => {
+    if (imagePaths === undefined || imagePaths === null) return [];
+    if (!Array.isArray(imagePaths)) {
+      throw new Error(`[${channel}] Invalid image attachments payload.`);
+    }
+    if (imagePaths.length === 0) return [];
+    if (imagePaths.length > MAX_CHAT_IMAGE_PATHS) {
+      throw new Error(`[${channel}] Too many image attachments (max ${MAX_CHAT_IMAGE_PATHS}).`);
+    }
+    const { validateImagePath } = require('./utils/curlUtils') as typeof import('./utils/curlUtils');
+    const userDataDir = app.getPath('userData');
+    const validated: string[] = [];
+    for (const p of imagePaths) {
+      if (typeof p !== 'string' || p.length === 0) {
+        throw new Error(`[${channel}] Invalid image attachment path.`);
+      }
+      const validation = validateImagePath(p, userDataDir);
+      if (!validation.isValid) {
+        throw new Error(`[${channel}] Rejected image attachment: ${validation.reason ?? 'invalid path'}.`);
+      }
+      validated.push(p);
+    }
+    return validated;
+  };
+
   safeHandle(
     'gemini-chat',
     async (
@@ -1271,14 +1302,14 @@ export function initializeIpcHandlers(appState: AppState): void {
       options?: { skipSystemPrompt?: boolean },
     ) => {
       try {
-        // Symmetric strip on the non-stream path: defense-in-depth against any
-        // future channel that injects <answer_contract>...</answer_contract> into
-        // `message`. The renderer does NOT currently inject it on either path;
-        // both strips are belt-and-suspenders.
-        const strippedMessage = stripEmbeddedAnswerContract(message);
+        // F-05: imagePaths are untrusted renderer input — validate count +
+        // userData confinement before they reach the LLM. Throws on
+        // violation (fail-closed); the catch below surfaces it to the
+        // renderer as a rejection.
+        const validatedChatImagePaths = validateChatImagePaths(imagePaths, 'gemini-chat');
         const result = await appState.processingHelper
           .getLLMHelper()
-          .chatWithGemini(strippedMessage, imagePaths, context, options?.skipSystemPrompt);
+          .chatWithGemini(message, validatedChatImagePaths, context, options?.skipSystemPrompt);
 
         console.log(`[IPC] gemini - chat response received`, { length: result?.length ?? 0 });
 
@@ -6325,7 +6356,30 @@ export function initializeIpcHandlers(appState: AppState): void {
     };
   // Register the manual chat handler; also expose it for the E2E manual-ask
   // harness (test-only; REFRACT_E2E gates the caller).
-  safeHandle('gemini-chat-stream', _geminiChatStreamHandler);
+  // F-05: imagePaths are untrusted renderer input — validate count + userData
+  // confinement BEFORE the stream starts. A failure is reported through the
+  // stream error event (no streamId exists yet for this turn), mirroring how
+  // the handler reports its other pre-stream errors; the inner handler only
+  // ever receives validated paths.
+  safeHandle('gemini-chat-stream', async (
+    event: any,
+    message: string,
+    imagePaths?: string[],
+    context?: string,
+    options?: { skipSystemPrompt?: boolean; ignoreKnowledgeMode?: boolean },
+  ): Promise<null> => {
+    let validatedChatImagePaths: string[] | undefined;
+    try {
+      validatedChatImagePaths = validateChatImagePaths(imagePaths, 'gemini-chat-stream');
+    } catch (validationError: unknown) {
+      const validationMessage = validationError instanceof Error
+        ? validationError.message
+        : String(validationError);
+      event.sender.send('gemini-stream-error', validationMessage, { streamId: null });
+      return null;
+    }
+    return _geminiChatStreamHandler(event, message, validatedChatImagePaths, context, options);
+  });
   if (process.env.REFRACT_E2E === '1') {
     (globalThis as any).__refractGeminiChatStream = _geminiChatStreamHandler;
   }
@@ -12776,6 +12830,11 @@ export function initializeIpcHandlers(appState: AppState): void {
   // Settings overlay severed the event channel is no longer possible.
   safeHandle('local-whisper-start-download', async (_event, modelId: string) => {
     try {
+      // F-06: modelId is untrusted renderer input — allowlist first. Unknown
+      // ids (traversal, arbitrary repos) throw and land in the error shape
+      // below instead of reaching the download service / filesystem.
+      const whisperModels: typeof import('./audio/whisper/modelManager') = require('./audio/whisper/modelManager');
+      whisperModels.assertKnownModelId(modelId);
       const { LocalModelDownloadService, resolveLocalModelProviderName } = require('./services/LocalModelDownloadService');
       const r = LocalModelDownloadService.getInstance().start(resolveLocalModelProviderName(modelId), modelId);
       // Preserve the original return shape: the panel treats 'already-downloading'
@@ -18662,6 +18721,101 @@ export function initializeIpcHandlers(appState: AppState): void {
         return { success: true };
       } catch (e: any) {
         return { success: false, error: e?.message || String(e) };
+      }
+    });
+
+    // ── F-08: Dev Dashboard repo-index wiring (confined scan/query) ────────
+    // Every renderer-provided path is validated via validateRepoPath BEFORE
+    // any indexer is built: invalid → {success:false, error}, nothing is
+    // indexed. The validated realpath is kept in a process-local slot (the
+    // renderer-sent path is never trusted twice); repo-index:query
+    // re-validates the persisted value before building its indexer.
+    const repoIndexPaths = new Map<string, string>();
+
+    safeHandle('dialog:selectFolder', async () => {
+      try {
+        const { dialog, BrowserWindow } = require('electron');
+        const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+        const picked = await dialog.showOpenDialog(parent, {
+          title: 'Choose a repository folder',
+          properties: ['openDirectory'],
+          message: 'Select the repository folder to index',
+        });
+        if (picked.canceled || picked.filePaths.length === 0) return { success: false, error: 'cancelled' };
+        return { success: true, path: picked.filePaths[0] };
+      } catch (e: unknown) {
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    });
+
+    safeHandle('repo-index:get-path', async () => {
+      return { success: true, path: repoIndexPaths.get('repoIndexerPath') ?? null };
+    });
+
+    safeHandle('repo-index:set-path', async (_event, repoPath: string) => {
+      try {
+        const { validateRepoPath } = require('./repo-indexer/repoPathPolicy') as typeof import('./repo-indexer/repoPathPolicy');
+        const resolved = validateRepoPath(repoPath);
+        repoIndexPaths.set('repoIndexerPath', resolved);
+        return { success: true, path: resolved };
+      } catch (e: unknown) {
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    });
+
+    safeHandle('repo-index:scan', async (_event, repoPath: string) => {
+      try {
+        const { validateRepoPath } = require('./repo-indexer/repoPathPolicy') as typeof import('./repo-indexer/repoPathPolicy');
+        const resolved = validateRepoPath(repoPath);
+        repoIndexPaths.set('repoIndexerPath', resolved);
+        const { RepoIndexer } = require('./repo-indexer/RepoIndexer') as typeof import('./repo-indexer/RepoIndexer');
+        const dbm = DatabaseManager.getInstance();
+        const db = dbm.getDb();
+        if (!db) return { success: false, error: 'database_unavailable' };
+        const indexer = new RepoIndexer({ repoPath: resolved, db, dbPath: dbm.getDbPath(), extPath: '' });
+        if (!indexer.isEnabled()) {
+          try { indexer.dispose(); } catch { /* best effort */ }
+          return { success: false, error: 'repoIndexer_disabled', path: resolved };
+        }
+        try {
+          const stats = await indexer.scanRepo();
+          return { success: true, path: resolved, fileCount: stats.fileCount, chunkCount: stats.chunkCount };
+        } finally {
+          try { indexer.dispose(); } catch { /* best effort */ }
+        }
+      } catch (e: unknown) {
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    });
+
+    safeHandle('repo-index:query', async (_event, query: string, topK?: number) => {
+      try {
+        if (typeof query !== 'string' || query.length === 0) {
+          return { success: false, error: 'Invalid query' };
+        }
+        const stored = repoIndexPaths.get('repoIndexerPath') ?? null;
+        const { validateRepoPath } = require('./repo-indexer/repoPathPolicy') as typeof import('./repo-indexer/repoPathPolicy');
+        const resolved = validateRepoPath(stored);
+        const { RepoIndexer } = require('./repo-indexer/RepoIndexer') as typeof import('./repo-indexer/RepoIndexer');
+        const dbm = DatabaseManager.getInstance();
+        const db = dbm.getDb();
+        if (!db) return { success: false, error: 'database_unavailable' };
+        const indexer = new RepoIndexer({ repoPath: resolved, db, dbPath: dbm.getDbPath(), extPath: '' });
+        if (!indexer.isEnabled()) {
+          try { indexer.dispose(); } catch { /* best effort */ }
+          return { success: false, error: 'repoIndexer_disabled' };
+        }
+        try {
+          const limit = typeof topK === 'number' && Number.isFinite(topK)
+            ? Math.max(1, Math.min(50, Math.floor(topK)))
+            : 10;
+          const results = await indexer.query(query, limit);
+          return { success: true, results };
+        } finally {
+          try { indexer.dispose(); } catch { /* best effort */ }
+        }
+      } catch (e: unknown) {
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
       }
     });
 
