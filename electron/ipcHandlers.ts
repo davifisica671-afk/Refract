@@ -1302,6 +1302,9 @@ export function initializeIpcHandlers(appState: AppState): void {
       options?: { skipSystemPrompt?: boolean },
     ) => {
       try {
+        // Restored contract-strip (defense-in-depth): strip any embedded
+        // <answer_contract> block before validation/use.
+        message = stripEmbeddedAnswerContract(message);
         // F-05: imagePaths are untrusted renderer input — validate count +
         // userData confinement before they reach the LLM. Throws on
         // violation (fail-closed); the catch below surfaces it to the
@@ -6362,7 +6365,7 @@ export function initializeIpcHandlers(appState: AppState): void {
   // the handler reports its other pre-stream errors; the inner handler only
   // ever receives validated paths.
   safeHandle('gemini-chat-stream', async (
-    event: any,
+    event: Electron.IpcMainInvokeEvent,
     message: string,
     imagePaths?: string[],
     context?: string,
@@ -18732,6 +18735,7 @@ export function initializeIpcHandlers(appState: AppState): void {
     // re-validates the persisted value before building its indexer.
     const repoIndexPaths = new Map<string, string>();
 
+    // Kept: DevDashboard Browse button calls api.selectFolder() (src/components/dev/DevDashboard.tsx).
     safeHandle('dialog:selectFolder', async () => {
       try {
         const { dialog, BrowserWindow } = require('electron');
@@ -18748,6 +18752,7 @@ export function initializeIpcHandlers(appState: AppState): void {
       }
     });
 
+    // Kept: DevDashboard restores its input via api.getRepoPath() on mount (src/components/dev/DevDashboard.tsx).
     safeHandle('repo-index:get-path', async () => {
       return { success: true, path: repoIndexPaths.get('repoIndexerPath') ?? null };
     });
