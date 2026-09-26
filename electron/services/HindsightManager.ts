@@ -34,10 +34,153 @@ interface SettingsLike {
   get(key: string): unknown;
 }
 
+/**
+ * Minimal encrypted-store surface for the Hindsight Cloud API key
+ * (satisfied by CredentialsManager; faked in tests).
+ */
+export interface HindsightApiKeyStore {
+  getHindsightApiKey(): string | undefined;
+  setHindsightApiKey(key: string): void;
+  isPersistenceAvailable(): boolean;
+}
+
+/**
+ * Minimal settings surface for the one-time legacy key migration: read the
+ * plaintext fallback, then clear it once the key lives in safeStorage.
+ * (Satisfied by SettingsManager; faked in tests.)
+ */
+export interface HindsightLegacySettings {
+  get(key: string): unknown;
+  set(key: string, value: unknown): void;
+}
+
 const HEALTH_TIMEOUT_MS = 1000;       // corresponde a OllamaManager.checkIsRunning
 const AVAILABILITY_TTL_MS = 30_000;   // cache de health para que chamadas retain/recall sejam baratas
 const SPAWN_POLL_INTERVAL_MS = 5000;  // polling para prontidão (como OllamaManager)
 const SPAWN_MAX_ATTEMPTS = 36;        // 36 * 5s = 180s (primeiro boot baixa modelos de embedding)
+
+const SHELL_METACHARS = /[;&|`$(){}!#~*?<>^\n\r]/;
+const KNOWN_INTERPRETERS = new Set(['bash', 'sh', 'python', 'python3', 'node', 'cmd', 'powershell', 'pwsh', 'perl', 'ruby', 'php', 'dash', 'zsh', 'fish', 'deno', 'bun']);
+export interface ServerCommandValidation { ok: boolean; argv?: string[]; error?: string; }
+function splitArgv(raw: string): { tokens: string[]; quoted: boolean[] } | null {
+  const tokens: string[] = []; const quoted: boolean[] = [];
+  let cur = '', q: string | null = null, curQuoted = false, esc = false;
+  for (const ch of raw) {
+    if (esc) { cur += ch; esc = false; continue; }
+    if (ch === '\\' && !q) { esc = true; continue; }
+    if (q) { if (ch === q) { q = null; } else { cur += ch; } continue; }
+    if (ch === '"' || ch === "'") { q = ch; curQuoted = true; continue; }
+    if (/\s/.test(ch)) { if (cur) { tokens.push(cur); quoted.push(curQuoted); cur = ''; curQuoted = false; } continue; }
+    cur += ch;
+  }
+  if (q) return null;
+  if (cur) { tokens.push(cur); quoted.push(curQuoted); }
+  return { tokens, quoted };
+}
+function resolveOnPath(name: string): string | null {
+  const path = require('path') as typeof import('path');
+  const fs = require('fs') as typeof import('fs');
+  if (path.isAbsolute(name)) {
+    try { return fs.statSync(name).isFile() ? name : null; } catch { return null; }
+  }
+  if (name.includes('/') || name.includes('\\')) return null;
+  const exts = process.platform === 'win32' ? (process.env.PATHEXT || '.EXE').split(';') : [''];
+  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
+    for (const ext of exts) {
+      const cand = path.join(dir, name + ext);
+      try {
+        const st = fs.statSync(cand);
+        if (st.isFile()) {
+          if (process.platform === 'win32') return cand;
+          try { fs.accessSync(cand, fs.constants.X_OK); return cand; } catch { /* not executable */ }
+        }
+      } catch { /* next */ }
+    }
+  }
+  return null;
+}
+export function validateHindsightServerCommand(raw: string): ServerCommandValidation {
+  const cmd = (raw || '').trim();
+  if (!cmd) return { ok: true, argv: [] };
+  const split = splitArgv(cmd);
+  if (!split || !split.tokens.length) return { ok: false, error: 'empty command' };
+  for (let i = 0; i < split.tokens.length; i += 1) {
+    if (!split.quoted[i] && SHELL_METACHARS.test(split.tokens[i])) {
+      return { ok: false, error: 'shell metacharacters are not allowed' };
+    }
+  }
+  const bin = resolveOnPath(split.tokens[0]);
+  if (!bin) return { ok: false, error: 'executable not found' };
+  const base = require('path').basename(bin).toLowerCase().replace(/\.(exe|cmd|bat)$/, '');
+  const versionStripped = base.replace(/[\d.]+$/, '');
+  if (KNOWN_INTERPRETERS.has(base) || (versionStripped && KNOWN_INTERPRETERS.has(versionStripped))) {
+    if (split.tokens.length < 2) return { ok: false, error: 'interpreter requires a script' };
+    const path = require('path') as typeof import('path');
+    const fs = require('fs') as typeof import('fs');
+    const script = split.tokens[1].startsWith('-')
+      ? null
+      : (path.isAbsolute(split.tokens[1]) ? split.tokens[1] : path.resolve(process.cwd(), split.tokens[1]));
+    if (!script) return { ok: false, error: 'interpreter requires a script file' };
+    try { if (!fs.statSync(script).isFile()) return { ok: false, error: 'script file not found' }; }
+    catch { return { ok: false, error: 'script file not found' }; }
+  }
+  return { ok: true, argv: split.tokens };
+}
+
+/**
+ * Resolve the Hindsight Cloud API key: encrypted store (CredentialsManager /
+ * OS safeStorage) first, with a ONE-TIME fallback to the legacy plaintext
+ * `hindsightApiKey` in settings.json — on fallback hit the key is written to
+ * the store and the legacy copy cleared, so later reads are store-only.
+ *
+ * Fail-closed rules (never leak, never destroy the only durable copy):
+ * - No key material is ever written to logs (static log strings only).
+ * - When encryption is unavailable the in-memory store copy is still set for
+ *   this session, but the legacy copy is KEPT (it is the only durable copy).
+ * - When the store itself is unavailable (headless), the legacy value is
+ *   passed through WITHOUT clearing, preserving legacy read behavior.
+ * - No key anywhere → undefined (no writes, no behavior change).
+ */
+export function resolveHindsightApiKey(
+  store: HindsightApiKeyStore | null,
+  legacySettings: HindsightLegacySettings | null,
+): string | undefined {
+  let fromStore: string | undefined;
+  try {
+    fromStore = store?.getHindsightApiKey() ?? undefined;
+  } catch {
+    fromStore = undefined;
+  }
+  if (fromStore && fromStore.trim()) return fromStore.trim();
+
+  let legacy: string | undefined;
+  try {
+    const raw: unknown = legacySettings?.get('hindsightApiKey');
+    legacy = typeof raw === 'string' ? raw.trim() || undefined : undefined;
+  } catch {
+    legacy = undefined;
+  }
+  if (!legacy) return undefined;
+
+  if (store) {
+    try {
+      store.setHindsightApiKey(legacy);
+      if (store.isPersistenceAvailable()) {
+        try {
+          legacySettings?.set('hindsightApiKey', undefined);
+        } catch {
+          // Best-effort clear — migration retries on the next read.
+        }
+        console.log('[HindsightManager] Migrated legacy hindsight API key to safeStorage');
+      } else {
+        console.warn('[HindsightManager] Encryption unavailable; legacy hindsight API key kept in settings until persistence is available');
+      }
+    } catch {
+      // Fail closed: leave the legacy copy untouched.
+    }
+  }
+  return legacy;
+}
 
 export class HindsightManager {
   private static instance: HindsightManager | null = null;
@@ -66,6 +209,26 @@ export class HindsightManager {
     }
   }
 
+  /** Full settings access (get+set) for the one-time legacy key migration. */
+  private mutableSettings(): HindsightLegacySettings | null {
+    try {
+      const { SettingsManager } = require('./SettingsManager') as typeof import('./SettingsManager');
+      return SettingsManager.getInstance();
+    } catch {
+      return null;
+    }
+  }
+
+  /** Lazy CredentialsManager access — same headless-safe pattern as settings(). */
+  private apiKeyStore(): HindsightApiKeyStore | null {
+    try {
+      const { CredentialsManager } = require('./CredentialsManager') as typeof import('./CredentialsManager');
+      return CredentialsManager.getInstance();
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Resolve a configuração do Hindsight: env (dev) tem precedência sobre a configuração
    * persistida (app empacotado). Retorna null quando nenhum baseUrl está configurado
@@ -79,7 +242,7 @@ export class HindsightManager {
         || '').trim();
       if (!baseUrl) return null;
       const apiKey = (process.env.HINDSIGHT_API_KEY
-        || (s?.get('hindsightApiKey') as string | undefined)
+        || resolveHindsightApiKey(this.apiKeyStore(), this.mutableSettings())
         || '').trim() || undefined;
       const timeoutMs = Number(process.env.HINDSIGHT_TIMEOUT_MS) || 800;
       return { baseUrl, apiKey, timeoutMs };
@@ -295,14 +458,22 @@ export class HindsightManager {
     return extra;
   }
 
-  /** Inicia o comando de servidor configurado (forma shell, como `bash scripts/hindsight-start.sh`).
-   *  Degrada graciosamente em erro ("python/script não encontrado") — app não é afetado. */
+  /** Inicia o comando de servidor configurado (forma argv validada, sem shell).
+   *  Recusa comandos inválidos (metacaracteres shell, binário inexistente, interpretador
+   *  sem script) — nunca executa string arbitrária via shell. Degrada graciosamente. */
   private spawnServer(command: string): void {
     try {
+      const v = validateHindsightServerCommand(command);
+      if (!v.ok || !v.argv || !v.argv.length) {
+        console.error('[HindsightManager] refusing to start server: invalid command:', v.error || 'empty command');
+        this.isAppManaged = false;
+        return;
+      }
       const { spawn } = require('child_process') as typeof import('child_process');
       this.isAppManaged = true;
-      // Forma shell para que comandos com múltiplos tokens (`bash scripts/...`) funcionem
-      // entre plataformas. detached:true no POSIX coloca o servidor em seu próprio grupo de
+      // Forma argv SEM shell: o comando foi validado (binário existente resolvido, sem
+      // metacaracteres) e é executado diretamente, sem interpretação shell. detached:true
+      // no POSIX coloca o servidor em seu próprio grupo de
       // processos para que ao sair possamos matar sincronicamente toda a árvore (Python +
       // workers Postgres embarcados, que re-parent/daemonize) com um `process.kill(-pid)`
       // dentro do before-quit — tree-kill é assíncrono e o app pode sair antes que finalize,
@@ -310,8 +481,8 @@ export class HindsightManager {
       // em stopSync.)
 
       const isWin = process.platform === 'win32';
-      this.serverProcess = spawn(command, {
-        shell: true,
+      this.serverProcess = spawn(v.argv[0], v.argv.slice(1), {
+        shell: false,
         detached: !isWin,   // próprio processo agrupar em POSIX para group-kill em quit
         windowsHide: true,
         stdio: 'ignore',

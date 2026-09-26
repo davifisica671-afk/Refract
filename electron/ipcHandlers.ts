@@ -284,13 +284,23 @@ const GATE_GENERIC_TOKENS = new Set<string>([
 
 let appleSpeechLocalesCache: { available: boolean; supported: string[]; installed: string[]; reserved: string[]; maxReserved: number } | null = null;
 
+function assertAppSender(event: any, channel: string): void {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) {
+    throw new Error(`forbidden sender for channel ${channel}`);
+  }
+}
+
 export function initializeIpcHandlers(appState: AppState): void {
   const safeHandle = (
     channel: string,
     listener: (event: any, ...args: any[]) => Promise<any> | any,
   ) => {
     ipcMain.removeHandler(channel);
-    ipcMain.handle(channel, listener);
+    ipcMain.handle(channel, async (event, ...args) => {
+      assertAppSender(event, channel);
+      return listener(event, ...args);
+    });
   };
 
   const safeOn = (
@@ -298,7 +308,15 @@ export function initializeIpcHandlers(appState: AppState): void {
     listener: (event: any, ...args: any[]) => void,
   ) => {
     ipcMain.removeAllListeners(channel);
-    ipcMain.on(channel, listener);
+    ipcMain.on(channel, (event, ...args) => {
+      try {
+        assertAppSender(event, channel);
+      } catch (err) {
+        console.warn(`[IPC] forbidden sender for channel ${channel} — ignored`);
+        return;
+      }
+      listener(event, ...args);
+    });
   };
 
   const broadcastCredentialsChanged = (): void => {
@@ -1243,6 +1261,37 @@ export function initializeIpcHandlers(appState: AppState): void {
     }
   });
 
+  // ── F-05: single image-path boundary for both manual-chat channels ──────
+  // Renderer-provided imagePaths are untrusted IPC input: cap the count
+  // (prompt-inflation DoS) and confine every path to userData via the
+  // shared validateImagePath util (symlink-aware). Fail-closed: anything
+  // unexpected throws and the caller reports without touching the LLM.
+  const MAX_CHAT_IMAGE_PATHS = 5;
+  const validateChatImagePaths = (imagePaths: unknown, channel: string): string[] => {
+    if (imagePaths === undefined || imagePaths === null) return [];
+    if (!Array.isArray(imagePaths)) {
+      throw new Error(`[${channel}] Invalid image attachments payload.`);
+    }
+    if (imagePaths.length === 0) return [];
+    if (imagePaths.length > MAX_CHAT_IMAGE_PATHS) {
+      throw new Error(`[${channel}] Too many image attachments (max ${MAX_CHAT_IMAGE_PATHS}).`);
+    }
+    const { validateImagePath } = require('./utils/curlUtils') as typeof import('./utils/curlUtils');
+    const userDataDir = app.getPath('userData');
+    const validated: string[] = [];
+    for (const p of imagePaths) {
+      if (typeof p !== 'string' || p.length === 0) {
+        throw new Error(`[${channel}] Invalid image attachment path.`);
+      }
+      const validation = validateImagePath(p, userDataDir);
+      if (!validation.isValid) {
+        throw new Error(`[${channel}] Rejected image attachment: ${validation.reason ?? 'invalid path'}.`);
+      }
+      validated.push(p);
+    }
+    return validated;
+  };
+
   safeHandle(
     'gemini-chat',
     async (
@@ -1253,14 +1302,17 @@ export function initializeIpcHandlers(appState: AppState): void {
       options?: { skipSystemPrompt?: boolean },
     ) => {
       try {
-        // Symmetric strip on the non-stream path: defense-in-depth against any
-        // future channel that injects <answer_contract>...</answer_contract> into
-        // `message`. The renderer does NOT currently inject it on either path;
-        // both strips are belt-and-suspenders.
-        const strippedMessage = stripEmbeddedAnswerContract(message);
+        // Restored contract-strip (defense-in-depth): strip any embedded
+        // <answer_contract> block before validation/use.
+        message = stripEmbeddedAnswerContract(message);
+        // F-05: imagePaths are untrusted renderer input — validate count +
+        // userData confinement before they reach the LLM. Throws on
+        // violation (fail-closed); the catch below surfaces it to the
+        // renderer as a rejection.
+        const validatedChatImagePaths = validateChatImagePaths(imagePaths, 'gemini-chat');
         const result = await appState.processingHelper
           .getLLMHelper()
-          .chatWithGemini(strippedMessage, imagePaths, context, options?.skipSystemPrompt);
+          .chatWithGemini(message, validatedChatImagePaths, context, options?.skipSystemPrompt);
 
         console.log(`[IPC] gemini - chat response received`, { length: result?.length ?? 0 });
 
@@ -6307,7 +6359,30 @@ export function initializeIpcHandlers(appState: AppState): void {
     };
   // Register the manual chat handler; also expose it for the E2E manual-ask
   // harness (test-only; REFRACT_E2E gates the caller).
-  safeHandle('gemini-chat-stream', _geminiChatStreamHandler);
+  // F-05: imagePaths are untrusted renderer input — validate count + userData
+  // confinement BEFORE the stream starts. A failure is reported through the
+  // stream error event (no streamId exists yet for this turn), mirroring how
+  // the handler reports its other pre-stream errors; the inner handler only
+  // ever receives validated paths.
+  safeHandle('gemini-chat-stream', async (
+    event: Electron.IpcMainInvokeEvent,
+    message: string,
+    imagePaths?: string[],
+    context?: string,
+    options?: { skipSystemPrompt?: boolean; ignoreKnowledgeMode?: boolean },
+  ): Promise<null> => {
+    let validatedChatImagePaths: string[] | undefined;
+    try {
+      validatedChatImagePaths = validateChatImagePaths(imagePaths, 'gemini-chat-stream');
+    } catch (validationError: unknown) {
+      const validationMessage = validationError instanceof Error
+        ? validationError.message
+        : String(validationError);
+      event.sender.send('gemini-stream-error', validationMessage, { streamId: null });
+      return null;
+    }
+    return _geminiChatStreamHandler(event, message, validatedChatImagePaths, context, options);
+  });
   if (process.env.REFRACT_E2E === '1') {
     (globalThis as any).__refractGeminiChatStream = _geminiChatStreamHandler;
   }
@@ -6347,7 +6422,10 @@ export function initializeIpcHandlers(appState: AppState): void {
   });
 
   safeHandle('delete-meeting', async (_, id: string) => {
-    return DatabaseManager.getInstance().deleteMeeting(id);
+    if (typeof id !== 'string' || id.trim().length === 0 || !/^[0-9a-fA-F-]{1,64}$/.test(id.trim())) {
+      throw new Error('Invalid meeting id');
+    }
+    return DatabaseManager.getInstance().deleteMeeting(id.trim());
   });
 
   safeHandle('check-for-updates', async () => {
@@ -7595,7 +7673,7 @@ export function initializeIpcHandlers(appState: AppState): void {
   safeHandle('hindsight-config:get', async () => {
     try {
       const sm = SettingsManager.getInstance();
-      const { HindsightManager } = require('./services/HindsightManager') as typeof import('./services/HindsightManager');
+      const { HindsightManager, resolveHindsightApiKey } = require('./services/HindsightManager') as typeof import('./services/HindsightManager');
       // Fresh probe (not the cached isAvailable): the settings panel polls this while open, and
       // the local server takes ~15-20s to load embedding models before /health answers. A cached
       // value would leave the chip stuck on "Can't connect" even after the server comes up.
@@ -7609,9 +7687,19 @@ export function initializeIpcHandlers(appState: AppState): void {
       // uses it to label the URL as "(using local default)". We mirror it from the resolved
       // config so the renderer never has to re-derive isLocalTarget itself.
       const storedUrl = String(sm.get('hindsightBaseUrl') || '');
+      // The API key lives in OS safeStorage (CredentialsManager); settings.json
+      // holds only a legacy plaintext fallback, migrated on first read. The raw
+      // key is NEVER returned — only a boolean presence flag.
+      let hasApiKey = false;
+      try {
+        const { CredentialsManager } = require('./services/CredentialsManager') as typeof import('./services/CredentialsManager');
+        hasApiKey = Boolean(resolveHindsightApiKey(CredentialsManager.getInstance(), sm));
+      } catch {
+        hasApiKey = Boolean(sm.get('hindsightApiKey'));
+      }
       return {
         baseUrl: cfg?.baseUrl || 'http://localhost:8888',
-        hasApiKey: Boolean(sm.get('hindsightApiKey')),
+        hasApiKey,
         autoStart: sm.get('hindsightAutoStart') !== false, // default on
         serverCommand: String(sm.get('hindsightServerCommand') || ''),
         llmProvider: String(sm.get('hindsightLlmProvider') || ''),
@@ -7627,7 +7715,7 @@ export function initializeIpcHandlers(appState: AppState): void {
     }
   });
 
-  safeHandle('hindsight-config:set', async (_, cfg: { baseUrl?: string; apiKey?: string; autoStart?: boolean; serverCommand?: string; llmProvider?: string }) => {
+  safeHandle('hindsight-config:set', async (event, cfg: { baseUrl?: string; apiKey?: string; autoStart?: boolean; serverCommand?: string; llmProvider?: string }) => {
     try {
       const sm = SettingsManager.getInstance();
       // R-24: this handler writes up to six keys. A refused write must not be
@@ -7635,10 +7723,67 @@ export function initializeIpcHandlers(appState: AppState): void {
       // config that was never persisted. Collect the outcomes and fail as one.
       let persisted = true;
       const put = (key: any, value: any): void => { if (!sm.set(key, value)) persisted = false; };
+      // SECURITY: validate serverCommand BEFORE persisting anything. An invalid
+      // command (shell metachars, unknown binary, interpreter without script) is
+      // refused without persisting ANY key; a valid change vs the stored value
+      // requires native reconfirmation (fail-closed: exception/no-window/Cancel
+      // → refused without persisting).
+      if (typeof cfg?.serverCommand === 'string') {
+        const { validateHindsightServerCommand } = require('./services/HindsightManager') as typeof import('./services/HindsightManager');
+        const cmd = cfg.serverCommand.trim();
+        const v = validateHindsightServerCommand(cmd);
+        if (!v.ok) return { success: false, error: `invalid server command: ${v.error}` };
+        const stored = String(sm.get('hindsightServerCommand') || '');
+        if (cmd !== stored) {
+          let allowed = false;
+          try {
+            const parentWin = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+            if (!parentWin || parentWin.isDestroyed()) return { success: false, error: 'cancelled' };
+            const choice = dialog.showMessageBoxSync(parentWin, {
+              type: 'warning',
+              buttons: ['Cancel', 'Allow once'],
+              defaultId: 0,
+              cancelId: 0,
+              title: 'Refract',
+              message: 'Allow this Hindsight server command?',
+              detail: cmd,
+            });
+            allowed = choice === 1;
+          } catch {
+            return { success: false, error: 'cancelled' };
+          }
+          if (!allowed) return { success: false, error: 'cancelled' };
+        }
+      }
       if (typeof cfg?.baseUrl === 'string') put('hindsightBaseUrl', cfg.baseUrl.trim());
-      // Blank apiKey on resave = KEEP the stored one (don't wipe a saved key with an empty
-      // field — the documented blank-key-on-resave gotcha). Only write a non-empty value.
-      if (typeof cfg?.apiKey === 'string' && cfg.apiKey.trim()) put('hindsightApiKey', cfg.apiKey.trim());
+      // The API key lives in OS safeStorage, never in settings.json. A non-empty
+      // value replaces the stored key; a blank value keeps the stored one (same
+      // documented blank-key-on-resave behavior as before). Fail closed: a store
+      // failure is reported, and any stale legacy plaintext copy is dropped only
+      // after the encrypted write is confirmed durable.
+      if (typeof cfg?.apiKey === 'string' && cfg.apiKey.trim()) {
+        let keyStored = false;
+        try {
+          const { CredentialsManager } = require('./services/CredentialsManager') as typeof import('./services/CredentialsManager');
+          const cm = CredentialsManager.getInstance();
+          cm.setHindsightApiKey(cfg.apiKey.trim());
+          keyStored = cm.isPersistenceAvailable();
+          if (!keyStored) {
+            console.warn('[HindsightConfig] encryption unavailable; Hindsight API key kept in memory only');
+          }
+        } catch {
+          keyStored = false;
+        }
+        if (!keyStored) {
+          persisted = false;
+        } else {
+          try {
+            sm.set('hindsightApiKey', undefined);
+          } catch {
+            // Best-effort legacy clear — the reader migrates/clears on next read.
+          }
+        }
+      }
       if (typeof cfg?.autoStart === 'boolean') put('hindsightAutoStart', cfg.autoStart);
       if (typeof cfg?.serverCommand === 'string') put('hindsightServerCommand', cfg.serverCommand.trim());
       if (typeof cfg?.llmProvider === 'string') put('hindsightLlmProvider', cfg.llmProvider.trim());
@@ -12688,6 +12833,11 @@ export function initializeIpcHandlers(appState: AppState): void {
   // Settings overlay severed the event channel is no longer possible.
   safeHandle('local-whisper-start-download', async (_event, modelId: string) => {
     try {
+      // F-06: modelId is untrusted renderer input — allowlist first. Unknown
+      // ids (traversal, arbitrary repos) throw and land in the error shape
+      // below instead of reaching the download service / filesystem.
+      const whisperModels: typeof import('./audio/whisper/modelManager') = require('./audio/whisper/modelManager');
+      whisperModels.assertKnownModelId(modelId);
       const { LocalModelDownloadService, resolveLocalModelProviderName } = require('./services/LocalModelDownloadService');
       const r = LocalModelDownloadService.getInstance().start(resolveLocalModelProviderName(modelId), modelId);
       // Preserve the original return shape: the panel treats 'already-downloading'
@@ -18574,6 +18724,103 @@ export function initializeIpcHandlers(appState: AppState): void {
         return { success: true };
       } catch (e: any) {
         return { success: false, error: e?.message || String(e) };
+      }
+    });
+
+    // ── F-08: Dev Dashboard repo-index wiring (confined scan/query) ────────
+    // Every renderer-provided path is validated via validateRepoPath BEFORE
+    // any indexer is built: invalid → {success:false, error}, nothing is
+    // indexed. The validated realpath is kept in a process-local slot (the
+    // renderer-sent path is never trusted twice); repo-index:query
+    // re-validates the persisted value before building its indexer.
+    const repoIndexPaths = new Map<string, string>();
+
+    // Kept: DevDashboard Browse button calls api.selectFolder() (src/components/dev/DevDashboard.tsx).
+    safeHandle('dialog:selectFolder', async () => {
+      try {
+        const { dialog, BrowserWindow } = require('electron');
+        const parent = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+        const picked = await dialog.showOpenDialog(parent, {
+          title: 'Choose a repository folder',
+          properties: ['openDirectory'],
+          message: 'Select the repository folder to index',
+        });
+        if (picked.canceled || picked.filePaths.length === 0) return { success: false, error: 'cancelled' };
+        return { success: true, path: picked.filePaths[0] };
+      } catch (e: unknown) {
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    });
+
+    // Kept: DevDashboard restores its input via api.getRepoPath() on mount (src/components/dev/DevDashboard.tsx).
+    safeHandle('repo-index:get-path', async () => {
+      return { success: true, path: repoIndexPaths.get('repoIndexerPath') ?? null };
+    });
+
+    safeHandle('repo-index:set-path', async (_event, repoPath: string) => {
+      try {
+        const { validateRepoPath } = require('./repo-indexer/repoPathPolicy') as typeof import('./repo-indexer/repoPathPolicy');
+        const resolved = validateRepoPath(repoPath);
+        repoIndexPaths.set('repoIndexerPath', resolved);
+        return { success: true, path: resolved };
+      } catch (e: unknown) {
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    });
+
+    safeHandle('repo-index:scan', async (_event, repoPath: string) => {
+      try {
+        const { validateRepoPath } = require('./repo-indexer/repoPathPolicy') as typeof import('./repo-indexer/repoPathPolicy');
+        const resolved = validateRepoPath(repoPath);
+        repoIndexPaths.set('repoIndexerPath', resolved);
+        const { RepoIndexer } = require('./repo-indexer/RepoIndexer') as typeof import('./repo-indexer/RepoIndexer');
+        const dbm = DatabaseManager.getInstance();
+        const db = dbm.getDb();
+        if (!db) return { success: false, error: 'database_unavailable' };
+        const indexer = new RepoIndexer({ repoPath: resolved, db, dbPath: dbm.getDbPath(), extPath: '' });
+        if (!indexer.isEnabled()) {
+          try { indexer.dispose(); } catch { /* best effort */ }
+          return { success: false, error: 'repoIndexer_disabled', path: resolved };
+        }
+        try {
+          const stats = await indexer.scanRepo();
+          return { success: true, path: resolved, fileCount: stats.fileCount, chunkCount: stats.chunkCount };
+        } finally {
+          try { indexer.dispose(); } catch { /* best effort */ }
+        }
+      } catch (e: unknown) {
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    });
+
+    safeHandle('repo-index:query', async (_event, query: string, topK?: number) => {
+      try {
+        if (typeof query !== 'string' || query.length === 0) {
+          return { success: false, error: 'Invalid query' };
+        }
+        const stored = repoIndexPaths.get('repoIndexerPath') ?? null;
+        const { validateRepoPath } = require('./repo-indexer/repoPathPolicy') as typeof import('./repo-indexer/repoPathPolicy');
+        const resolved = validateRepoPath(stored);
+        const { RepoIndexer } = require('./repo-indexer/RepoIndexer') as typeof import('./repo-indexer/RepoIndexer');
+        const dbm = DatabaseManager.getInstance();
+        const db = dbm.getDb();
+        if (!db) return { success: false, error: 'database_unavailable' };
+        const indexer = new RepoIndexer({ repoPath: resolved, db, dbPath: dbm.getDbPath(), extPath: '' });
+        if (!indexer.isEnabled()) {
+          try { indexer.dispose(); } catch { /* best effort */ }
+          return { success: false, error: 'repoIndexer_disabled' };
+        }
+        try {
+          const limit = typeof topK === 'number' && Number.isFinite(topK)
+            ? Math.max(1, Math.min(50, Math.floor(topK)))
+            : 10;
+          const results = await indexer.query(query, limit);
+          return { success: true, results };
+        } finally {
+          try { indexer.dispose(); } catch { /* best effort */ }
+        }
+      } catch (e: unknown) {
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
       }
     });
 
