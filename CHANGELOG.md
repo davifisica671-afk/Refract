@@ -13,6 +13,10 @@
     ### Improvements & Fixes
 
     - **Prompt caching for Claude Opus 4.8**: `getClaudeCacheMinChars` now matches the whole `claude-opus-4-` family instead of enumerating point releases, so `claude-opus-4-8` uses the correct 4,096-token (16,384-char) cache minimum. It previously fell through to the generic 1,024-token floor, which silently disabled prompt caching for prompts between those two sizes.
+    - Security (F-10): IPC handlers now reject calls from foreign WebContents (assertAppSender), and delete-meeting validates its id.
+    - Security: Hindsight serverCommand is validated (no-shell argv form, existing binary only, expanded interpreter gate) with native reconfirmation on save.
+    - Security: Hindsight API key moved from settings.json to OS safeStorage with one-time migration.
+    - Security (F-05/F-06/F-08): chat image paths validated (count + userData confinement), whisper downloads restricted to catalog models, repo-index paths validated before indexing.
     - **Build recovery**: the 60+ modules referenced by the rewritten IPC layer that had no on-disk implementation are now local graceful stubs (empty catalogs, unavailable statuses, typed errors), plus 12 missing degraded exports on pre-existing modules — the app builds and runs again; full implementations remain follow-ups per module.
 
     ## [2.7.0] - 2026-06-05
