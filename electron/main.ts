@@ -2140,7 +2140,10 @@ export class AppState {
         logger(`${prefix}${decision.message}`);
         return;
       }
-      if (decision.type === 'warn-user' && decision.reason === 'same-device-input-output') {
+      // `mac-` copy is macOS-only (CoreAudio process tap; the detector above
+      // only runs on darwin): gate the broadcast itself so a future cross-platform
+      // caller can never leak macOS copy to Windows users (issue #252).
+      if (process.platform === 'darwin' && decision.type === 'warn-user' && decision.reason === 'same-device-input-output') {
         const msg = formatPermissionMessage('mac-same-device-input-output', { device: decision.device });
         console.warn(`${prefix}SystemAudioCapture ${msg}`);
         this.sendAudioCaptureFailed( {

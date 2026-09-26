@@ -97,9 +97,11 @@ describe('Phase 6 — TelemetryService production emission sites', () => {
       const matches = [...src.matchAll(/telemetryService\.track\(/g)];
       assert.ok(matches.length > 0, `${f} should call track()`);
       for (const m of matches) {
-        // Look voltar para cima to 1500 chars para a `try {` (com word-boundary então we
-        // don't match identifiers como `telemetryService` ou `retry`).
-        const window = src.slice(Math.max(0, m.index - 1500), m.index);
+        // Look voltar para cima to 4000 chars para a `try {` (com word-boundary então we
+        // don't match identifiers como `telemetryService` ou `retry`). 4000 (não 1500)
+        // porque o app_start site lives at o end de a long configure block (sinks +
+        // comments) dentro a único try — o invariant (track dentro try) holds.
+        const window = src.slice(Math.max(0, m.index - 4000), m.index);
         // Encontra qualquer `try {` (ou `try\n{`) preceded por start-of-line, whitespace,
         // ou a curly. Reject identifier prefixes.
         const tryRe = /(^|[\s{};])try\s*\{/g;

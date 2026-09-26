@@ -180,9 +180,12 @@ describe('Fix #2: renderer no longer double-fires; server compensates the UI ref
     assert.ok(start >= 0, 'set-refract-api-key handler must exist');
     const end = ipcSrc.indexOf("safeHandle('get-refract-pricing'", start);
     const handlerBody = ipcSrc.slice(start, end > start ? end : start + 4000);
+    // Intentional: the handler broadcasts via the shared broadcastCredentialsChanged()
+    // helper (webContents.send('credentials-changed') to all windows) instead of an
+    // inline send — same event, single source of truth.
     assert.match(
       handlerBody,
-      /send\(\s*['"]credentials-changed['"]\s*\)/,
+      /broadcastCredentialsChanged\(\)|send\(\s*['"]credentials-changed['"]\s*\)/,
       "BUG: set-refract-api-key no longer broadcasts 'credentials-changed'. The Settings STT " +
         'dropdown will show a stale provider after the Refract key is saved or cleared.',
     );
