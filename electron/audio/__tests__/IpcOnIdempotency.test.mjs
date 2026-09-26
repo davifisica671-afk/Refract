@@ -12,9 +12,14 @@ test('send-style IPC registrations use safeOn to avoid listener accumulation', (
   const safeOnStart = ipcSource.indexOf('const safeOn =');
   assert.ok(safeOnStart >= 0, 'BUG: initializeIpcHandlers must define safeOn.');
   const safeOnBody = ipcSource.slice(safeOnStart, ipcSource.indexOf('};', safeOnStart) + 2);
+  // Justification (deliberate evolution, invariant kept): safeOn now wraps
+  // the listener with an assertAppSender forbidden-sender guard, so the raw
+  // `listener` is no longer passed straight to ipcMain.on. Idempotency
+  // (removeAllListeners before on) is unchanged; the guard is pinned too.
   assert.ok(
     /ipcMain\.removeAllListeners\s*\(\s*channel\s*\)/.test(safeOnBody) &&
-      /ipcMain\.on\s*\(\s*channel\s*,\s*listener\s*\)/.test(safeOnBody),
+      /ipcMain\.on\s*\(\s*channel\s*,/.test(safeOnBody) &&
+      /assertAppSender\s*\(\s*event\s*,\s*channel\s*\)/.test(safeOnBody),
     'BUG: safeOn must remove old listeners before registering ipcMain.on channels.',
   );
 

@@ -47,9 +47,13 @@ test('curl provider save handlers validate renderer payloads before persistence'
     assert.ok(validatorBody.includes(`typeof (provider as any).${field} !== 'string'`),
       `BUG: validator must require string ${field}.`);
   }
+  // Justification (deliberate evolution, invariant kept): the validator no
+  // longer spells a literal `.includes('{{TEXT}}')` — it gates on the shared
+  // TEXT_PLACEHOLDER_RE policy (spacing-tolerant, single source of truth with
+  // curlUtils + curl-validator). The {{TEXT}} requirement itself is unchanged.
   assert.ok(
-    /curlCommand[\s\S]*\.includes\(\s*['"]\{\{TEXT\}\}['"]\s*\)/.test(validatorBody),
-    'BUG: validator must require {{TEXT}} prompt injection placeholder.',
+    /TEXT_PLACEHOLDER_RE\.test\(\(provider as any\)\.curlCommand\)/.test(validatorBody),
+    'BUG: validator must require {{TEXT}} prompt injection placeholder via the shared TEXT_PLACEHOLDER_RE policy.',
   );
   assert.ok(
     /responsePath['"]?\s+in\s+provider[\s\S]*typeof\s+\(provider as any\)\.responsePath\s+!==\s+['"]string['"]/.test(validatorBody),
@@ -62,8 +66,11 @@ test('curl provider save handlers validate renderer payloads before persistence'
       /const\s+validation\s*=\s*validateCurlProviderPayload\(provider\)/.test(body),
       `BUG: ${channel} must use the shared payload validator.`,
     );
+    // NOTE: `(validation as any)` is load-bearing — the electron tsconfig is
+    // non-strict, so `!validation.ok` does not narrow the validator's union
+    // return; dropping the cast breaks `tsc -p electron/tsconfig.json`.
     assert.ok(
-      /if\s*\(\s*!validation\.ok\s*\)[\s\S]*return\s*\{\s*success:\s*false,\s*error:\s*validation\.error\s*\}/.test(body),
+      /if\s*\(\s*!validation\.ok\s*\)[\s\S]*return\s*\{\s*success:\s*false,\s*error:\s*\(validation as any\)\.error\s*\}/.test(body),
       `BUG: ${channel} must reject invalid providers before saveCurlProvider.`,
     );
     assert.ok(

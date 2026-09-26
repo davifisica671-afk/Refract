@@ -110,8 +110,18 @@ test('IPC handlers expose get/set provider-data-scopes and broadcast updates', (
 
   assert.match(ipc, /safeHandle\(['"]get-provider-data-scopes['"]/);
   assert.match(ipc, /safeHandle\(['"]set-provider-data-scopes['"]/);
-  assert.match(ipc, /webContents\.send\('provider-data-scopes-changed', sanitized\)/);
-  assert.match(ipc, /SettingsManager\.getInstance\(\)\.set\('providerDataScopes'/);
+  // Justification (deliberate evolution, invariant kept): the handler
+  // broadcasts the MERGED canonical policy (mergeProviderDataScopes), not the
+  // raw payload — echoing a partial payload reintroduced scope erasure
+  // (notably code_execution). Broadcast-to-all-windows still holds.
+  assert.match(ipc, /webContents\.send\('provider-data-scopes-changed', merged\)/);
+  // Justification (deliberate evolution, invariant kept): the handler hoists
+  // the singleton into a `settings` local reused for get + set. Persistence
+  // still goes through SettingsManager, and — critically — persists the
+  // MERGED policy, so toggling one scope cannot erase a stored
+  // `code_execution: false` (the whole-object-replacement erasure bug).
+  assert.match(ipc, /const settings = SettingsManager\.getInstance\(\)/);
+  assert.match(ipc, /\.set\('providerDataScopes', merged/);
 });
 
 test('preload and renderer types expose provider data scope controls', () => {
