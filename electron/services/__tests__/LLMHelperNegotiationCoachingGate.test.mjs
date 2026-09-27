@@ -63,7 +63,7 @@ const distDir = (() => {
   // mas ainda emite JS para files that compile cleanly. We swallow o
   // non-zero status and verifica post-hoc that LLMHelper.js era produced.
   try {
-    execSync(`node node_modules/.bin/tsc -p electron/tsconfig.json --outDir ${target}`, {
+    execSync(`node node_modules/typescript/bin/tsc -p electron/tsconfig.json --outDir ${target}`, {
       cwd: repoRoot,
       stdio: 'pipe',
     });
