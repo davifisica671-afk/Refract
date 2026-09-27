@@ -32,10 +32,13 @@ const P = (rel) => pathToFileURL(path.resolve(__dirname, rel)).href;
 // don't reimplement, when absent. (skillsUtil itself is stubbed; its unit
 // coverage lives in SkillCategorization.test.mjs.)
 const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
-const SKIP_NO_PREMIUM = !fs.existsSync(KO_PATH) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
-const { KnowledgeDatabaseManager } = await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js'));
+const KDB_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js');
+const TYPES_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/types.js');
+const DC_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/DocumentChunker.js');
+const SKIP_NO_PREMIUM = (!fs.existsSync(KO_PATH) || !fs.existsSync(KDB_PATH) || !fs.existsSync(TYPES_PATH) || !fs.existsSync(DC_PATH)) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeDatabaseManager } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js'));
 const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js'));
-const { DocType } = await import(P('../../../dist-electron/premium/electron/knowledge/types.js'));
+const { DocType } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/types.js'));
 const { createDocumentNodes } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/DocumentChunker.js'));
 
 // Extractor Retorna o NEW categorized shape (como o upgraded prompt instructs).

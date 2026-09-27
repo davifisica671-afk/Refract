@@ -79,16 +79,18 @@ function makeTempFile(content, ext = '.txt') {
 // ---------------------------------------------------------------------------
 // Wave 2B: KnowledgeOrchestrator is commercial orchestration logic — skip, don't reimplement, when absent.
 const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
-const SKIP_NO_PREMIUM = !fs.existsSync(KO_PATH) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
-const { KnowledgeDatabaseManager } = await import(
-    pathToFileURL(path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js')).href
+const KDB_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js');
+const TYPES_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/types.js');
+const SKIP_NO_PREMIUM = (!fs.existsSync(KO_PATH) || !fs.existsSync(KDB_PATH) || !fs.existsSync(TYPES_PATH)) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeDatabaseManager } = SKIP_NO_PREMIUM ? {} : await import(
+    pathToFileURL(KDB_PATH).href
 );
 const orchestratorMod = SKIP_NO_PREMIUM ? {} : await import(
     pathToFileURL(KO_PATH).href
 );
 const { KnowledgeOrchestrator } = orchestratorMod;
-const { DocType } = await import(
-    pathToFileURL(path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/types.js')).href
+const { DocType } = SKIP_NO_PREMIUM ? {} : await import(
+    pathToFileURL(TYPES_PATH).href
 );
 
 const MOCK_GENERATE_CONTENT = async (contents) => {

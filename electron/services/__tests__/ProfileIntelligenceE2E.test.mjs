@@ -21,12 +21,14 @@ import Database from 'better-sqlite3';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const P = (rel) => pathToFileURL(path.resolve(__dirname, rel)).href;
 
-const { KnowledgeDatabaseManager } = await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js'));
+const KDB_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js');
+const TYPES_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/types.js');
 // Wave 2B: KnowledgeOrchestrator is commercial orchestration logic — skip, don't reimplement, when absent.
 const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
-const SKIP_NO_PREMIUM = !fs.existsSync(KO_PATH) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const SKIP_NO_PREMIUM = (!fs.existsSync(KO_PATH) || !fs.existsSync(KDB_PATH) || !fs.existsSync(TYPES_PATH)) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeDatabaseManager } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js'));
 const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js'));
-const { DocType } = await import(P('../../../dist-electron/premium/electron/knowledge/types.js'));
+const { DocType } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/types.js'));
 const { isProfileGroundingV2Enabled } = await import(P('../../../dist-electron/electron/llm/profileGroundingV2.js'));
 
 // This suite asserts o V2 full-injection behavior (o production default).

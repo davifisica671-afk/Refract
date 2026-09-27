@@ -27,13 +27,14 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const IC_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/IntentClassifier.js');
+const NCT_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/NegotiationConversationTracker.js');
 // Wave 2B: negotiation intent routing (keyword lists, stickiness, garbled-comp
 // gate) is commercial logic — skip, don't reimplement, when absent.
 // (Phase-1a textHasCompEvidence runs against the real tracker only when the
 // full routing surface is present, so the file stays a single coherent gate.)
-const SKIP_NO_PREMIUM = !fs.existsSync(IC_PATH) && 'premium IntentClassifier absent — commercial, not stubbed';
+const SKIP_NO_PREMIUM = (!fs.existsSync(IC_PATH) || !fs.existsSync(NCT_PATH)) && 'premium IntentClassifier absent — commercial, not stubbed';
 const { classifyIntent, classifyIntentWithContext, looksLikeGarbledComp } = SKIP_NO_PREMIUM ? {} : require(IC_PATH);
-const { textHasCompEvidence } = require('../../../dist-electron/premium/electron/knowledge/NegotiationConversationTracker.js');
+const { textHasCompEvidence } = SKIP_NO_PREMIUM ? {} : require(NCT_PATH);
 
 // ── Fase 1a: comp-evidence detector sobre interviewer turns ───────────────────
 describe('Phase 1: textHasCompEvidence (interviewer turn scan)', { skip: SKIP_NO_PREMIUM }, () => {
