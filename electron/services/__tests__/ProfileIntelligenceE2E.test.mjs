@@ -22,7 +22,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const P = (rel) => pathToFileURL(path.resolve(__dirname, rel)).href;
 
 const { KnowledgeDatabaseManager } = await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js'));
-const { KnowledgeOrchestrator } = await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js'));
+// Wave 2B: KnowledgeOrchestrator is commercial orchestration logic — skip, don't reimplement, when absent.
+const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+const SKIP_NO_PREMIUM = !fs.existsSync(KO_PATH) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js'));
 const { DocType } = await import(P('../../../dist-electron/premium/electron/knowledge/types.js'));
 const { isProfileGroundingV2Enabled } = await import(P('../../../dist-electron/electron/llm/profileGroundingV2.js'));
 
@@ -112,6 +115,7 @@ const MOCK_EMBED_FN = async () => Array(128).fill(0).map((_, i) => (i % 7) * 0.0
 let db, orchestrator, tmpResume, tmpJd;
 
 before(async () => {
+    if (SKIP_NO_PREMIUM) return; // premium absent — suites below skip, nothing to set up
     db = new KnowledgeDatabaseManager(new Database(':memory:'));
     db.initializeSchema();
     orchestrator = new KnowledgeOrchestrator(db);
@@ -124,6 +128,7 @@ before(async () => {
     orchestrator.setKnowledgeMode(true);
 });
 after(() => {
+    if (SKIP_NO_PREMIUM) return;
     try { fs.unlinkSync(tmpResume); } catch {}
     try { fs.unlinkSync(tmpJd); } catch {}
     try { db.close?.(); } catch {}
@@ -136,7 +141,7 @@ const hasJDBlock = (r) => /<target_job>\n/.test(ctxOf(r));
 // Se o user's actual facts são reachable (block present Ou an intro/name).
 const groundsOnProfile = (r) => hasResumeBlock(r) || /Evin John/.test(ctxOf(r));
 
-describe('Spec §11 E2E: profile questions ARE grounded', { skip: !V2_ON }, () => {
+describe('Spec §11 E2E: profile questions ARE grounded', { skip: SKIP_NO_PREMIUM || (!V2_ON && 'V2 flag off — legacy covered elsewhere') }, () => {
     test('1/2. "what is my name?" grounds on identity (name reachable)', async () => {
         const r = await orchestrator.processQuestion('what is my name?');
         assert.ok(r, 'must return a result');
@@ -176,7 +181,7 @@ describe('Spec §11 E2E: profile questions ARE grounded', { skip: !V2_ON }, () =
     });
 });
 
-describe('Spec §8.3 E2E: coding/technical/sales/lecture get NO profile', () => {
+describe('Spec §8.3 E2E: coding/technical/sales/lecture get NO profile', { skip: SKIP_NO_PREMIUM }, () => {
     test('8. "solve two sum" gets NO resume/JD', async () => {
         const r = await orchestrator.processQuestion('solve two sum');
         assert.ok(!hasResumeBlock(r), 'coding must not get resume');
@@ -207,7 +212,7 @@ describe('Spec §8.3 E2E: coding/technical/sales/lecture get NO profile', () => 
     });
 });
 
-describe('Spec §12 E2E acceptance: no false refusal text in grounded context', { skip: !V2_ON }, () => {
+describe('Spec §12 E2E acceptance: no false refusal text in grounded context', { skip: SKIP_NO_PREMIUM || (!V2_ON && 'V2 flag off — legacy covered elsewhere') }, () => {
     test('a skills question carries the anti-refusal grounding rule', async () => {
         const r = await orchestrator.processQuestion('what are my programming languages?');
         assert.ok(r);

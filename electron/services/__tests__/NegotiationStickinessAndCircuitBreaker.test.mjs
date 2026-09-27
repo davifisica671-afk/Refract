@@ -13,12 +13,20 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { classifyIntent, classifyIntentWithContext } =
-  require('../../../dist-electron/premium/electron/knowledge/IntentClassifier.js');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const IC_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/IntentClassifier.js');
+// Wave 2B: negotiation intent routing (keyword lists, stickiness, override
+// hierarchy) is commercial logic — skip, don't reimplement, when absent.
+// (The Pro-tier circuit-breaker suite below uses core LLMHelper and stays live.)
+const SKIP_NO_PREMIUM = !fs.existsSync(IC_PATH) && 'premium IntentClassifier absent — commercial, not stubbed';
+const { classifyIntent, classifyIntentWithContext } = SKIP_NO_PREMIUM ? {} : require(IC_PATH);
 
-describe('negotiation: SPECIFIC keywords classify per-utterance (no context needed)', () => {
+describe('negotiation: SPECIFIC keywords classify per-utterance (no context needed)', { skip: SKIP_NO_PREMIUM }, () => {
   // These são unambiguous comp asks → negotiation em their opróprio
   const negotiation = [
     'tell me your last salary', 'what is your current ctc',
@@ -32,7 +40,7 @@ describe('negotiation: SPECIFIC keywords classify per-utterance (no context need
   }
 });
 
-describe('negotiation: AMBIGUOUS comp phrases are context-gated (not base negotiation)', () => {
+describe('negotiation: AMBIGUOUS comp phrases are context-gated (not base negotiation)', { skip: SKIP_NO_PREMIUM }, () => {
   // These deliberately fazer Não classify negotiation standalone (they collide com
   // non-comp questions); they apenas become negotiation quando a comp thread é
   // active (covered em o stickiness suite beabaixo
@@ -44,7 +52,7 @@ describe('negotiation: AMBIGUOUS comp phrases are context-gated (not base negoti
   }
 });
 
-describe('negotiation: conversational stickiness', () => {
+describe('negotiation: conversational stickiness', { skip: SKIP_NO_PREMIUM }, () => {
   const ctx = { recentIntentWasNegotiation: true };
 
   test('ambiguous follow-ups stay negotiation while thread active', () => {

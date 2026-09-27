@@ -12,15 +12,20 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const loadCompiled = (rel) =>
-  import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/' + rel)).href);
+const HE_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/HeuristicExtractor.js');
+// Wave 2B: the heuristic extractor is a full commercial parser (name/contact/
+// skills/experience/project/education rules) — skip, don't reimplement, when absent.
+const SKIP_NO_PREMIUM = !fs.existsSync(HE_PATH) && 'premium HeuristicExtractor absent — commercial parser, not stubbed';
 
-const { heuristicResumeExtract, heuristicJDExtract } = await loadCompiled('HeuristicExtractor.js');
+const { heuristicResumeExtract, heuristicJDExtract } = SKIP_NO_PREMIUM
+  ? {}
+  : await import(pathToFileURL(HE_PATH).href);
 // Reuse o production readiness predicate então o testar proves real readiness.
 const { profileFactsReady } = await import(
   pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/llm/manualProfileIntelligence.js')).href
@@ -56,7 +61,7 @@ EDUCATION
 B.Tech in Computer Science, Cochin University (2021-08 - 2025-05)
 `;
 
-describe('heuristicResumeExtract', () => {
+describe('heuristicResumeExtract', { skip: SKIP_NO_PREMIUM }, () => {
   const r = heuristicResumeExtract(RESUME);
 
   test('extracts the candidate name from the first line', () => {
@@ -148,7 +153,7 @@ Responsibilities
 - Partner with product on experiment design
 `;
 
-describe('heuristicJDExtract', () => {
+describe('heuristicJDExtract', { skip: SKIP_NO_PREMIUM }, () => {
   const jd = heuristicJDExtract(JD);
 
   test('extracts a title', () => {

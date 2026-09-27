@@ -21,10 +21,18 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { KnowledgeOrchestrator } = require('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+// Wave 2B: KnowledgeOrchestrator is commercial orchestration logic — skip, don't reimplement, when absent.
+// (The LLMHelper mode-gate suite below is pure in-test logic and stays live.)
+const SKIP_NO_PREMIUM = !fs.existsSync(KO_PATH) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : require(KO_PATH);
 const { isProfileGroundingV2Enabled } = require('../../../dist-electron/electron/llm/profileGroundingV2.js');
 // These tests pin o LEGACY (flag-OFF) grounding contract. Perfil Grounding
 // V2 deliberately changes alguns de it (generic questions keep o completo perfil em
@@ -93,7 +101,7 @@ function makeOrchestrator(resume = SYNTHETIC_RESUME) {
   return orch;
 }
 
-describe('Profile factual recall — production path', () => {
+describe('Profile factual recall — production path', { skip: SKIP_NO_PREMIUM }, () => {
   test('"what are my projects?" returns ALL structured projects (no embedder, no LLM)', async () => {
     const orch = makeOrchestrator();
     const result = await orch.processQuestion('what are my projects?');

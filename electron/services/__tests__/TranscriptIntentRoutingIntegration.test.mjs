@@ -52,8 +52,11 @@ function makeTempFile(content, ext = '.txt') {
 }
 
 const base = '../../../dist-electron/premium/electron/knowledge';
+// Wave 2B: KnowledgeOrchestrator is commercial orchestration logic — skip, don't reimplement, when absent.
+const KO_PATH = path.resolve(__dirname, `${base}/KnowledgeOrchestrator.js`);
+const SKIP_NO_PREMIUM = !fs.existsSync(KO_PATH) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
 const { KnowledgeDatabaseManager } = await import(pathToFileURL(path.resolve(__dirname, `${base}/KnowledgeDatabaseManager.js`)).href);
-const { KnowledgeOrchestrator } = await import(pathToFileURL(path.resolve(__dirname, `${base}/KnowledgeOrchestrator.js`)).href);
+const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : await import(pathToFileURL(KO_PATH).href);
 const { DocType } = await import(pathToFileURL(path.resolve(__dirname, `${base}/types.js`)).href);
 
 const MOCK_GENERATE_CONTENT = async () => JSON.stringify({
@@ -82,7 +85,7 @@ async function captureIntent(fn) {
   return intent;
 }
 
-describe('Integration: transcript-aware intent routing through processQuestion', () => {
+describe('Integration: transcript-aware intent routing through processQuestion', { skip: SKIP_NO_PREMIUM }, () => {
   let db, orchestrator, tmpResume;
   let hint; // mutable provedor estado o testar controla
 

@@ -20,15 +20,23 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const { classifyIntent, classifyIntentWithContext, looksLikeGarbledComp } =
-  require('../../../dist-electron/premium/electron/knowledge/IntentClassifier.js');
-const { textHasCompEvidence } =
-  require('../../../dist-electron/premium/electron/knowledge/NegotiationConversationTracker.js');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const IC_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/IntentClassifier.js');
+// Wave 2B: negotiation intent routing (keyword lists, stickiness, garbled-comp
+// gate) is commercial logic — skip, don't reimplement, when absent.
+// (Phase-1a textHasCompEvidence runs against the real tracker only when the
+// full routing surface is present, so the file stays a single coherent gate.)
+const SKIP_NO_PREMIUM = !fs.existsSync(IC_PATH) && 'premium IntentClassifier absent — commercial, not stubbed';
+const { classifyIntent, classifyIntentWithContext, looksLikeGarbledComp } = SKIP_NO_PREMIUM ? {} : require(IC_PATH);
+const { textHasCompEvidence } = require('../../../dist-electron/premium/electron/knowledge/NegotiationConversationTracker.js');
 
 // ── Fase 1a: comp-evidence detector sobre interviewer turns ───────────────────
-describe('Phase 1: textHasCompEvidence (interviewer turn scan)', () => {
+describe('Phase 1: textHasCompEvidence (interviewer turn scan)', { skip: SKIP_NO_PREMIUM }, () => {
   test('flags comp turns (keyword or amount)', () => {
     for (const t of [
       'so what are your salary expectations?',
@@ -53,7 +61,7 @@ describe('Phase 1: textHasCompEvidence (interviewer turn scan)', () => {
 });
 
 // ── Fase 1b: transcript hint activates o comp thread ───────────────────────
-describe('Phase 1: recentInterviewerComp activates negotiation for follow-ups', () => {
+describe('Phase 1: recentInterviewerComp activates negotiation for follow-ups', { skip: SKIP_NO_PREMIUM }, () => {
   const hint = { recentInterviewerComp: true };
 
   test('ambiguous comp follow-ups route to negotiation when interviewer just raised comp', () => {
@@ -78,7 +86,7 @@ describe('Phase 1: recentInterviewerComp activates negotiation for follow-ups', 
 });
 
 // ── Fase 2: garbled/typo comp rescue (deterministic edit distance) ───────────
-describe('Phase 2: looksLikeGarbledComp (typo/garbled STT rescue gate)', () => {
+describe('Phase 2: looksLikeGarbledComp (typo/garbled STT rescue gate)', { skip: SKIP_NO_PREMIUM }, () => {
   test('TRUE for near-miss comp words (would route GENERAL→negotiation)', () => {
     for (const q of [
       'what do you think about the slalary',
@@ -125,7 +133,7 @@ describe('Phase 2: looksLikeGarbledComp (typo/garbled STT rescue gate)', () => {
 // decay lives em KnowledgeOrchestrator.processQuestion. Aqui we assert o
 // building block: a confident non-comp intent Nunca routes to negotiation, que
 // é o que makes intervening turns "substantive non-comp" and able to decay.
-describe('Phase 1: decay building block — confident non-comp intents never stick', () => {
+describe('Phase 1: decay building block — confident non-comp intents never stick', { skip: SKIP_NO_PREMIUM }, () => {
   const sticky = { recentIntentWasNegotiation: true, recentInterviewerComp: true };
   for (const [q, expected] of [
     ['what is a hashmap', 'technical'],

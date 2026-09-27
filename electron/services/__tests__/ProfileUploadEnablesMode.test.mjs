@@ -65,8 +65,12 @@ function makeTempFile(content, ext = '.txt') {
 const { KnowledgeDatabaseManager } = await import(
     pathToFileURL(path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js')).href
 );
-const { KnowledgeOrchestrator } = await import(
-    pathToFileURL(path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js')).href
+// Wave 2B: KnowledgeOrchestrator is commercial orchestration logic — skip, don't reimplement, when absent.
+// (The IPC-handler source suite below is core-only and stays live.)
+const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+const SKIP_NO_PREMIUM = !fs.existsSync(KO_PATH) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : await import(
+    pathToFileURL(KO_PATH).href
 );
 const { DocType } = await import(
     pathToFileURL(path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/types.js')).href
@@ -94,7 +98,7 @@ const MOCK_GENERATE_CONTENT = async (contents) => {
 
 const MOCK_EMBED_FN = async () => Array(128).fill(0).map((_, i) => (i % 7) * 0.01);
 
-describe('RC-8: upload enables mode + JD-only visibility', () => {
+describe('RC-8: upload enables mode + JD-only visibility', { skip: SKIP_NO_PREMIUM }, () => {
     let db;
     let orchestrator;
     let tmpResume;

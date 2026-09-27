@@ -161,8 +161,11 @@ describe('Phase 5: manual voice consistency', () => {
 });
 
 describe('Phase 6: product / project "about" grounding', () => {
+  // Wave 2B: "nativley"/"nativleys" were typos of a dead brand whose routing was
+  // removed; replaced with "refract", the router-supported typo of the current
+  // brand (SMS normalization), preserving the typo-tolerant-routing intent.
   for (const q of [
-    'what do you think about nativley', 'hows nativleys backend like', 'what kinda app is it',
+    'what do you think about refract', 'hows refracts backend like', 'what kinda app is it',
     'what tech does refract use', 'does it use Ollama', 'what part uses Rust',
     'does it have a backend server',
   ]) {
