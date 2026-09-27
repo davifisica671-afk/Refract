@@ -16923,6 +16923,31 @@ export function initializeIpcHandlers(appState: AppState): void {
     let selectedPath: string | undefined;
     try {
       if (!isProOrTrialActive()) return { success: false, error: 'pro_required' };
+      // Server-side allow-list. O diálogo filtrar é a hint para users — nunca
+      // trust it para validation, desde o user pode renomear a arquivo ou o
+      // filtrar pode ser bypassed por selecting "Todos Files" em o diálogo UI.
+      // Plain-text formata analisa trivially; PDF e DOCX go através their
+      // dedicated parsers babaixo
+      const ALLOWED_EXTENSIONS = new Set([
+        '.txt',
+        '.md',
+        '.markdown',
+        '.json',
+        '.csv',
+        '.tsv',
+        '.xml',
+        '.html',
+        '.htm',
+        '.log',
+        '.pdf',
+        '.docx',
+        '.doc',
+      ]);
+      // 10 MiB por farquivo Qualquer coisa larger é quase sempre a banco de dados dump,
+      // a media farquivo ou a misclicked archive; o modes layer iria apenas
+      // truncate it para ~40 KB anyway via MAX_TOTAL_CHARS.
+      const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
       const result: any = await dialog.showOpenDialog({
         properties: ['openFile'],
         filters: [
@@ -16934,16 +16959,149 @@ export function initializeIpcHandlers(appState: AppState): void {
       });
       if (result.canceled || !result.filePaths?.[0]) return { success: false, cancelled: true };
       selectedPath = result.filePaths[0];
-      const { ingestModeReferenceFile } = require('./services/ModeReferenceFileIngestion') as typeof import('./services/ModeReferenceFileIngestion');
-      const file = await ingestModeReferenceFile({
-        modeId,
-        filePath: selectedPath!,  // guarded + assigned on the straight line above
-        onIndexStatus: (status, fileId) => {
-          BrowserWindow.getAllWindows().forEach((win) => {
-            if (!win.isDestroyed()) win.webContents.send('mode-file-index-status', { modeId, fileId, phase: status });
-          });
-        },
-      });
+      const filePath = selectedPath!;
+      const fileName = path.basename(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+
+      if (!ALLOWED_EXTENSIONS.has(ext)) {
+        // Friendly, actionable mensagem — UI surfaces isso para o user.
+        return {
+          success: false,
+          error: `Unsupported file type "${ext || 'none'}". Supported formats: TXT, MD, JSON, CSV, XML, HTML, LOG, PDF, DOCX, DOC. For resumes and job descriptions, use Profile Intelligence under Settings instead.`,
+        };
+      }
+
+      // Pre-flight stat. Uso lstat então we don't auto-follow symlinks — a
+      // symlink para /dev/zero ou a network montar que lies sobre tamanho iria
+      // caso contrário hang o renderer-IPC reply forever via readFileSync.
+      let stats: ReturnType<typeof fs.lstatSync>;
+      try {
+        stats = fs.lstatSync(filePath);
+      } catch {
+        return {
+          success: false,
+          error: 'Could not read the selected file. It may have moved or been deleted.',
+        };
+      }
+      if (!stats.isFile()) {
+        return {
+          success: false,
+          error:
+            'Selected path is not a regular file (it may be a symlink, device, or directory). Pick a real document file.',
+        };
+      }
+      if (stats.size > MAX_FILE_BYTES) {
+        const mb = (stats.size / (1024 * 1024)).toFixed(1);
+        return {
+          success: false,
+          error: `File is ${mb} MB; the maximum is 10 MB. Trim the file or split it into smaller reference documents.`,
+        };
+      }
+
+      // Encapsular o parser branches em a per-call timeout. pdf-parse e mammoth
+      // ter ambos hung historically em malformed entrada ou zip-bomb DOCX —
+      // 15 s é generous para a 10 MiB document.
+      const PARSE_TIMEOUT_MS = 15_000;
+      function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+        return Promise.race([
+          p,
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+          ),
+        ]);
+      }
+
+      let content = '';
+      try {
+        if (ext === '.pdf') {
+          const { PDFParse } = require('pdf-parse');
+          const buffer = await fs.promises.readFile(filePath);
+          const parser = new PDFParse({ data: buffer });
+          const data: any = await withTimeout<any>(parser.getText(), PARSE_TIMEOUT_MS, 'PDF parse');
+          content = data.text;
+        } else if (ext === '.docx' || ext === '.doc') {
+          const mammoth = require('mammoth');
+          const result2: any = await withTimeout<any>(
+            mammoth.extractRawText({ path: filePath }),
+            PARSE_TIMEOUT_MS,
+            'DOCX parse',
+          );
+          content = result2.value;
+        } else {
+          // Plain-text family. Lê raw bytes primeiro então we pode detect text
+          // encoding de a leading byte-order-mark antes deciding se
+          // a nulo byte é binário noise ou a legitimate UTF-16 zero-pad.
+          const probe = await fs.promises.readFile(filePath, { encoding: null });
+          if (probe.length === 0) {
+            return { success: false, error: `"${fileName}" is empty.` };
+          }
+          // BOM-aware ddecodificar UTF-16 files ter muitos embedded nulo bytes; we
+          // precisa Não treat those como a binary-rename ssinal
+          if (probe.length >= 2 && probe[0] === 0xff && probe[1] === 0xfe) {
+            content = probe.subarray(2).toString('utf16le');
+          } else if (probe.length >= 2 && probe[0] === 0xfe && probe[1] === 0xff) {
+            // UTF-16 Ser → trocar pairs então decodificar como utf16le.
+            const swapped = Buffer.allocUnsafe(probe.length - 2);
+            for (let i = 2; i + 1 < probe.length; i += 2) {
+              swapped[i - 2] = probe[i + 1];
+              swapped[i - 1] = probe[i];
+            }
+            content = swapped.toString('utf16le');
+          } else if (
+            probe.length >= 3 &&
+            probe[0] === 0xef &&
+            probe[1] === 0xbb &&
+            probe[2] === 0xbf
+          ) {
+            content = probe.subarray(3).toString('utf8');
+          } else {
+            // Não BOM. Sniff o primeiro 2 KiB para a nulo byte — that's o
+            // strongest sinal de a renamed bbinário
+            const sniffWindow = probe.subarray(0, Math.min(2048, probe.length));
+            if (sniffWindow.includes(0)) {
+              return {
+                success: false,
+                error: `"${fileName}" looks like a binary file even though its extension is ${ext}. Re-save the file as plain text or pick a supported document format.`,
+              };
+            }
+            content = probe.toString('utf8');
+          }
+        }
+      } catch (parseErr: any) {
+        // Parser-specific failures (timeout, malformed PDF, zip-bomb DOCX).
+        // Registrar detail para main-process; retorna a generic mmensagem
+        console.error(
+          '[IPC] modes:upload-reference-file parser error:',
+          parseErr?.message ?? parseErr,
+        );
+        return {
+          success: false,
+          error: `Could not parse "${fileName}". The file may be corrupt, password-protected, or in an unsupported variant of ${ext}.`,
+        };
+      }
+
+      if (!content || content.trim().length === 0) {
+        return {
+          success: false,
+          error: `"${fileName}" parsed to empty text. The file may be password-protected, image-only, or corrupt.`,
+        };
+      }
+
+      const { ModesManager } = require('./services/ModesManager');
+      const file = ModesManager.getInstance().addReferenceFile({ modeId, fileName, content });
+      // PI v3 (W3) — index at UPLOAD time (fire-and-forget): chunk + embed +
+      // persist vectors agora então live retrieval nunca pays o embedding cost.
+      // Status events let o UI mostrar pendente → ready.
+      void (async () => {
+        try {
+          await ModesManager.getInstance().indexReferenceFile(file);
+        } catch (idxErr: any) {
+          console.warn('[IPC] reference-file indexing failed (lexical fallback remains):', idxErr?.message);
+        }
+        BrowserWindow.getAllWindows().forEach((win) => {
+          if (!win.isDestroyed()) win.webContents.send('mode-file-index-status', { modeId, fileId: file.id });
+        });
+      })();
       return { success: true, file };
     } catch (error: any) {
       const ext = path.extname(String(selectedPath || '')).toLowerCase();
@@ -16951,7 +17109,13 @@ export function initializeIpcHandlers(appState: AppState): void {
         return { success: false, error: 'Legacy Word .doc files are not supported. Save the file as .docx and upload it again.' };
       }
       console.error('[IPC] modes:upload-reference-file error:', error?.message || error);
-      return { success: false, error: 'Could not parse the selected file. It may be corrupt, password-protected, unsupported, or too large.' };
+      // Fazer não leak raw error.message para o renderer (pode conter absolute
+      // paths ou biblioteca internals). Retorna a generic mmensagem o detail é
+      // já em o main-process registrar aacima
+      return {
+        success: false,
+        error: 'Could not read the selected file. Please try a different file or contact support.',
+      };
     }
   });
 
