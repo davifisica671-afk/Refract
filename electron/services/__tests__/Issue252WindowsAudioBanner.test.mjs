@@ -90,9 +90,19 @@ test('issue #252: Open Settings button does not unconditionally fire x-apple.sys
   // settings (toggleSettingsWindow / openSettingsTab) — não an OS URL.
   const stripped = ui.replace(/\s+/g, ' ');
   const xAppleCount = (stripped.match(/x-apple\.systempreferences:/g) || []).length;
+  // UX3 added a second macOS-only deep link (Microphone pane for the
+  // mic-zero-fill path) alongside the ScreenCapture pane — both are gated
+  // behind `!isMac ? null`, so Windows still never fires an OS URL.
   assert.ok(
-    xAppleCount <= 1,
-    'x-apple.systempreferences should appear at most once (only in the screen-recording branch)'
+    xAppleCount <= 2,
+    'x-apple.systempreferences should appear at most twice (screen-recording + microphone macOS panes only)'
+  );
+  // Both OS URLs must be unreachable off macOS: the deep link resolves to
+  // null when !isMac and falls back to in-app settings.
+  assert.match(
+    stripped,
+    /!isMac \? null/,
+    'macOS deep links must be gated behind an isMac check with an in-app-settings fallback'
   );
 
   // O banner JSX precisa incluir a JSX-level conditional keyed em o

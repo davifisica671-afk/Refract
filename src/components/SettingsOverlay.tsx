@@ -855,6 +855,9 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
     const [selectedInput, setSelectedInput] = useState('');
     const [selectedOutput, setSelectedOutput] = useState('');
     const [micLevel, setMicLevel] = useState(0);
+    // UX4: parallel system-audio probe level + inline error (mirrors micLevel).
+    const [systemAudioLevel, setSystemAudioLevel] = useState(0);
+    const [systemAudioError, setSystemAudioError] = useState<string | null>(null);
     const [useExperimentalSck, setUseExperimentalSck] = useState(false);
     // Aviso de alternativa do dispositivo mais recente. Preenchido pelo processo principal via
     // IPC 'device-selection-applied' quando o dispositivo salvo não pôde ser aberto
@@ -1320,6 +1323,14 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
             const unsubscribe = window.electronAPI?.onAudioTestLevel?.((level) => {
                 setMicLevel(Math.max(0, Math.min(100, level * 100)));
             });
+            // UX4: subscribe to the parallel system-audio probe (main.ts emits
+            // `audio-test-system-level` / `audio-test-system-error` alongside mic).
+            const unsubscribeSystemLevel = window.electronAPI?.onAudioTestSystemLevel?.((level) => {
+                setSystemAudioLevel(Math.max(0, Math.min(100, level * 100)));
+            });
+            const unsubscribeSystemError = window.electronAPI?.onAudioTestSystemError?.((message) => {
+                setSystemAudioError(message);
+            });
 
             window.electronAPI?.startAudioTest(selectedInput).catch((error) => {
                 console.error("Error starting native microphone test:", error);
@@ -1328,15 +1339,21 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
 
             return () => {
                 unsubscribe?.();
+                unsubscribeSystemLevel?.();
+                unsubscribeSystemError?.();
                 window.electronAPI?.stopAudioTest?.().catch((error) => {
                     console.error("Error stopping native microphone test:", error);
                 });
                 setMicLevel(0);
+                setSystemAudioLevel(0);
+                setSystemAudioError(null);
             };
         }
         // Effect didn't executa (activeTab !== 'audio' ou isOpen === falso ou selectedInput empty).
         // Reinicia meter mas fazer Não chamar stopAudioTest — limpeza acima gerencia it quando testar era running.
         setMicLevel(0);
+        setSystemAudioLevel(0);
+        setSystemAudioError(null);
     }, [isOpen, activeTab, selectedInput]);
 
     return (
@@ -2733,6 +2750,26 @@ const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                                                         style={{ width: `${micLevel}%` }}
                                                     />
                                                 </div>
+                                            </div>
+
+                                            {/* UX4: parallel system-audio probe meter. Without this the
+                                                pre-meeting check only verifies the mic and a dead
+                                                system-audio path is discovered mid-meeting. */}
+                                            <div>
+                                                <div className="flex justify-between text-xs text-text-secondary mb-2 px-1">
+                                                    <span>System Audio Level</span>
+                                                </div>
+                                                <div className="h-1.5 bg-bg-input rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-blue-500 transition-all duration-100 ease-out"
+                                                        style={{ width: `${systemAudioLevel}%` }}
+                                                    />
+                                                </div>
+                                                {systemAudioError && (
+                                                    <p className="text-[11px] text-amber-500/90 leading-snug mt-1.5 px-1">
+                                                        {systemAudioError}
+                                                    </p>
+                                                )}
                                             </div>
 
                                             <div className="h-px bg-border-subtle my-2" />

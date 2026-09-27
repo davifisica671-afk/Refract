@@ -99,14 +99,23 @@ describe('wire format', () => {
         assert.doesNotMatch(source, /OpenAI-Beta/);
     });
 
-    test('sends transcription_session.update not session.update', () => {
-        assert.match(source, /type: 'transcription_session\.update'/);
-        assert.doesNotMatch(source, /type: 'session\.update'/);
+    test('sends session.update with transcription-type session (documented intent=transcription shape)', () => {
+        // Per the current OpenAI Realtime transcription guide, a session on
+        // `wss://.../v1/realtime?intent=transcription` is configured with
+        // `type: 'session.update'` + `session: { type: 'transcription', ... }`
+        // — `transcription_session.update` is the legacy beta event name.
+        assert.match(source, /type: 'session\.update'/);
+        assert.match(source, /type: 'transcription'/);
+        assert.doesNotMatch(source, /type: 'transcription_session\.update'/);
     });
 
-    test('uses GA input_audio_format field not beta audio.input.format', () => {
-        assert.match(source, /input_audio_format: 'pcm16'/);
-        assert.doesNotMatch(source, /audio\.input\.format/);
+    test('uses nested audio.input.format (pcm24k) not flat input_audio_format', () => {
+        // The documented transcription session.update nests the PCM format at
+        // `session.audio.input.format { type: 'audio/pcm', rate: 24000 }`;
+        // `input_audio_format: 'pcm16'` belongs to the beta transcription-session event.
+        assert.match(source, /type: 'audio\/pcm'/);
+        assert.match(source, /rate: WS_SAMPLE_RATE/);
+        assert.doesNotMatch(source, /input_audio_format: 'pcm16'/);
     });
 
     test('handles GA transcript delta event name', () => {
@@ -128,18 +137,18 @@ describe('wire format', () => {
         );
     });
 
-    test('does not fall through session.created to transcription_session.created handler', () => {
-        // O fallthrough tem sido replaced com a logged-and-ignored warning.
-        // Exigir o case to exist (então a future rename/removal doesn't make
-        // this assertion trivially pass) and exigir its corpo to Não define
-        // isSessionReady. Behavioral coverage de o mesmo invariant lives em
-        // o 'race / late-arrival safety' suite babaixo
+    test('session.created arms the transcription session (documented creation event)', () => {
+        // For `?intent=transcription` the server acknowledges the session with
+        // `session.created` (the update round-trips as session.updated) — the
+        // handler must arm readiness/keep-alive/ring-flush on it. The
+        // `transcription_session.created` case is kept as a harmless alias for
+        // forward-compat, so require the block to exist and to arm readiness.
         const block = source.match(
             /case 'session\.created':[\s\S]*?break;/
         );
-        assert.ok(block, "expected case 'session.created': to still exist with a warning body");
-        assert.doesNotMatch(block[0], /this\.isSessionReady\s*=\s*true/);
-        assert.doesNotMatch(block[0], /_startKeepAlive|_flushRingBuffer/);
+        assert.ok(block, "expected case 'session.created': to still exist");
+        assert.match(block[0], /this\.isSessionReady\s*=\s*true/);
+        assert.match(block[0], /_startKeepAlive|_flushRingBuffer/);
     });
 });
 
@@ -224,29 +233,33 @@ describe('lifecycle — unconditional commit', () => {
 // ──────────────────────────────────────────────────────────────────────────
 
 describe('race / late-arrival safety', () => {
-    test('inbound session.created (general-intent event) is inert on transcription session', () => {
-        // Alto 1 behavioral coverage: _handleWsMessage({type:'session.created'})
-        // precisa Não define isSessionReady, precisa Não inicia a keep-alive, precisa Não
-        // flush o ring bbuffer O session.created case corpo deve ser a
-        // pure warn-and-ignore.
+    test('inbound session.created arms the transcription session (readiness + keep-alive + flush)', () => {
+        // `session.created` is the documented creation event for
+        // `?intent=transcription` sessions — receiving it must flip
+        // isSessionReady, start the keep-alive, and flush the ring buffer.
+        // (The `!isActive` guard at the top of _handleWsMessage still makes
+        // post-stop arrivals inert — covered by the late-arrival test below.)
         const stt = trackStt(new OpenAIStreamingSTT('sk-test-key'));
         stt.isActive = true;
         stt.mode = 'ws';
         stt.isSessionReady = false;
-        // Seed o ring buffer com a known marker então we pode verifica não flush.
+        // Seed o ring buffer com a known marker então we pode verifica the flush.
         const marker = Buffer.alloc(1024);
         stt.ringBuffer = [marker];
         stt.ringBufferBytes = marker.length;
 
         stt._handleWsMessage({ type: 'session.created' });
 
-        assert.strictEqual(stt.isSessionReady, false,
-            'session.created on intent=transcription must not flip isSessionReady');
-        assert.strictEqual(stt.keepAliveTimer, null,
-            'session.created must not start keep-alive');
-        assert.strictEqual(stt.ringBufferBytes, marker.length,
-            'session.created must not flush the ring buffer');
-        assert.strictEqual(stt.ringBuffer.length, 1);
+        assert.strictEqual(stt.isSessionReady, true,
+            'session.created on intent=transcription must flip isSessionReady');
+        assert.notStrictEqual(stt.keepAliveTimer, null,
+            'session.created must start keep-alive');
+        assert.strictEqual(stt.ringBufferBytes, 0,
+            'session.created must flush the ring buffer');
+        assert.strictEqual(stt.ringBuffer.length, 0);
+        // Clean para cima o interval we apenas created então testar processo pode exit.
+        clearInterval(stt.keepAliveTimer);
+        stt.keepAliveTimer = null;
     });
 
     test('inbound transcription_session.created DOES set isSessionReady (positive control)', () => {

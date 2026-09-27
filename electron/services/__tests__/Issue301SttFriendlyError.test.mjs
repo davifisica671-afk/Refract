@@ -62,8 +62,9 @@ test('sttErrorMapper auth category covers all RefractPro fatal error codes', () 
 
 test('sttErrorMapper maps trial_expired to a user-friendly Trial Expired message', () => {
   const source = read('src/lib/sttErrorMapper.ts');
-  assert.match(source, /Trial Expired/, 'must have Trial Expired title');
-  assert.match(source, /trial has ended|Upgrade your plan/, 'must give upgrade guidance');
+  // Mapper titles are localized to PT — assert the PT title/body, not English.
+  assert.match(source, /Período de Teste Expirado/, 'must have Trial Expired title (localized)');
+  assert.match(source, /Atualize seu plano|terminou/, 'must give upgrade guidance (localized)');
 });
 
 test('LocalWhisperSTT emits a friendly error for ONNX symbol-not-found crash (macOS 12)', () => {

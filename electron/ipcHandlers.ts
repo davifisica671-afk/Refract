@@ -12832,6 +12832,16 @@ export function initializeIpcHandlers(appState: AppState): void {
   // SERVICE to all live webContents, so the previous bug where closing the
   // Settings overlay severed the event channel is no longer possible.
   safeHandle('local-whisper-start-download', async (_event, modelId: string) => {
+    // macOS 12 (Darwin 21) gate — mirrors local-whisper-preload: onnxruntime
+    // cannot load below macOS 13, so refuse the download instead of fetching
+    // a model that can never run.
+    if (process.platform === 'darwin') {
+      const os = require('os') as typeof import('os');
+      const darwinMajor = parseInt(os.release().split('.')[0], 10);
+      if (Number.isNaN(darwinMajor) || darwinMajor < 22) {
+        return { success: false, error: 'Local Whisper models require macOS 13 Ventura or later.' };
+      }
+    }
     try {
       // F-06: modelId is untrusted renderer input — allowlist first. Unknown
       // ids (traversal, arbitrary repos) throw and land in the error shape
