@@ -19,6 +19,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  SystemAudioHealthClassifier,
+  peakToPeakInt16LE,
+} from '../../audio/systemAudioHealthClassifier.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../../..');
@@ -318,4 +322,64 @@ test('B10: wireMicCapture zero-fill emits sendAudioCaptureFailed with channel="m
     /mic-zero-fill/,
     'mic zero-fill message key must remain "mic-zero-fill"'
   );
+});
+
+// ---------------------------------------------------------------------------
+// 8. Behavioral pins (review finding): feed the classifier synthetic Int16LE
+//    data and assert on its real decisions — not source strings. Time is
+//    injected via nowMs so no real waiting is needed.
+// ---------------------------------------------------------------------------
+
+/** Build a Buffer from an array of int16 samples. */
+function int16Buffer(samples) {
+  const buf = Buffer.alloc(samples.length * 2);
+  samples.forEach((s, i) => buf.writeInt16LE(s, i * 2));
+  return buf;
+}
+
+test('B10 (behavioral): all-zeros buffer yields sustained-zero-valued-silence log decision', () => {
+  const classifier = new SystemAudioHealthClassifier();
+  assert.equal(
+    classifier.handle({ kind: 'capture-started', nowMs: 0 }).type,
+    'none'
+  );
+  const zeros = Buffer.alloc(2048); // 1024 silent int16 samples
+  assert.equal(peakToPeakInt16LE(zeros), 0);
+  const first = classifier.handle({ kind: 'chunk', chunk: zeros, nowMs: 0 });
+  assert.equal(first.type, 'none');
+  const decision = classifier.handle({
+    kind: 'chunk',
+    chunk: zeros,
+    nowMs: 12_001,
+  });
+  assert.equal(decision.type, 'log');
+  assert.equal(decision.reason, 'sustained-zero-valued-silence');
+});
+
+test('B10 (behavioral): synthetic tone buffer latches meaningful signal and never logs silence', () => {
+  const classifier = new SystemAudioHealthClassifier();
+  classifier.handle({ kind: 'capture-started', nowMs: 0 });
+  // Sine tone, amplitude 5000 (period 100 samples — deliberately not a
+  // multiple of the classifier stride so stride sampling still sees swing).
+  const tone = int16Buffer(
+    Array.from({ length: 1024 }, (_, i) =>
+      Math.round(5000 * Math.sin((2 * Math.PI * i) / 100))
+    )
+  );
+  assert.ok(
+    peakToPeakInt16LE(tone) > 100,
+    'tone peak-to-peak must clear the meaningful threshold'
+  );
+  // Stream tone past the silence observation window in small gaps (stays
+  // under the inter-chunk-gap log threshold): no chunk may ever emit a
+  // sustained-zero-valued-silence log for meaningful audio.
+  let sawSilenceLog = false;
+  for (let t = 0; t <= 13_000; t += 1000) {
+    const d = classifier.handle({ kind: 'chunk', chunk: tone, nowMs: t });
+    if (d.type === 'log' && d.reason === 'sustained-zero-valued-silence') {
+      sawSilenceLog = true;
+    }
+  }
+  assert.equal(sawSilenceLog, false);
+  assert.equal(classifier.hasMeaningfulSignal, true);
 });

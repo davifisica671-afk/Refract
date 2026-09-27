@@ -12835,6 +12835,7 @@ export function initializeIpcHandlers(appState: AppState): void {
     // macOS 12 (Darwin 21) gate — mirrors local-whisper-preload: onnxruntime
     // cannot load below macOS 13, so refuse the download instead of fetching
     // a model that can never run.
+    // Return-shape (not throw): LocalWhisperModelPanel surfaces { success:false, error } as panel errorMessage; mirrors sibling handlers.
     if (process.platform === 'darwin') {
       const os = require('os') as typeof import('os');
       const darwinMajor = parseInt(os.release().split('.')[0], 10);

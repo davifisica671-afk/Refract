@@ -97,6 +97,28 @@ test('issue #252: Open Settings button does not unconditionally fire x-apple.sys
     xAppleCount <= 2,
     'x-apple.systempreferences should appear at most twice (screen-recording + microphone macOS panes only)'
   );
+  // Per-URL gate proof (review finding): BOTH macOS URLs must sit behind
+  // the shared `!isMac ? null` gate so neither fires on Windows. A single
+  // gate-exists assertion is not enough — a future URL added outside the
+  // gate (or an edit moving one above it) must fail loudly.
+  assert.equal(
+    xAppleCount,
+    2,
+    'expected exactly the two known macOS panes (ScreenCapture + Microphone)'
+  );
+  const gateIdx = ui.indexOf('!isMac');
+  assert.ok(gateIdx >= 0, 'expected an isMac gate in RefractInterface.tsx');
+  assert.match(
+    ui,
+    /!isMac\s*\?\s*null/,
+    'the isMac gate must resolve to null off-macOS (falling back to in-app settings)'
+  );
+  for (const m of ui.matchAll(/x-apple\.systempreferences:/g)) {
+    assert.ok(
+      m.index > gateIdx,
+      `macOS deep link at offset ${m.index} must sit after the !isMac gate at offset ${gateIdx}`
+    );
+  }
   // Both OS URLs must be unreachable off macOS: the deep link resolves to
   // null when !isMac and falls back to in-app settings.
   assert.match(
