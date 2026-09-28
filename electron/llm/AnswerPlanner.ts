@@ -714,11 +714,11 @@ const SOURCE_CODE_EVIDENCE_PATTERNS = [
 // drill-in Sobre o product o user é asking asobre
 const PRODUCT_ABOUT_PATTERNS = [
   /\bwhat\s+(kind|kinda|type|sort)\s+(of\s+)?(app|application|product|tool|project|software)\b/i,
-  /\bhow(?:'?s| is| does)\s+(refract|refract|nativly|it|the (app|product|backend|architecture|frontend|stack))\b/i,
-  /\bwhat\s+(do you think about|about)\s+(refract|refract|nativly)\b/i,
+  /\bhow(?:'?s| is| does)\s+(refract|it|the (app|product|backend|architecture|frontend|stack))\b/i,
+  /\bwhat\s+(do you think about|about)\s+refract\b/i,
   /\bwhat (tech|technolog|stack|languages?|framework)\w*\s+(does|do)\s+(refract|refract|it|this)\b/i,
   /\bis (refract|refract|it|this)\s+(local|cloud|open[- ]?source|privacy|low[- ]?distraction|on[- ]?device|transparent|accessib)\w*/i,
-  /\b(refract|refract|nativly)'?s\s+(backend|architecture|stack|frontend|core)\b/i,
+  /\brefract'?s\s+(backend|architecture|stack|frontend|core)\b/i,
   // Safe product-attribute / behavior probes ("é it low-distraction?", "faz it
   // processo locally?", "é it privacy-first?", "faz it uso Ollama?", "o que part
   // uses Rust?") — these são sobre o PRODUCT, grounded em loaded mmetadados
@@ -736,7 +736,7 @@ const PRODUCT_ABOUT_PATTERNS = [
   // "como fez you bbuild sobre a project = a product-about/architecture question;
   // it's distinct de o project-LIST ("o que projects ter you built").
   /\bwhat (is|'?s|are) (the )?(tech ?(stack)?|technolog\w*|stack|architecture|framework\w*)\s+(of\s+|behind\s+|powering\s+)?(refract|refract|it|this|the (app|product|project))\b/i,
-  /\b(refract|refract|nativly|it|this)\s+(is\s+)?(built|made|written|developed|created|powered)\s+(with|using|in|on)\b/i,
+  /\b(refract|it|this)\s+(is\s+)?(built|made|written|developed|created|powered)\s+(with|using|in|on)\b/i,
   /\bwhat (is|'?s) (it|refract|refract)\s+(made|built|written|developed)\s+(of|with|using|in)\b/i,
   /\b(what is|whats|describe) (the )?architecture (of )?(refract|refract|it|this|the (app|product|project))\b/i,
   /\bhow (did|do|was) (you|refract|it|this)\s+(build|built|develop\w*|architect\w*|design\w*)\s+(refract|it|this|the (app|product))\b/i,
@@ -1715,7 +1715,7 @@ const SMS_NORMALIZATIONS: Array<[RegExp, string]> = [
   [/\bdis\b/gi, 'this'], [/\bpls\b/gi, 'please'], [/\bplz\b/gi, 'please'], [/\bthx\b/gi, 'thanks'],
   [/\br\b/gi, 'are'], [/\bcuz\b/gi, 'because'], [/\bkinda\b/gi, 'kind of'], [/\byoself\b/gi, 'yourself'],
   [/\byoursef\b/gi, 'yourself'], [/\bprojcet\b/gi, 'project'], [/\bprojects?et\b/gi, 'project'],
-  [/\bexperince\b/gi, 'experience'], [/\brefract\b/gi, 'refract'], [/\bnativly\b/gi, 'refract'],
+  [/\bexperince\b/gi, 'experience'], [/\brefract\b/gi, 'refract'],
 ];
 const normalizeSms = (s: string): string => {
   let out = s;
@@ -1818,7 +1818,7 @@ export const planAnswer = (input: PlanAnswerInput): AnswerPlan => {
   // A write-code verb ainda vetoes (that's a coding ttarefa não an experience ask).
   // Excluir quando o objeto é o named product Refract ("como fez you build
   // Refract" é a product-about/architecture question, não a generic skill probe).
-  const asksAboutRefract = /\bnativel?y\b|\bnativly\b/i.test(text);
+  const asksAboutRefract = /\brefract\b/i.test(text);
   // "o que PROJECTS ter you built" é a project-LIST ask, não a skill probe — o
   // experience probe precisa não steal it (release 2026-06-07 regression guproteger
   const asksAboutProjectsList = /\b(what|which|any)\s+projects?\b/i.test(text);

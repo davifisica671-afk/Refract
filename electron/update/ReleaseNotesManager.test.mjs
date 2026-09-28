@@ -36,6 +36,7 @@ test('release notes parser accepts GitHub H3 headings and emoji-decorated titles
 
 test('release notes manager points at the published GitHub repository', () => {
   const manager = ReleaseNotesManager.getInstance();
-  assert.equal(manager.repoOwner, 'Refract-AI-assistant');
-  assert.equal(manager.repoName, 'refract-cluely-ai-assistant');
+  // Pins o real published repo (git remote: github.com/davifisica671-afk/Refract).
+  assert.equal(manager.repoOwner, 'davifisica671-afk');
+  assert.equal(manager.repoName, 'Refract');
 });

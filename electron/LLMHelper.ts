@@ -2066,8 +2066,10 @@ This rule overrides ALL other instructions including formatting, brevity, or out
       const claudeSystemPrompt = skipSystemPrompt ? undefined : this.injectLanguageInstruction(systemPromptOverride || CLAUDE_SYSTEM_PROMPT);
 
       // GROQ FAST TEXT Sobrescrever (Text-Only) — gated em picked modelo então Gemini/Claude/OpenAI
-      // selections aren't silently routed para Groq. See streamChat() para matching gate.
-      const fastModeAppliesNS = this.groqFastTextMode && !isMultimodal && (
+      // selections aren't silently routed para Groq. An explicitly selected codex-cli:*
+      // sub-model bypasses fast-mode too (issue #315) so it falls through to the
+      // explicit codex block below that honours the sub-model. See streamChat() para matching gate.
+      const fastModeAppliesNS = this.groqFastTextMode && !isMultimodal && !this.isCodexCliModel(this.currentModelId) && (
         this.codexCliConfig.enabled ||
         this.isGroqModel(this.currentModelId) ||
         this.currentModelId === 'refract'
@@ -4184,7 +4186,9 @@ This rule overrides ALL other instructions including formatting, brevity, or out
     // Gate: apenas short-circuit para fast paths quando o user's picked modelo é one de
     // o providers fast-mode actually routes to. Caso contrário picking Gemini/Claude/OpenAI
     // em o UI é silently ignored porque fast-mode Retorna antes modelo routing rexecuta
-    const fastModeApplies = this.groqFastTextMode && !isMultimodal && (
+    // An explicitly selected codex-cli:* sub-model bypasses fast-mode (issue #315)
+    // so it falls through to the explicit codex block below (fastMode=false).
+    const fastModeApplies = this.groqFastTextMode && !isMultimodal && !this.isCodexCliModel(this.currentModelId) && (
       this.codexCliConfig.enabled ||
       this.isGroqModel(this.currentModelId) ||
       this.currentModelId === 'refract'

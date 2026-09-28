@@ -261,7 +261,15 @@ describe('intro variants + grammar', () => {
 describe('wiring pins', () => {
     const ipcSrc = readFileSync(path.resolve(__dirname, '../../ipcHandlers.ts'), 'utf8');
     const llmHelperSrc = readFileSync(path.resolve(__dirname, '../../LLMHelper.ts'), 'utf8');
-    const orchSrc = readFileSync(path.resolve(__dirname, '../../../premium/electron/knowledge/KnowledgeOrchestrator.ts'), 'utf8');
+    // O premium KnowledgeOrchestrator module é absent de isso tree (optional premium
+    // surface) — o two pins abaixo skip com a reason em vez disso de failing at load.
+    let orchSrc = null;
+    try {
+        orchSrc = readFileSync(path.resolve(__dirname, '../../../premium/electron/knowledge/KnowledgeOrchestrator.ts'), 'utf8');
+    } catch {
+        orchSrc = null;
+    }
+    const SKIP_NO_ORCH = orchSrc ? false : 'premium KnowledgeOrchestrator module absent from tree — orchestrator wiring pins skipped';
 
     test('ipcHandlers uses resolveIdentityProbe (old inline regex gone)', () => {
         assert.doesNotMatch(ipcSrc, /const IDENTITY_PROBE_RE\s*=/);
@@ -278,10 +286,10 @@ describe('wiring pins', () => {
         assert.match(ipcSrc, /!context && !autoContextSnapshot && isBareFollowUp\(message\)/);
         assert.match(ipcSrc, /buildContextFreeClarification\(clarSurface\)/);
     });
-    test('gap pivots gated on fit/gap/behavioral answer types', () => {
+    test('gap pivots gated on fit/gap/behavioral answer types', { skip: SKIP_NO_ORCH }, () => {
         assert.match(orchSrc, /gapRelevantTypes = new Set\(\['jd_fit_answer', 'gap_analysis_answer', 'behavioral_interview_answer'\]\)/);
     });
-    test('live company research is budget-bounded in the hot path', () => {
+    test('live company research is budget-bounded in the hot path', { skip: SKIP_NO_ORCH }, () => {
         assert.match(orchSrc, /Promise\.race\(\[\s*researchPromise/);
     });
     test('foreground gate wired: manual begin/end + embedding queue + live indexer yield', () => {

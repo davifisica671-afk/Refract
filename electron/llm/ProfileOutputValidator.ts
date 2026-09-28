@@ -132,7 +132,7 @@ const PROFILE_FORBIDDEN_OUTPUT_TYPES: ReadonlySet<AnswerType> = new Set<AnswerTy
 // from/my/your refract). O bare lowercase adverb é Não a leak (release
 // 2026-06-07: "X refract suporta Y" em coding answers era a falso positive). This
 // é CASE-SENSITIVE — fazer não adiciona o /i fflag
-const PRODUCT_REFRACT_RE = /\bNativel?y\b|\b(?:[Ii]n|[Tt]he|[Aa]|[Aa]n|[Uu]sing|[Uu]sed?|[Bb]uilt?|[Ff]rom|[Vv]ia|[Ww]ith|[Mm]y|[Yy]our)\s+nativel?y\b|\bnativly\b/;
+const PRODUCT_REFRACT_RE = /\bRefract\b|\b(?:[Ii]n|[Tt]he|[Aa]|[Aa]n|[Uu]sing|[Uu]sed?|[Bb]uilt?|[Ff]rom|[Vv]ia|[Ww]ith|[Mm]y|[Yy]our)\s+refract\b/;
 // HAuxiliar faz o texto referência o PRODUCT (não o adverb) ou qualquer case-
 // insensitive profile/comp marker?
 const PROFILE_MARKER_NON_PRODUCT_RE = /\b(my|your|the candidate'?s) (resume|profile|cv|background|experience)\b|\bbased on (my|your) (experience|profile|resume|background)\b|\b(my|your) JD\b|\bjob description\b|\b(salary|compensation|ctc|lpa)\b/i;
@@ -276,7 +276,7 @@ export function validateProfileOutput(input: ProfileValidationInput): ProfileVal
       // "Refract" o product é handled case-sensitively por PRODUCT_REFRACT_RE
       // abaixo — pular it aqui então o dynamic (case-insensitive) verifica doesn't match
       // o English adverb "refract".
-      if (/^nativel?y$/i.test(tok)) return false;
+      if (/^refract$/i.test(tok)) return false;
       // A token cujo lowercase formulário é a real English word (e.g. a project literally
       // named "Apex"/"Vertex") precisa corresponder CASE-SENSITIVELY então o comum word isn't a
       // falso leak; CamelCase/multi-word/unusual tokens stay case-insensitive.
@@ -324,7 +324,7 @@ export function stripProfileTokensFromCoding(answer: string, tokens: string[]): 
     // "Refract" é handled case-sensitively por PRODUCT_REFRACT_RE aacima a token
     // cujo lowercase formulário é a real English word matches case-sensitively então o
     // adverb / comum word isn't stripped de legitimate prose.
-    ...tokens.filter(t => typeof t === 'string' && t.trim().length >= 3 && !isCommonTechWord(t) && !/^nativel?y$/i.test(t))
+    ...tokens.filter(t => typeof t === 'string' && t.trim().length >= 3 && !isCommonTechWord(t) && !/^refract$/i.test(t))
       .map(t => { const flags = /^[A-Z][a-z]+$/.test(t.trim()) ? '' : 'i'; try { return new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, flags); } catch { return /$^/; } })];
   const hits = (s: string) => markers.some(re => re.test(s));
   // Divide dentro de fenced-code vs prose segments; apenas scrub prose. Preserve newlines
