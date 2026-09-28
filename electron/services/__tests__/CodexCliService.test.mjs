@@ -15,6 +15,12 @@ const { CodexCliService, DEFAULT_CODEX_CLI_CONFIG, CODEX_SANDBOX_MODES } = mod;
 
 // Mock binário that ignora todos argv and sleeps 30s — used para in-flight abort/timeout tests.
 // /bin/sleep rejects codex's argv, então we need a script that swallows args.
+// POSIX-only: the /bin/echo + .sh fixtures below cannot spawn on win32
+// (child_process.spawn on a extensionless script fails with EFTYPE), so the
+// five tests that exec them skip there with a reason — assertions untouched.
+const POSIX_SPAWN_ONLY = process.platform === 'win32'
+  ? 'POSIX spawn fixture (/bin/echo, .sh mock binary) — not executable on win32'
+  : false;
 const MOCK_HANG_BIN = path.join(os.tmpdir(), `codex-mock-hang-${process.pid}.sh`);
 before(() => {
   fs.writeFileSync(MOCK_HANG_BIN, '#!/bin/sh\nexec sleep 30\n', { mode: 0o755 });
@@ -196,7 +202,7 @@ test('autoDetectPath: returns null or a real, existing executable file', () => {
   }
 });
 
-test('validateExecutable: returns resolvedPath on success', async () => {
+test('validateExecutable: returns resolvedPath on success', { skip: POSIX_SPAWN_ONLY }, async () => {
   const r = await CodexCliService.validateExecutable('/bin/echo', 2000);
   assert.equal(r.success, true);
   assert.equal(r.resolvedPath, '/bin/echo');
@@ -223,12 +229,12 @@ test('validateExecutable: missing binary returns success=false with error string
   assert.ok(r.error.length > 0);
 });
 
-test('validateExecutable: real --version-capable binary returns success=true', async () => {
+test('validateExecutable: real --version-capable binary returns success=true', { skip: POSIX_SPAWN_ONLY }, async () => {
   const r = await CodexCliService.validateExecutable('/bin/echo', 2000);
   assert.equal(r.success, true);
 });
 
-test('run: timeout is enforced (binary outlives timeoutMs)', async () => {
+test('run: timeout is enforced (binary outlives timeoutMs)', { skip: POSIX_SPAWN_ONLY }, async () => {
   const t0 = Date.now();
   await assert.rejects(
     () => CodexCliService.run(MOCK_HANG_BIN, { prompt: '', model: 'm', timeoutMs: 500 }),
@@ -246,7 +252,7 @@ test('run: AbortSignal pre-aborted rejects without spawning', async () => {
   );
 });
 
-test('run: AbortSignal aborts an in-flight call quickly', async () => {
+test('run: AbortSignal aborts an in-flight call quickly', { skip: POSIX_SPAWN_ONLY }, async () => {
   const ac = new AbortController();
   const promise = CodexCliService.run(MOCK_HANG_BIN, { prompt: '', model: 'm', timeoutMs: 60_000, signal: ac.signal });
   setTimeout(() => ac.abort(), 150);
@@ -264,7 +270,7 @@ test('stream: AbortSignal pre-aborted throws on first iteration', async () => {
   }, err => /aborted/i.test(err.message));
 });
 
-test('stream: AbortSignal aborts an in-flight stream and returns without throwing', async () => {
+test('stream: AbortSignal aborts an in-flight stream and returns without throwing', { skip: POSIX_SPAWN_ONLY }, async () => {
   const ac = new AbortController();
   const gen = CodexCliService.stream(MOCK_HANG_BIN, { prompt: '', model: 'm', timeoutMs: 60_000, signal: ac.signal });
   setTimeout(() => ac.abort(), 150);

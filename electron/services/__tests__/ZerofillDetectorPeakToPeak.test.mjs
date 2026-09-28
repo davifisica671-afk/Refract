@@ -19,6 +19,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  SystemAudioHealthClassifier,
+  peakToPeakInt16LE,
+} from '../../audio/systemAudioHealthClassifier.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../../..');
@@ -76,6 +80,12 @@ function extractMethodBody(source, methodName) {
 const systemBody = extractMethodBody(main, 'wireSystemCapture');
 const micBody = extractMethodBody(main, 'wireMicCapture');
 
+// B10 system side lives in SystemAudioHealthClassifier now: wireSystemCapture
+// was refactored to delegate chunk analysis to the classifier (same
+// peak-to-peak semantics, shared with the stuck-watchdog path). Assert
+// against the classifier source instead of inline method code.
+const classifierSrc = read('electron/audio/systemAudioHealthClassifier.mjs');
+
 /**
  * Extrair o zero-fill detection block dentro de a método bcorpo Heuristic:
  * o block é o brace-balanced region starting de o `if (...
@@ -104,7 +114,6 @@ function extractZerofillBlock(body) {
   throw new Error('could not close zerofill block');
 }
 
-const systemZerofill = extractZerofillBlock(systemBody);
 const micZerofill = extractZerofillBlock(micBody);
 
 /**
@@ -124,45 +133,64 @@ function stripComments(src) {
     .join('\n');
 }
 
-const systemZerofillCode = stripComments(systemZerofill);
 const micZerofillCode = stripComments(micZerofill);
 const mainCode = stripComments(main);
+const classifierCode = stripComments(classifierSrc);
 
 // ---------------------------------------------------------------------------
-// 1. wireSystemCapture: não Math.abs em o zero-fill detection block.
+// 1. wireSystemCapture: detector delegated to SystemAudioHealthClassifier —
+//    classifier must be peak-to-peak (DC-invariant), not abs-peak.
 // ---------------------------------------------------------------------------
-test('B10: wireSystemCapture zero-fill block contains no Math.abs', () => {
+test('B10: wireSystemCapture delegates zero-fill detection to SystemAudioHealthClassifier', () => {
+  assert.match(
+    systemBody,
+    /SystemAudioHealthClassifier/,
+    'wireSystemCapture must construct a SystemAudioHealthClassifier'
+  );
+  assert.match(
+    systemBody,
+    /kind:\s*['"]chunk['"]/,
+    'wireSystemCapture must route data chunks through the classifier'
+  );
+});
+
+test('B10: classifier zero-fill detector contains no Math.abs', () => {
   assert.ok(
-    !/Math\.abs\s*\(/.test(systemZerofillCode),
-    'wireSystemCapture zero-fill detector must not use Math.abs (peak-to-peak is DC-invariant)'
+    !/Math\.abs\s*\(/.test(classifierCode),
+    'classifier zero-fill detector must not use Math.abs (peak-to-peak is DC-invariant)'
   );
 });
 
 // ---------------------------------------------------------------------------
-// 2. wireSystemCapture: peakToPeak computation present.
+// 2. Classifier: peakToPeak computation present.
 // ---------------------------------------------------------------------------
-test('B10: wireSystemCapture computes peakToPeak as maxS - minS', () => {
+test('B10: classifier computes peakToPeak as max - min', () => {
   assert.match(
-    systemZerofill,
+    classifierSrc,
     /peakToPeak/,
-    'wireSystemCapture must declare a peakToPeak variable'
+    'classifier must declare a peakToPeak variable'
   );
   // Permitir ambos spaced and tight forms.
   assert.match(
-    systemZerofill,
-    /maxS\s*-\s*minS/,
-    'wireSystemCapture must compute (maxS - minS) for peak-to-peak'
+    classifierSrc,
+    /max\s*-\s*min/,
+    'classifier must compute (max - min) for peak-to-peak'
   );
 });
 
 // ---------------------------------------------------------------------------
-// 3. wireSystemCapture: threshold é > 100.
+// 3. Classifier: threshold é > 100.
 // ---------------------------------------------------------------------------
-test('B10: wireSystemCapture uses peakToPeak > 100 threshold', () => {
+test('B10: classifier uses peakToPeak > 100 threshold', () => {
   assert.match(
-    systemZerofill,
-    /peakToPeak\s*>\s*100/,
-    'wireSystemCapture must latch on peakToPeak > 100 (not the legacy > 8)'
+    classifierSrc,
+    /meaningfulPeakToPeak\s*=\s*100|MEANINGFUL_PEAK_TO_PEAK\s*=\s*100/,
+    'classifier default meaningful threshold must be 100 (not the legacy 8)'
+  );
+  assert.match(
+    classifierSrc,
+    /peakToPeak\s*>\s*this\.meaningfulPeakToPeak/,
+    'classifier must latch on peakToPeak > meaningfulPeakToPeak'
   );
 });
 
@@ -194,18 +222,19 @@ test('B10: wireMicCapture uses peakToPeak > 100 threshold', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. Ambos detector blocks inicializa minS to 32767 and maxS to -32768.
+// 5. Classifier inicializa min to 32767 and max to -32768 (int16 extremes);
+//    mic inline block keeps its own init.
 // ---------------------------------------------------------------------------
-test('B10: wireSystemCapture initializes minS=32767 and maxS=-32768 (int16 extremes)', () => {
+test('B10: classifier initializes min=32767 and max=-32768 (int16 extremes)', () => {
   assert.match(
-    systemZerofill,
-    /minS\s*=\s*32767/,
-    'minS must start at int16 max so the first sample updates it'
+    classifierSrc,
+    /min\s*=\s*32767/,
+    'min must start at int16 max so the first sample updates it'
   );
   assert.match(
-    systemZerofill,
-    /maxS\s*=\s*-32768/,
-    'maxS must start at int16 min so the first sample updates it'
+    classifierSrc,
+    /max\s*=\s*-32768/,
+    'max must start at int16 min so the first sample updates it'
   );
 });
 
@@ -243,24 +272,37 @@ test('B10: legacy `> 8` zero-fill threshold no longer appears near zerofillLatch
 });
 
 // ---------------------------------------------------------------------------
-// 7. Ambos detector blocks ainda emitir sendAudioCaptureFailed com o
-//    correct channel and o unchanged mensagem keys.
+// 7. System sustained-silence still surfaces: the classifier emits a
+//    sustained-zero-valued-silence decision and wireSystemCapture routes
+//    classifier decisions (warn-user still reaches sendAudioCaptureFailed
+//    with channel="system"). NOTE: the refactor deliberately downgraded
+//    bare sustained silence to a log (B11 false-positive reduction) —
+//    only the same-device route escalates to a user banner now. Flagged
+//    as a concern in the wave report for product-owner confirmation.
 // ---------------------------------------------------------------------------
-test('B10: wireSystemCapture zero-fill emits sendAudioCaptureFailed with channel="system" and mac-screen-recording-revoked-rebuild', () => {
+test('B10: classifier surfaces sustained zero-valued silence as a decision', () => {
   assert.match(
-    systemZerofill,
+    classifierSrc,
+    /sustained-zero-valued-silence/,
+    'classifier must emit a sustained-zero-valued-silence decision after the observation window'
+  );
+});
+
+test('B10: wireSystemCapture routes classifier warn-user decisions to sendAudioCaptureFailed with channel="system"', () => {
+  assert.match(
+    systemBody,
+    /handleSystemAudioHealthDecision/,
+    'wireSystemCapture must route classifier decisions through a handler'
+  );
+  assert.match(
+    systemBody,
     /this\.sendAudioCaptureFailed\s*\(/,
-    'system zero-fill branch must still call sendAudioCaptureFailed'
+    'system path must still call sendAudioCaptureFailed for escalated decisions'
   );
   assert.match(
-    systemZerofill,
+    systemBody,
     /channel:\s*['"]system['"]/,
-    'system zero-fill payload must set channel:"system"'
-  );
-  assert.match(
-    systemZerofill,
-    /mac-screen-recording-revoked-rebuild/,
-    'system zero-fill message key must remain "mac-screen-recording-revoked-rebuild"'
+    'system payload must set channel:"system"'
   );
 });
 
@@ -280,4 +322,64 @@ test('B10: wireMicCapture zero-fill emits sendAudioCaptureFailed with channel="m
     /mic-zero-fill/,
     'mic zero-fill message key must remain "mic-zero-fill"'
   );
+});
+
+// ---------------------------------------------------------------------------
+// 8. Behavioral pins (review finding): feed the classifier synthetic Int16LE
+//    data and assert on its real decisions — not source strings. Time is
+//    injected via nowMs so no real waiting is needed.
+// ---------------------------------------------------------------------------
+
+/** Build a Buffer from an array of int16 samples. */
+function int16Buffer(samples) {
+  const buf = Buffer.alloc(samples.length * 2);
+  samples.forEach((s, i) => buf.writeInt16LE(s, i * 2));
+  return buf;
+}
+
+test('B10 (behavioral): all-zeros buffer yields sustained-zero-valued-silence log decision', () => {
+  const classifier = new SystemAudioHealthClassifier();
+  assert.equal(
+    classifier.handle({ kind: 'capture-started', nowMs: 0 }).type,
+    'none'
+  );
+  const zeros = Buffer.alloc(2048); // 1024 silent int16 samples
+  assert.equal(peakToPeakInt16LE(zeros), 0);
+  const first = classifier.handle({ kind: 'chunk', chunk: zeros, nowMs: 0 });
+  assert.equal(first.type, 'none');
+  const decision = classifier.handle({
+    kind: 'chunk',
+    chunk: zeros,
+    nowMs: 12_001,
+  });
+  assert.equal(decision.type, 'log');
+  assert.equal(decision.reason, 'sustained-zero-valued-silence');
+});
+
+test('B10 (behavioral): synthetic tone buffer latches meaningful signal and never logs silence', () => {
+  const classifier = new SystemAudioHealthClassifier();
+  classifier.handle({ kind: 'capture-started', nowMs: 0 });
+  // Sine tone, amplitude 5000 (period 100 samples — deliberately not a
+  // multiple of the classifier stride so stride sampling still sees swing).
+  const tone = int16Buffer(
+    Array.from({ length: 1024 }, (_, i) =>
+      Math.round(5000 * Math.sin((2 * Math.PI * i) / 100))
+    )
+  );
+  assert.ok(
+    peakToPeakInt16LE(tone) > 100,
+    'tone peak-to-peak must clear the meaningful threshold'
+  );
+  // Stream tone past the silence observation window in small gaps (stays
+  // under the inter-chunk-gap log threshold): no chunk may ever emit a
+  // sustained-zero-valued-silence log for meaningful audio.
+  let sawSilenceLog = false;
+  for (let t = 0; t <= 13_000; t += 1000) {
+    const d = classifier.handle({ kind: 'chunk', chunk: tone, nowMs: t });
+    if (d.type === 'log' && d.reason === 'sustained-zero-valued-silence') {
+      sawSilenceLog = true;
+    }
+  }
+  assert.equal(sawSilenceLog, false);
+  assert.equal(classifier.hasMeaningfulSignal, true);
 });

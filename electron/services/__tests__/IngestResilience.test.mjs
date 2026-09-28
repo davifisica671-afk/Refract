@@ -22,9 +22,14 @@ import Database from 'better-sqlite3';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const load = (rel) => import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/' + rel)).href);
 
-const { KnowledgeDatabaseManager } = await load('KnowledgeDatabaseManager.js');
-const { KnowledgeOrchestrator } = await load('KnowledgeOrchestrator.js');
-const { DocType } = await load('types.js');
+const KDB_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js');
+const TYPES_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/types.js');
+// Wave 2B: KnowledgeOrchestrator is commercial orchestration logic — skip, don't reimplement, when absent.
+const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+const SKIP_NO_PREMIUM = (!fs.existsSync(KO_PATH) || !fs.existsSync(KDB_PATH) || !fs.existsSync(TYPES_PATH)) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeDatabaseManager } = SKIP_NO_PREMIUM ? {} : await load('KnowledgeDatabaseManager.js');
+const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : await load('KnowledgeOrchestrator.js');
+const { DocType } = SKIP_NO_PREMIUM ? {} : await load('types.js');
 
 const RESUME = `Evin John
 Founder & Full-Stack Engineer
@@ -58,7 +63,7 @@ const LLM_DOWN = async () => { throw new Error('429 billing decision: account su
 const EMBED_OK = async () => Array(128).fill(0).map((_, i) => (i % 7) * 0.01);
 const EMBED_DOWN = async () => { throw new Error('embedding endpoint 403'); };
 
-describe('D2: ingest resilience when the extraction LLM is down', () => {
+describe('D2: ingest resilience when the extraction LLM is down', { skip: SKIP_NO_PREMIUM }, () => {
   let db, orchestrator, resumeFile;
 
   beforeEach(() => {

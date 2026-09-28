@@ -26,10 +26,17 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { KnowledgeOrchestrator } = require('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+// Wave 2B: KnowledgeOrchestrator is commercial orchestration logic — skip, don't reimplement, when absent.
+const SKIP_NO_PREMIUM = !fs.existsSync(KO_PATH) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : require(KO_PATH);
 
 // --- Synthetic retomar (completamente fictional; não real PII; values differ de o
 // outro production-path testar então a hardcoded match iria fail) ---
@@ -79,7 +86,7 @@ function makeOrchestrator(resume = SYNTHETIC_RESUME) {
   return orch;
 }
 
-describe('Persona-fabrication zero-node fallback — production path', () => {
+describe('Persona-fabrication zero-node fallback — production path', { skip: SKIP_NO_PREMIUM }, () => {
   test('"why should they hire me?" (no category keyword, empty retrieval) grounds REAL experience instead of a void', async () => {
     const orch = makeOrchestrator();
     const result = await orch.processQuestion('why should they hire me?');

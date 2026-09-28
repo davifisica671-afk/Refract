@@ -1110,6 +1110,18 @@ export class AppState {
     sendOnce(this.windowHelper.getLauncherWindow());
   }
 
+  /** Targeted model-changed dispatch: only the overlay (RefractInterface listener)
+   * and the model selector window consume it — never a getAllWindows broadcast. */
+  public sendModelChanged(modelId: string): void {
+    const sent = new Set<number>();
+    const sendOnce = (win: BrowserWindow | null | undefined) => {
+      if (!win || sent.has(win.id)) return;
+      if (this.sendToWindow(win, 'model-changed', modelId)) sent.add(win.id);
+    };
+    sendOnce(this.windowHelper.getOverlayWindow());
+    sendOnce(this.modelSelectorWindowHelper.getWindow());
+  }
+
   /** Enviar payload de transcrição para a barra de transcrição rolante do launcher + overlay. */
   private emitTranscriptToSurfaces(payload: { speaker: string; text: string; timestamp: number; final: boolean; confidence: number }): void {
     const helper = this.getWindowHelper();
@@ -2128,7 +2140,10 @@ export class AppState {
         logger(`${prefix}${decision.message}`);
         return;
       }
-      if (decision.type === 'warn-user' && decision.reason === 'same-device-input-output') {
+      // `mac-` copy is macOS-only (CoreAudio process tap; the detector above
+      // only runs on darwin): gate the broadcast itself so a future cross-platform
+      // caller can never leak macOS copy to Windows users (issue #252).
+      if (process.platform === 'darwin' && decision.type === 'warn-user' && decision.reason === 'same-device-input-output') {
         const msg = formatPermissionMessage('mac-same-device-input-output', { device: decision.device });
         console.warn(`${prefix}SystemAudioCapture ${msg}`);
         this.sendAudioCaptureFailed( {
@@ -4478,9 +4493,7 @@ export class AppState {
           const all = [...(cm.getCurlProviders() || []), ...(cm.getCustomProviders() || [])];
           console.log(`[Main] Reverting model to default: ${defaultModel}`);
           this.processingHelper.getLLMHelper().setModel(defaultModel, all);
-          BrowserWindow.getAllWindows().forEach(win => {
-            if (!win.isDestroyed()) win.webContents.send('model-changed', defaultModel);
-          });
+          this.sendModelChanged(defaultModel);
         } catch (e) {
           console.error('[Main] Failed to revert model:', e);
         }

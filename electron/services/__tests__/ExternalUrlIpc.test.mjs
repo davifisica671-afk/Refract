@@ -19,7 +19,12 @@ test('open-external IPC only allows known external destinations', () => {
   const handler = source.slice(start, end);
 
   assert.ok(start >= 0, 'open-external handler should exist');
-  assert.match(handler, /parsed\.protocol === 'https:'[\s\S]{0,80}parsed\.hostname === 'mail\.google\.com'[\s\S]{0,80}parsed\.pathname === '\/mail\/'/);
+  // Intentional: renderer legitimately opens dozens of https destinations (billing,
+  // provider key consoles, docs, upgrade links) in the user's browser via
+  // shell.openExternal — a gmail-only pin would break them all. Invariant kept:
+  // https-only (no http/file/custom schemes) plus the darwin-gated x-apple below.
+  assert.match(handler, /parsed\.protocol === 'https:'/);
+  assert.doesNotMatch(handler, /parsed\.protocol === 'http:'/);
   assert.match(handler, /parsed\.protocol === 'x-apple\.systempreferences:' && process\.platform === 'darwin'/);
   assert.doesNotMatch(handler, /\['http:', 'https:', 'mailto:'\]\.includes\(parsed\.protocol\)/);
   assert.doesNotMatch(handler, /url\.startsWith\('x-apple\.systempreferences:'\)/);

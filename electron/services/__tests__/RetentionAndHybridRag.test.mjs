@@ -34,11 +34,14 @@ describe('Phase 4 — Hybrid RAG default in WhatToAnswerLLM', () => {
     const src = read('electron/llm/WhatToAnswerLLM.ts');
     // Tipo slot para o new método (então callers pode detect it).
     assert.match(src, /buildRetrievedActiveModeContextBlockHybrid\?:/, 'type alias must declare optional hybrid method');
-    // Runtime branch: prefer hybrid, await it.
-    assert.match(src, /typeof this\.modesManager\.buildRetrievedActiveModeContextBlockHybrid\s*===\s*['"]function['"]/);
-    assert.match(src, /await this\.modesManager\.buildRetrievedActiveModeContextBlockHybrid\(/);
-    // Lexical fallback caminho remains.
-    assert.match(src, /this\.modesManager\.buildRetrievedActiveModeContextBlock\(/);
+    // Runtime branch: prefer hybrid, await it (via the hoisted `modesManager`
+    // local since the W5 prefetch refactor — same detection semantics).
+    assert.match(src, /typeof (?:this\.modesManager|modesManager)\.buildRetrievedActiveModeContextBlockHybrid\s*===\s*['"]function['"]/);
+    // Awaited through the 1500ms budget race (first-token stall fix) — allow
+    // the raceWithBudget( wrapper between `await` and the hybrid call.
+    assert.match(src, /await[\s\S]{0,80}(?:this\.modesManager|modesManager)\.buildRetrievedActiveModeContextBlockHybrid\(/);
+    // Lexical fallback caminho remains (same hoisted local).
+    assert.match(src, /(?:this\.modesManager|modesManager)\.buildRetrievedActiveModeContextBlock\(/);
   });
 });
 
@@ -68,7 +71,8 @@ describe('Phase 9 — Retention & doNotPersist gate in MeetingPersistence', () =
   test('do-not-persist still emits a sanitized meeting_stop telemetry event', () => {
     const src = read('electron/MeetingPersistence.ts');
     // Encontra o doNotPersist branch and assert it tracks meeting_stop.
-    const idx = src.indexOf('doNotPersist');
+    // Anchor at the gate (a header comment also mentions doNotPersist).
+    const idx = src.indexOf('if (doNotPersist)');
     const window = src.slice(idx, idx + 1500);
     assert.match(window, /name:\s*['"]meeting_stop['"]/, 'do-not-persist path should still emit meeting_stop');
     assert.match(window, /persisted:\s*false/, 'event must record persisted:false');

@@ -109,6 +109,9 @@ class ZeroShotClassifier {
     private getWorker(): Worker {
         if (!this.worker) {
             this.worker = new Worker(this.getWorkerPath());
+            // Never pin the event loop: classification requests keep their own
+            // timeouts, so an idle worker must not block process/test exit.
+            this.worker.unref();
 
             this.worker.on('message', (msg: { type: string; requestId: number; labels?: string[]; scores?: number[]; error?: string }) => {
                 const pending = this.pendingRequests.get(msg.requestId);

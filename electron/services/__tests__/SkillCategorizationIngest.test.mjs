@@ -28,10 +28,18 @@ function makeTempFile(content, ext = '.txt') {
 }
 
 const P = (rel) => pathToFileURL(path.resolve(__dirname, rel)).href;
-const { KnowledgeDatabaseManager } = await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js'));
-const { KnowledgeOrchestrator } = await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js'));
-const { DocType } = await import(P('../../../dist-electron/premium/electron/knowledge/types.js'));
-const { createDocumentNodes } = await import(P('../../../dist-electron/premium/electron/knowledge/DocumentChunker.js'));
+// Wave 2B: KnowledgeOrchestrator/DocumentChunker are commercial logic — skip,
+// don't reimplement, when absent. (skillsUtil itself is stubbed; its unit
+// coverage lives in SkillCategorization.test.mjs.)
+const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+const KDB_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js');
+const TYPES_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/types.js');
+const DC_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/DocumentChunker.js');
+const SKIP_NO_PREMIUM = (!fs.existsSync(KO_PATH) || !fs.existsSync(KDB_PATH) || !fs.existsSync(TYPES_PATH) || !fs.existsSync(DC_PATH)) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeDatabaseManager } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js'));
+const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js'));
+const { DocType } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/types.js'));
+const { createDocumentNodes } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/DocumentChunker.js'));
 
 // Extractor Retorna o NEW categorized shape (como o upgraded prompt instructs).
 const MOCK_GENERATE_CONTENT = async () => JSON.stringify({
@@ -49,7 +57,7 @@ const MOCK_GENERATE_CONTENT = async () => JSON.stringify({
 });
 const MOCK_EMBED_FN = async () => Array(128).fill(0).map((_, i) => (i % 7) * 0.01);
 
-describe('RC-3 integration: categorized skills end-to-end', () => {
+describe('RC-3 integration: categorized skills end-to-end', { skip: SKIP_NO_PREMIUM }, () => {
     let db, orchestrator, tmpResume;
 
     beforeEach(() => {
@@ -96,7 +104,7 @@ describe('RC-3 integration: categorized skills end-to-end', () => {
     });
 });
 
-describe('RC-3 integration: v1→v2 backfill of legacy flat-skills profile', () => {
+describe('RC-3 integration: v1→v2 backfill of legacy flat-skills profile', { skip: SKIP_NO_PREMIUM }, () => {
     let db, orchestrator;
 
     beforeEach(() => {

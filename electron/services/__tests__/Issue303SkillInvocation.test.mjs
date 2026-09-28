@@ -170,7 +170,12 @@ describe('Issue #303: skill picker dropdown in overlay chat input', () => {
 
   test('selectSkill sets inputValue to /skill-id with trailing space', () => {
     const source = read('src/components/RefractInterface.tsx');
-    assert.match(source, /setInputValue\(`\/\$\{skill\.id\} `\)/,
-      'selectSkill must complete to /skill-id with trailing space so user can type query');
+    // selectSkill preserves o user's typed prefix ($ Ou /) quando completing —
+    // o pin covers ambos forms plus o required trailing space so the user can
+    // type their query right after the completed skill id.
+    assert.match(source, /const prefix = inputValue\.startsWith\('\$'\) \? '\$' : '\/'/,
+      'selectSkill must preserve the typed $ or / prefix');
+    assert.match(source, /setInputValue\(`\$\{prefix\}\$\{skill\.id\} `\)/,
+      'selectSkill must complete to prefix + skill-id with trailing space so user can type query');
   });
 });

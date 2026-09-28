@@ -23,10 +23,17 @@ import Database from 'better-sqlite3';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const P = (rel) => pathToFileURL(path.resolve(__dirname, rel)).href;
 
-const { KnowledgeDatabaseManager } = await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js'));
-const { KnowledgeOrchestrator } = await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js'));
-const { DocType } = await import(P('../../../dist-electron/premium/electron/knowledge/types.js'));
-const { buildGroundingBlock, buildCandidateProfileBlock, buildTargetJobBlock } = await import(P('../../../dist-electron/premium/electron/knowledge/ProfileContextBuilder.js'));
+const KDB_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js');
+const TYPES_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/types.js');
+const PCB_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/ProfileContextBuilder.js');
+// Wave 2B: KnowledgeOrchestrator/ProfileContextBuilder are commercial logic —
+// skip, don't reimplement, when absent. (Flag + prompts suites below are core-only and stay live.)
+const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+const SKIP_NO_PREMIUM = (!fs.existsSync(KO_PATH) || !fs.existsSync(KDB_PATH) || !fs.existsSync(TYPES_PATH) || !fs.existsSync(PCB_PATH)) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeDatabaseManager } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeDatabaseManager.js'));
+const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js'));
+const { DocType } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/types.js'));
+const { buildGroundingBlock, buildCandidateProfileBlock, buildTargetJobBlock } = SKIP_NO_PREMIUM ? {} : await import(P('../../../dist-electron/premium/electron/knowledge/ProfileContextBuilder.js'));
 const { isProfileGroundingV2Enabled, __resetProfileGroundingV2Cache } = await import(P('../../../dist-electron/electron/llm/profileGroundingV2.js'));
 
 // Habilitar o flag Uma vez at módulo lcarrega antes qualquer testar rexecuta node:test executa
@@ -62,7 +69,7 @@ const JD_DOC = {
 // ---------------------------------------------------------------------------
 // Pure builder
 // ---------------------------------------------------------------------------
-describe('P2: ProfileContextBuilder renders the full typed profile', () => {
+describe('P2: ProfileContextBuilder renders the full typed profile', { skip: SKIP_NO_PREMIUM }, () => {
     test('candidate profile block includes name, ALL skill categories, experience, projects, education', () => {
         const b = buildCandidateProfileBlock(RESUME_DOC);
         assert.match(b, /<candidate_profile>/);
@@ -139,7 +146,7 @@ function makeOrchestrator(resume, jd) {
 
 // Flag é pinned Em para o whole arquivo (define at módulo carrega abacima então these
 // orchestrator tests need não per-test env mutação — eliminating o race.
-describe('P2: orchestrator injection (flag ON for file)', () => {
+describe('P2: orchestrator injection (flag ON for file)', { skip: SKIP_NO_PREMIUM }, () => {
     test('a profile question gets the full grounding block + factualRecall', async () => {
         const orch = makeOrchestrator(RESUME_DOC, JD_DOC);
         const result = await orch.processQuestion('what are my main programming languages?');
@@ -187,7 +194,7 @@ describe('P2: orchestrator injection (flag ON for file)', () => {
 
 // S2 (spec §8.3): answer-type gating — perfil precisa ser EXCLUDED de coding/
 // technical/sales/lecture answers até com a retomar loaded and o flag OEm
-describe('S2: answer-type gating of the grounding block (flag ON)', () => {
+describe('S2: answer-type gating of the grounding block (flag ON)', { skip: SKIP_NO_PREMIUM }, () => {
     test('coding question gets NO <candidate_profile> block (spec §12.4, test 15)', async () => {
         const orch = makeOrchestrator(RESUME_DOC, JD_DOC);
         const result = await orch.processQuestion('write a function to reverse a string');

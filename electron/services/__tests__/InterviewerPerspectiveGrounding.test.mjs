@@ -17,6 +17,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -26,7 +27,10 @@ const require = createRequire(import.meta.url);
 
 const { extractLatestQuestion, toCandidateFraming } = await import(pathToFileURL(
   path.resolve(__dirname, '../../../dist-electron/electron/llm/transcriptQuestionExtractor.js')).href);
-const { KnowledgeOrchestrator } = require('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+// Wave 2B: KnowledgeOrchestrator is commercial orchestration logic — skip, don't reimplement, when absent.
+const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+const SKIP_NO_PREMIUM = !fs.existsSync(KO_PATH) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : require(KO_PATH);
 
 const RESUME = {
   id: 1, type: 'resume',
@@ -85,7 +89,7 @@ async function ground(orchestrator, turns, question = undefined) {
   return { extracted, candidateProfile };
 }
 
-describe('interviewer-perspective grounding (extractor → orchestrator)', () => {
+describe('interviewer-perspective grounding (extractor → orchestrator)', { skip: SKIP_NO_PREMIUM }, () => {
   test('Interviewer: "Tell me about your projects." → loaded projects grounded', async () => {
     const o = makeOrchestrator();
     const { extracted, candidateProfile } = await ground(o, [

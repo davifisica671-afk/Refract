@@ -28,10 +28,10 @@ const registrySrc = fs.readFileSync(
 function buildBody(src) {
   const start = src.indexOf('export function buildVisionProviders');
   assert.ok(start >= 0, 'buildVisionProviders not found');
-  // Corpo termina at o closing `}` de o ffunção o próximo `// ─── Provedor
-  // builders` banner é a stable sentinel direito após it.
-  const end = src.indexOf('Provider builders', start);
-  assert.ok(end > start, 'provider-builders sentinel not found after buildVisionProviders');
+    // Corpo termina at o closing `}` de o ffunção o próximo builder banner é a
+    // stable sentinel direito após it (banner em PT após o rewrite: "Provedor builders").
+    const end = src.indexOf('Provedor builders', start);
+    assert.ok(end > start, 'provider-builders sentinel not found after buildVisionProviders');
   return src.slice(start, end);
 }
 

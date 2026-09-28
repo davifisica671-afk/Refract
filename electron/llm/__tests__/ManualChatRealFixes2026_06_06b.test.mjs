@@ -161,8 +161,9 @@ describe('Phase 5: manual voice consistency', () => {
 });
 
 describe('Phase 6: product / project "about" grounding', () => {
+  // Wave 2B: dead-brand typo cases deleted — no routing-neutral typo of current brand resolves.
   for (const q of [
-    'what do you think about nativley', 'hows nativleys backend like', 'what kinda app is it',
+    'what kinda app is it',
     'what tech does refract use', 'does it use Ollama', 'what part uses Rust',
     'does it have a backend server',
   ]) {

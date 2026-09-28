@@ -17,6 +17,7 @@
     - Security: Hindsight serverCommand is validated (no-shell argv form, existing binary only, expanded interpreter gate) with native reconfirmation on save.
     - Security: Hindsight API key moved from settings.json to OS safeStorage with one-time migration.
     - Security (F-05/F-06/F-08): chat image paths validated (count + userData confinement), whisper downloads restricted to catalog models, repo-index paths validated before indexing.
+    - Behavior note: sustained zero-filled system audio no longer raises the overlay banner (now logged; same-device escalation retained) — under review, may return as an opt-in alert.
     - **Build recovery**: the 60+ modules referenced by the rewritten IPC layer that had no on-disk implementation are now local graceful stubs (empty catalogs, unavailable statuses, typed errors), plus 12 missing degraded exports on pre-existing modules — the app builds and runs again; full implementations remain follow-ups per module.
 
     ## [2.7.0] - 2026-06-05

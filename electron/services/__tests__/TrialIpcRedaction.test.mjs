@@ -23,7 +23,9 @@ test('trial IPC handlers do not return raw trial tokens to the renderer', () => 
   assert.ok(startStart >= 0, 'trial:start handler should exist');
   assert.ok(localStart >= 0, 'trial:get-local handler should exist');
   assert.match(startHandler, /const \{ trial_token, \.\.\.safeData \} = data/);
-  assert.match(startHandler, /return \{ ok: true, \.\.\.safeData, hasToken: Boolean\(data\.trial_token\) \}/);
+  // Intentional: handler also reports `persisted` (disk-write outcome) so the UI
+  // can warn on in-memory-only trials. Invariant kept: trial_token still stripped.
+  assert.match(startHandler, /return \{ ok: true, \.\.\.safeData, hasToken: Boolean\(data\.trial_token\)(, persisted)? \}/);
   assert.doesNotMatch(startHandler, /return \{ ok: true, \.\.\.data \}/);
   assert.doesNotMatch(localHandler, /trialToken:\s*token/);
 });

@@ -80,20 +80,20 @@ const streamChatBody = extractBalancedBody(
     'LLMHelper.streamChat',
 );
 
-test('streamChat extracts trailing arg as AbortSignal via args[args.length - 1] and instanceof check', () => {
-    // O exact extraction pattern: pull o último positional arg, narrow com
-    // `instanceof AbortSignal`. Duck-typing em `.aborted` era o primeiro
-    // implementation; we tightened to `instanceof` porque future params
-    // (extraDataScopes, options objects) poderia accidentally ter an `aborted`
-    // shape and qualquer um crash em acesso ou ser misclassified como a never-aborted
-    // ssinal
-    const hasLastArgLookup = /args\s*\[\s*args\.length\s*-\s*1\s*\]/.test(streamChatBody);
+test('streamChat extracts the AbortSignal position-independently via args.find and instanceof check', () => {
+    // Justification (deliberate evolution, invariant kept): `thinkingBudget`
+    // + `routeOptions` were appended AFTER `abortSignal` in _streamChatInner,
+    // so the signal is no longer the trailing arg — `args[args.length - 1]`
+    // would now grab routeOptions. The code finds it position-independently
+    // via `args.find(a => a instanceof AbortSignal)`, which keeps the exact
+    // instanceof-narrowing rationale above (no duck-typing on `.aborted`).
+    const hasPositionIndependentLookup = /args\.find\s*\(/.test(streamChatBody);
     const hasInstanceOfCheck = /instanceof\s+AbortSignal/.test(streamChatBody);
     assert.ok(
-        hasLastArgLookup,
-        'BUG: streamChat must extract the trailing positional arg via args[args.length - 1]. ' +
-        'Without this, callers that pass an AbortSignal as the variadic trailing arg cannot ' +
-        'cancel the generator, and supersession-discarded tokens keep streaming from the provider.',
+        hasPositionIndependentLookup,
+        'BUG: streamChat must extract the AbortSignal from its variadic args via args.find. ' +
+        'Without this, callers that pass an AbortSignal cannot cancel the generator, ' +
+        'and supersession-discarded tokens keep streaming from the provider.',
     );
     assert.ok(
         hasInstanceOfCheck,
@@ -173,9 +173,25 @@ test('ipcHandlers tracks active gemini chat streams by sender id', () => {
 });
 
 test('gemini-chat-stream handler supersedes only the current sender and passes signal to streamChat', () => {
-    const handlerStart = ipcHandlersSrc.indexOf("'gemini-chat-stream'");
-    assert.ok(handlerStart >= 0, "could not locate 'gemini-chat-stream' safeHandle registration");
-    const handlerRegion = ipcHandlersSrc.slice(handlerStart, handlerStart + 12_000);
+    // Justification (deliberate evolution, invariant kept): the handler body
+    // was extracted into `_geminiChatStreamHandler` (thin safeHandle wrapper
+    // now only runs the F-05 image-path validation, then delegates), so
+    // slicing 12k chars from the safeHandle registration no longer reaches
+    // the supersession logic. Scope the assertions to the extracted handler
+    // and pin the registration-to-handler delegation so they cannot pass
+    // vacuously against dead code.
+    const regStart = ipcHandlersSrc.indexOf("safeHandle('gemini-chat-stream'");
+    assert.ok(regStart >= 0, "could not locate 'gemini-chat-stream' safeHandle registration");
+    const regRegion = ipcHandlersSrc.slice(regStart, regStart + 2_000);
+    assert.ok(
+        /return\s+_geminiChatStreamHandler\s*\(\s*event\s*,/.test(regRegion),
+        'BUG: gemini-chat-stream registration must delegate to _geminiChatStreamHandler (the per-sender supersession owner).',
+    );
+    const handlerRegion = extractBalancedBody(
+        ipcHandlersSrc,
+        /const\s+_geminiChatStreamHandler\s*=\s*async\s*\([\s\S]*?:\s*Promise<null>\s*=>/,
+        '_geminiChatStreamHandler',
+    );
 
     assert.ok(
         /const\s+senderId\s*=\s*event\.sender\.id/.test(handlerRegion),
@@ -197,9 +213,20 @@ test('gemini-chat-stream handler supersedes only the current sender and passes s
         /_chatStreamsBySender\.get\s*\(\s*senderId\s*\)\?\.streamId\s*!==\s*myStreamId/.test(handlerRegion),
         'BUG: supersession checks must compare against the current sender stream id, not a global active stream id.',
     );
+    // Justification (deliberate evolution, invariant kept): the legacy direct
+    // `llmHelper.streamChat(..., myController.signal, ...)` call now goes
+    // through the `_manualAnswerArgs` tuple (which also carries thinkingBudget
+    // + the routing decision), spread as `streamChat(..._manualAnswerArgs)`.
+    // Pin both halves: the sender's signal is an element of the tuple, and
+    // the tuple is what reaches streamChat — combined with streamChat's
+    // args.find gate above, cancellation still flows end-to-end.
     assert.ok(
-        /llmHelper\.streamChat\s*\([\s\S]*?myController\.signal\s*,?\s*\)/.test(handlerRegion),
-        'BUG: gemini-chat-stream handler must pass myController.signal to llmHelper.streamChat.',
+        /myController\.signal,/.test(handlerRegion),
+        "BUG: the sender controller signal must be threaded into this turn's answer args.",
+    );
+    assert.ok(
+        /llmHelper\.streamChat\s*\(\s*\.\.\._manualAnswerArgs\s*\)/.test(handlerRegion),
+        'BUG: gemini-chat-stream handler must dispatch via llmHelper.streamChat(..._manualAnswerArgs) carrying myController.signal.',
     );
 });
 

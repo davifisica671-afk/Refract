@@ -81,6 +81,9 @@ test('IPC and meeting summary logs avoid answer and LLM response snippets', () =
   assert.doesNotMatch(persistence, /Raw LLM summary response/);
   assert.doesNotMatch(persistence, /Raw response:', jsonStr\.substring/);
 
-  assert.match(intent, /SLM classified`, \{ intent, confidence: topScore, textLength: text\.length \}/);
+  // Intentional: worker-based classifier passes only the text length (number)
+  // into mapWorkerResult, so the log uses the `textLength` shorthand — same
+  // metadata, no text content. Invariant kept: no prompt/response snippet logged.
+  assert.match(intent, /SLM classified`, \{ intent, confidence: topScore, textLength(?:: text\.length)? \}/);
   assert.doesNotMatch(intent, /text\.substring\(/);
 });

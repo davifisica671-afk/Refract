@@ -19,14 +19,24 @@ test('embeddings scope denial routes through Ollama before local fallback', () =
   assert.match(src, /error instanceof ProviderScopeError/);
   assert.match(src, /\[ScopeFallback\] embeddings denied for cloud; routing to Ollama/);
   assert.match(src, /candidates\.push\(new OllamaEmbeddingProvider/);
-  assert.match(src, /if \(!embeddingsDenied\) \{\s*candidates\.push\(new LocalEmbeddingProvider\(\)\)/);
+  // Justification (deliberate evolution, invariant kept): local is no longer
+  // a probed candidate gated on `!embeddingsDenied` — it is the terminal
+  // LAZY fallback (probing it would load the MiniLM ONNX model at startup).
+  // Denial still routes cloud -> Ollama first; local still closes the chain.
+  assert.match(src, /candidates\.push\(new OllamaEmbeddingProvider\(config\.ollamaUrl/);
+  assert.match(src, /const local = new LocalEmbeddingProvider\(\);/);
+  assert.match(src, /\[ScopeFallback\] embeddings denied; Ollama unavailable, using bundled local embedding model lazily/);
 });
 
 test('embeddings scope denial gracefully omits embeddings when Ollama is unavailable', () => {
   const src = read('electron/rag/EmbeddingProviderResolver.ts');
 
-  assert.match(src, /\[ScopeFallback\] embeddings denied; Ollama unavailable, using bundled local embedding model/);
-  assert.match(src, /return new LocalEmbeddingProvider\(\)/);
+  // Justification (deliberate evolution, invariant kept): the terminal
+  // fallback constructs the lazy local provider into a local and returns it
+  // (see above) — denial still resolves to a usable local model, never throws.
+  assert.match(src, /\[ScopeFallback\] embeddings denied; Ollama unavailable, using bundled local embedding model lazily/);
+  assert.match(src, /const local = new LocalEmbeddingProvider\(\);/);
+  assert.match(src, /return local;/);
 });
 
 test('transcript scope denial routes full context to Ollama when available', () => {

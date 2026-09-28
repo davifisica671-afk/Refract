@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
@@ -8,6 +9,8 @@ const policyPath = path.resolve(
   __dirname,
   '../../../dist-electron/premium/electron/services/licenseVerifyPolicy.js'
 );
+// Wave 2B: license-verify policy is commercial logic — skip (don't stub) when absent.
+const SKIP_NO_PREMIUM = !fs.existsSync(policyPath) && 'premium licenseVerifyPolicy absent — commercial, not stubbed';
 
 async function loadPolicy() {
   return import(pathToFileURL(policyPath).href);
@@ -18,60 +21,60 @@ async function loadPolicy() {
 // license. Apenas a CONFIRMED loss de entitlement (plan downgraded / subscription_inactive /
 // key_not_found) revokes.
 
-test('active Pro (200 ok/has_pro) → active', async () => {
+test('active Pro (200 ok/has_pro) → active', { skip: SKIP_NO_PREMIUM }, async () => {
   const { classifyProVerify } = await loadPolicy();
   assert.equal(classifyProVerify(200, { ok: true, has_pro: true, plan: 'pro' }), 'active');
   assert.equal(classifyProVerify(200, { ok: true, has_pro: true, plan: 'max' }), 'active');
 });
 
-test('plan downgraded to standard (200 has_pro:false) → revoke', async () => {
+test('plan downgraded to standard (200 has_pro:false) → revoke', { skip: SKIP_NO_PREMIUM }, async () => {
   const { classifyProVerify } = await loadPolicy();
   assert.equal(classifyProVerify(200, { ok: true, has_pro: false, plan: 'standard' }), 'revoke');
 });
 
-test('subscription_inactive (403) → revoke', async () => {
+test('subscription_inactive (403) → revoke', { skip: SKIP_NO_PREMIUM }, async () => {
   const { classifyProVerify } = await loadPolicy();
   assert.equal(classifyProVerify(403, { ok: false, error: 'subscription_inactive' }), 'revoke');
 });
 
-test('key_not_found / invalid_key_format → revoke (refund/deleted key)', async () => {
+test('key_not_found / invalid_key_format → revoke (refund/deleted key)', { skip: SKIP_NO_PREMIUM }, async () => {
   const { classifyProVerify } = await loadPolicy();
   assert.equal(classifyProVerify(403, { ok: false, error: 'key_not_found' }), 'revoke');
   assert.equal(classifyProVerify(400, { ok: false, error: 'invalid_key_format' }), 'revoke');
 });
 
-test('REGRESSION F4: account_suspended (403 payment hold) → keep (NOT revoke)', async () => {
+test('REGRESSION F4: account_suspended (403 payment hold) → keep (NOT revoke)', { skip: SKIP_NO_PREMIUM }, async () => {
   const { classifyProVerify } = await loadPolicy();
   assert.equal(classifyProVerify(403, { ok: false, error: 'account_suspended' }), 'keep');
 });
 
-test('REGRESSION F4: ip_blocked (429 rate limit) → keep (NOT revoke)', async () => {
+test('REGRESSION F4: ip_blocked (429 rate limit) → keep (NOT revoke)', { skip: SKIP_NO_PREMIUM }, async () => {
   const { classifyProVerify } = await loadPolicy();
   assert.equal(classifyProVerify(429, { ok: false, error: 'ip_blocked' }), 'keep');
 });
 
-test('REGRESSION F4: 5xx server error → keep (fail-open)', async () => {
+test('REGRESSION F4: 5xx server error → keep (fail-open)', { skip: SKIP_NO_PREMIUM }, async () => {
   const { classifyProVerify } = await loadPolicy();
   assert.equal(classifyProVerify(503, { error: 'server_error' }), 'keep');
   assert.equal(classifyProVerify(500, null), 'keep');
 });
 
-test('REGRESSION F4: network error (status 0) → keep (fail-open)', async () => {
+test('REGRESSION F4: network error (status 0) → keep (fail-open)', { skip: SKIP_NO_PREMIUM }, async () => {
   const { classifyProVerify } = await loadPolicy();
   assert.equal(classifyProVerify(0, null), 'keep');
 });
 
-test('unparseable body on 200 → keep (fail-open, avoids false revoke)', async () => {
+test('unparseable body on 200 → keep (fail-open, avoids false revoke)', { skip: SKIP_NO_PREMIUM }, async () => {
   const { classifyProVerify } = await loadPolicy();
   assert.equal(classifyProVerify(200, null), 'keep');
 });
 
-test('unrecognized error code → keep (paying-user-safe default)', async () => {
+test('unrecognized error code → keep (paying-user-safe default)', { skip: SKIP_NO_PREMIUM }, async () => {
   const { classifyProVerify } = await loadPolicy();
   assert.equal(classifyProVerify(418, { ok: false, error: 'some_future_error' }), 'keep');
 });
 
-test('transient error takes precedence even if has_pro:false also present', async () => {
+test('transient error takes precedence even if has_pro:false also present', { skip: SKIP_NO_PREMIUM }, async () => {
   const { classifyProVerify } = await loadPolicy();
   // Defensive: a malformed transient resposta that também carries has_pro:false precisa ainda keep.
   assert.equal(classifyProVerify(429, { ok: false, has_pro: false, error: 'ip_blocked' }), 'keep');

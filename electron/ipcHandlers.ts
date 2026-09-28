@@ -12832,6 +12832,17 @@ export function initializeIpcHandlers(appState: AppState): void {
   // SERVICE to all live webContents, so the previous bug where closing the
   // Settings overlay severed the event channel is no longer possible.
   safeHandle('local-whisper-start-download', async (_event, modelId: string) => {
+    // macOS 12 (Darwin 21) gate — mirrors local-whisper-preload: onnxruntime
+    // cannot load below macOS 13, so refuse the download instead of fetching
+    // a model that can never run.
+    // Return-shape (not throw): LocalWhisperModelPanel surfaces { success:false, error } as panel errorMessage; mirrors sibling handlers.
+    if (process.platform === 'darwin') {
+      const os = require('os') as typeof import('os');
+      const darwinMajor = parseInt(os.release().split('.')[0], 10);
+      if (Number.isNaN(darwinMajor) || darwinMajor < 22) {
+        return { success: false, error: 'Local Whisper models require macOS 13 Ventura or later.' };
+      }
+    }
     try {
       // F-06: modelId is untrusted renderer input — allowlist first. Unknown
       // ids (traversal, arbitrary repos) throw and land in the error shape
@@ -16912,6 +16923,31 @@ export function initializeIpcHandlers(appState: AppState): void {
     let selectedPath: string | undefined;
     try {
       if (!isProOrTrialActive()) return { success: false, error: 'pro_required' };
+      // Server-side allow-list. The dialog filter is only a hint for users —
+      // never trust it for validation, since the user can rename a file or
+      // bypass the filter by selecting "All Files" in the dialog UI.
+      // Plain-text formats parse trivially; PDF and DOCX go through their
+      // dedicated parsers below.
+      const ALLOWED_EXTENSIONS = new Set([
+        '.txt',
+        '.md',
+        '.markdown',
+        '.json',
+        '.csv',
+        '.tsv',
+        '.xml',
+        '.html',
+        '.htm',
+        '.log',
+        '.pdf',
+        '.docx',
+        '.doc',
+      ]);
+      // 10 MiB per file. Anything larger is almost always a database dump,
+      // a media file, or a misclicked archive; the modes layer would only
+      // truncate it to ~40 KB anyway via MAX_TOTAL_CHARS.
+      const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
       const result: any = await dialog.showOpenDialog({
         properties: ['openFile'],
         filters: [
@@ -16923,16 +16959,149 @@ export function initializeIpcHandlers(appState: AppState): void {
       });
       if (result.canceled || !result.filePaths?.[0]) return { success: false, cancelled: true };
       selectedPath = result.filePaths[0];
-      const { ingestModeReferenceFile } = require('./services/ModeReferenceFileIngestion') as typeof import('./services/ModeReferenceFileIngestion');
-      const file = await ingestModeReferenceFile({
-        modeId,
-        filePath: selectedPath!,  // guarded + assigned on the straight line above
-        onIndexStatus: (status, fileId) => {
-          BrowserWindow.getAllWindows().forEach((win) => {
-            if (!win.isDestroyed()) win.webContents.send('mode-file-index-status', { modeId, fileId, phase: status });
-          });
-        },
-      });
+      const filePath = selectedPath!;
+      const fileName = path.basename(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+
+      if (!ALLOWED_EXTENSIONS.has(ext)) {
+        // Friendly, actionable message — the UI surfaces this to the user.
+        return {
+          success: false,
+          error: `Unsupported file type "${ext || 'none'}". Supported formats: TXT, MD, JSON, CSV, XML, HTML, LOG, PDF, DOCX, DOC. For resumes and job descriptions, use Profile Intelligence under Settings instead.`,
+        };
+      }
+
+      // Pre-flight stat. Use lstat so we don't auto-follow symlinks — a
+      // symlink to /dev/zero or a network mount that lies about size would
+      // otherwise hang the renderer-IPC reply forever via readFileSync.
+      let stats: ReturnType<typeof fs.lstatSync>;
+      try {
+        stats = fs.lstatSync(filePath);
+      } catch {
+        return {
+          success: false,
+          error: 'Could not read the selected file. It may have moved or been deleted.',
+        };
+      }
+      if (!stats.isFile()) {
+        return {
+          success: false,
+          error:
+            'Selected path is not a regular file (it may be a symlink, device, or directory). Pick a real document file.',
+        };
+      }
+      if (stats.size > MAX_FILE_BYTES) {
+        const mb = (stats.size / (1024 * 1024)).toFixed(1);
+        return {
+          success: false,
+          error: `File is ${mb} MB; the maximum is 10 MB. Trim the file or split it into smaller reference documents.`,
+        };
+      }
+
+      // Wrap the parser branches in a per-call timeout. pdf-parse and mammoth
+      // have both hung historically on malformed input or zip-bomb DOCX —
+      // 15s is generous for a 10 MiB document.
+      const PARSE_TIMEOUT_MS = 15_000;
+      function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+        return Promise.race([
+          p,
+          new Promise<T>((_, reject) =>
+            setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+          ),
+        ]);
+      }
+
+      let content = '';
+      try {
+        if (ext === '.pdf') {
+          const { PDFParse } = require('pdf-parse');
+          const buffer = await fs.promises.readFile(filePath);
+          const parser = new PDFParse({ data: buffer });
+          const data: { text: string } = await withTimeout<{ text: string }>(parser.getText(), PARSE_TIMEOUT_MS, 'PDF parse');
+          content = data.text;
+        } else if (ext === '.docx' || ext === '.doc') {
+          const mammoth = require('mammoth');
+          const result2: { value: string } = await withTimeout<{ value: string }>(
+            mammoth.extractRawText({ path: filePath }),
+            PARSE_TIMEOUT_MS,
+            'DOCX parse',
+          );
+          content = result2.value;
+        } else {
+          // Plain-text family. Read raw bytes first so we can detect text
+          // encoding from a leading byte-order-mark before deciding whether
+          // a null byte is binary noise or legitimate UTF-16 zero-padding.
+          const probe = await fs.promises.readFile(filePath, { encoding: null });
+          if (probe.length === 0) {
+            return { success: false, error: `"${fileName}" is empty.` };
+          }
+          // BOM-aware decode: UTF-16 files have many embedded null bytes; we
+          // must not treat those as a binary-rename signal.
+          if (probe.length >= 2 && probe[0] === 0xff && probe[1] === 0xfe) {
+            content = probe.subarray(2).toString('utf16le');
+          } else if (probe.length >= 2 && probe[0] === 0xfe && probe[1] === 0xff) {
+            // UTF-16BE: swap byte pairs then decode as utf16le.
+            const swapped = Buffer.allocUnsafe(probe.length - 2);
+            for (let i = 2; i + 1 < probe.length; i += 2) {
+              swapped[i - 2] = probe[i + 1];
+              swapped[i - 1] = probe[i];
+            }
+            content = swapped.toString('utf16le');
+          } else if (
+            probe.length >= 3 &&
+            probe[0] === 0xef &&
+            probe[1] === 0xbb &&
+            probe[2] === 0xbf
+          ) {
+            content = probe.subarray(3).toString('utf8');
+          } else {
+            // No BOM. Sniff the first 2 KiB for a null byte — that's the
+            // strongest signal of a renamed binary file.
+            const sniffWindow = probe.subarray(0, Math.min(2048, probe.length));
+            if (sniffWindow.includes(0)) {
+              return {
+                success: false,
+                error: `"${fileName}" looks like a binary file even though its extension is ${ext}. Re-save the file as plain text or pick a supported document format.`,
+              };
+            }
+            content = probe.toString('utf8');
+          }
+        }
+      } catch (parseErr: unknown) {
+        // Parser-specific failures (timeout, malformed PDF, zip-bomb DOCX).
+        // Log detail to the main process; return a generic message.
+        console.error(
+          '[IPC] modes:upload-reference-file parser error:',
+          parseErr instanceof Error ? parseErr.message : String(parseErr),
+        );
+        return {
+          success: false,
+          error: `Could not parse "${fileName}". The file may be corrupt, password-protected, or in an unsupported variant of ${ext}.`,
+        };
+      }
+
+      if (!content || content.trim().length === 0) {
+        return {
+          success: false,
+          error: `"${fileName}" parsed to empty text. The file may be password-protected, image-only, or corrupt.`,
+        };
+      }
+
+      const { ModesManager } = require('./services/ModesManager');
+      const file = ModesManager.getInstance().addReferenceFile({ modeId, fileName, content });
+      // PI v3 (W3) — index at UPLOAD time (fire-and-forget): chunk + embed +
+      // persist vectors now so live retrieval never pays the embedding cost.
+      // Status events let the UI show pending -> ready.
+      void (async () => {
+        try {
+          await ModesManager.getInstance().indexReferenceFile(file);
+        } catch (idxErr: unknown) {
+          console.warn('[IPC] reference-file indexing failed (lexical fallback remains):', idxErr instanceof Error ? idxErr.message : String(idxErr));
+        }
+        BrowserWindow.getAllWindows().forEach((win) => {
+          if (!win.isDestroyed()) win.webContents.send('mode-file-index-status', { modeId, fileId: file.id });
+        });
+      })();
       return { success: true, file };
     } catch (error: any) {
       const ext = path.extname(String(selectedPath || '')).toLowerCase();
@@ -16940,7 +17109,13 @@ export function initializeIpcHandlers(appState: AppState): void {
         return { success: false, error: 'Legacy Word .doc files are not supported. Save the file as .docx and upload it again.' };
       }
       console.error('[IPC] modes:upload-reference-file error:', error?.message || error);
-      return { success: false, error: 'Could not parse the selected file. It may be corrupt, password-protected, unsupported, or too large.' };
+      // Do not leak raw error.message to the renderer (may contain absolute
+      // paths or library internals). Return a generic message; the detail is
+      // already in the main-process log above.
+      return {
+        success: false,
+        error: 'Could not read the selected file. Please try a different file or contact support.',
+      };
     }
   });
 
@@ -18135,14 +18310,31 @@ export function initializeIpcHandlers(appState: AppState): void {
         if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
           return { success: false, error: 'fixture_path_not_allowed' };
         }
-        const { ingestModeReferenceFile } = require('./services/ModeReferenceFileIngestion') as typeof import('./services/ModeReferenceFileIngestion');
+        let ingestModeReferenceFile: (args: { modeId: string; filePath: string }) => Promise<unknown>;
+        try {
+          // ModeReferenceFileIngestion no longer exists as a module. Guard the
+          // load so a missing module returns the established failure shape
+          // instead of surfacing MODULE_NOT_FOUND.
+          const mod = require('./services/ModeReferenceFileIngestion') as {
+            ingestModeReferenceFile?: (args: { modeId: string; filePath: string }) => Promise<unknown>;
+          };
+          if (typeof mod?.ingestModeReferenceFile !== 'function') {
+            throw new Error('ModeReferenceFileIngestion unavailable');
+          }
+          ingestModeReferenceFile = mod.ingestModeReferenceFile;
+        } catch (loadErr: unknown) {
+          const detail = loadErr instanceof Error ? loadErr.message : String(loadErr);
+          console.warn('[E2E] parser-faithful reference upload failed (ingestion module unavailable):', detail);
+          return { success: false, error: 'reference_upload_failed' };
+        }
         const file = await ingestModeReferenceFile({
           modeId: params.modeId,
           filePath: candidate,
         });
         return { success: true, file };
-      } catch (error: any) {
-        console.warn('[E2E] parser-faithful reference upload failed:', error?.message);
+      } catch (error: unknown) {
+        const detail = error instanceof Error ? error.message : String(error);
+        console.warn('[E2E] parser-faithful reference upload failed:', detail);
         return { success: false, error: 'reference_upload_failed' };
       }
     });

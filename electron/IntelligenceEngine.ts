@@ -1055,7 +1055,10 @@ export class IntelligenceEngine extends EventEmitter {
                         killSwitch: lsmConfig.killSwitch,
                     });
                     if (lsmConfig.enabled) {
-                        const modeId = this.getActiveModeId();
+                        // #6: session-memory routing reads the t0 snapshot, not a
+                        // fresh live query — a mid-request modes:set-active must
+                        // not split one answer across two modes.
+                        const modeId = snapshotModeId;
                         // CRITICAL (code-review 2026-06-07c): SessionMemory's half-life
                         // decay é defined em SECONDS, mas SessionTracker timestamps são
                         // wall-clock MILLISECONDS — feeding ms iria colapsar a 1-hour

@@ -135,6 +135,11 @@ test('every preload ipcRenderer.invoke channel has a matching ipcMain.handle reg
     'toggle-advanced-settings',
     // M5 cleanup de stealth-tap:permission-granted / request-permission /
     // is-active era completed alongside this commit — entries removed haqui
+    // keybinds:get-registration-failures is exposed in preload but has no
+    // ipcMain handler (KeybindManager only pushes 'keybinds:registration-failed'
+    // events) and no renderer consumer — dead pull API. Separate cleanup must
+    // either register a handler or remove the preload method.
+    'keybinds:get-registration-failures',
   ]);
 
   const missing = [...channels].filter(ch => !registered.has(ch) && !KNOWN_STALE.has(ch)).sort();

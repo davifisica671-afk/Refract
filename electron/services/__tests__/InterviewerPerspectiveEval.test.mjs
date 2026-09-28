@@ -24,7 +24,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const { extractLatestQuestion, toCandidateFraming } = await import(pathToFileURL(
   path.resolve(__dirname, '../../../dist-electron/electron/llm/transcriptQuestionExtractor.js')).href);
-const { KnowledgeOrchestrator } = require('../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+// Wave 2B: KnowledgeOrchestrator is commercial orchestration logic — skip, don't reimplement, when absent.
+const KO_PATH = path.resolve(__dirname, '../../../dist-electron/premium/electron/knowledge/KnowledgeOrchestrator.js');
+const SKIP_NO_PREMIUM = !fs.existsSync(KO_PATH) && 'premium KnowledgeOrchestrator absent — commercial, not stubbed';
+const { KnowledgeOrchestrator } = SKIP_NO_PREMIUM ? {} : require(KO_PATH);
 
 function makeOrchestrator(resume) {
   const doc = { id: 1, type: 'resume', structured_data: resume };
@@ -66,7 +69,7 @@ function record(profile, scenario, passed, detail) {
   results.push({ profile, scenario, passed, detail });
 }
 
-describe('Interviewer-perspective eval — 10 profiles × 10 scenarios (production path)', () => {
+describe('Interviewer-perspective eval — 10 profiles × 10 scenarios (production path)', { skip: SKIP_NO_PREMIUM }, () => {
   for (const fx of allFixtures) {
     const resume = fx.resume;
     const name = resume.identity.name;
