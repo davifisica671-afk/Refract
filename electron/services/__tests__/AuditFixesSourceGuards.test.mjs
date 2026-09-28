@@ -96,7 +96,9 @@ describe('#3 stream id is emitted on the wire (backward-compatible 2nd arg)', ()
       'desktop sendChunk must include streamId');
   });
   test('phone tokens carry { streamId }', () => {
-    assert.match(src, /send\('gemini-stream-token',\s*token,\s*\{\s*streamId:\s*myStreamId\s*\}\)/,
+    // Intentional evolution: phone sends also carry `source: 'phone'`, so the
+    // object no longer closes right after myStreamId — pin presence, not shape.
+    assert.match(src, /send\('gemini-stream-token',\s*token,\s*\{[^}]*streamId:\s*myStreamId/,
       'phone onToken must include streamId');
   });
 });
