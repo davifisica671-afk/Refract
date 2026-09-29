@@ -127,6 +127,46 @@ export function validateHindsightServerCommand(raw: string): ServerCommandValida
   return { ok: true, argv: split.tokens };
 }
 
+export interface HindsightBaseUrlValidation { ok: boolean; needsConfirm: boolean; error?: string; normalized?: string; }
+const MAX_HINDSIGHT_BASE_URL_CHARS = 2048;
+function isLoopbackHostname(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[/, '').replace(/\]$/, '');
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1';
+}
+/**
+ * SSRF guard for the Hindsight base URL (P0-2). Fail-closed binding policy:
+ * - `http(s)://localhost`, `127.0.0.1`, `[::1]` (any port) → ALLOW, no confirm.
+ * - `https://` remote host → ALLOW only with native reconfirm (needsConfirm).
+ * - `http://` remote host → REJECT always (the API key must never travel plaintext).
+ * - Empty string → ALLOW (means disabled/default).
+ * - Malformed URL / non-http(s) scheme / >2048 chars → REJECT.
+ */
+export function validateHindsightBaseUrl(raw: string): HindsightBaseUrlValidation {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return { ok: true, needsConfirm: false, normalized: '' };
+  if (trimmed.length > MAX_HINDSIGHT_BASE_URL_CHARS) {
+    return { ok: false, needsConfirm: false, error: 'URL too long' };
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return { ok: false, needsConfirm: false, error: 'malformed URL' };
+  }
+  const protocol = parsed.protocol.toLowerCase();
+  if (protocol !== 'http:' && protocol !== 'https:') {
+    return { ok: false, needsConfirm: false, error: 'only http/https URLs are allowed' };
+  }
+  if (!parsed.hostname) return { ok: false, needsConfirm: false, error: 'malformed URL' };
+  if (isLoopbackHostname(parsed.hostname)) {
+    return { ok: true, needsConfirm: false, normalized: trimmed };
+  }
+  if (protocol === 'http:') {
+    return { ok: false, needsConfirm: false, error: 'plain-http remote hosts are not allowed' };
+  }
+  return { ok: true, needsConfirm: true, normalized: trimmed };
+}
+
 /**
  * Resolve the Hindsight Cloud API key: encrypted store (CredentialsManager /
  * OS safeStorage) first, with a ONE-TIME fallback to the legacy plaintext
@@ -241,6 +281,14 @@ export class HindsightManager {
         || (s?.get('hindsightBaseUrl') as string | undefined)
         || '').trim();
       if (!baseUrl) return null;
+      // Defense-in-depth (P0-2 SSRF guard): re-validate on every read so a
+      // remote plain-http or malformed URL persisted by an older version is
+      // never handed to fetch (migrate-on-read: treated as invalid = disabled).
+      const v = validateHindsightBaseUrl(baseUrl);
+      if (!v.ok) {
+        console.warn('[HindsightManager] ignoring invalid hindsightBaseUrl (fail closed)');
+        return null;
+      }
       const apiKey = (process.env.HINDSIGHT_API_KEY
         || resolveHindsightApiKey(this.apiKeyStore(), this.mutableSettings())
         || '').trim() || undefined;
