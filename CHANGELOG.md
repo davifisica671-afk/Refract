@@ -17,6 +17,9 @@
     - Security: Hindsight serverCommand is validated (no-shell argv form, existing binary only, expanded interpreter gate) with native reconfirmation on save.
     - Security: Hindsight API key moved from settings.json to OS safeStorage with one-time migration.
     - Security (F-05/F-06/F-08): chat image paths validated (count + userData confinement), whisper downloads restricted to catalog models, repo-index paths validated before indexing.
+    - Licensing: Stockfish engine (GPL) no longer bundled — downloads on demand via scripts/download-stockfish.mjs (unpkg/jsdelivr mirrors) into gitignored resources/engine/, shipped as extraResources; chess works offline after first download, degrades honestly without it.
+    - Security: hindsightBaseUrl validated against SSRF (loopback always allowed, remote https only with reconfirmation, remote http always rejected) with migrate-on-read for legacy values.
+    - Fix: chess board renders a graceful text fallback instead of crashing the overlay on invalid positions; SVG arrow markers are unique per instance.
     - Behavior note: sustained zero-filled system audio no longer raises the overlay banner (now logged; same-device escalation retained) — under review, may return as an opt-in alert.
     - **Build recovery**: the 60+ modules referenced by the rewritten IPC layer that had no on-disk implementation are now local graceful stubs (empty catalogs, unavailable statuses, typed errors), plus 12 missing degraded exports on pre-existing modules — the app builds and runs again; full implementations remain follow-ups per module.
 
