@@ -384,6 +384,9 @@ tonal-history-*.json
 # ── Não versionar binários grandes nem o material do site ─────────────────────
 # Modelos ONNX (230MB): artefato baixável, não código. Ficam locais / em release.
 resources/models/
+# Stockfish engine binaries (GPL): optional user-side download via
+# scripts/download-stockfish.mjs — never bundle, never commit.
+resources/engine/
 # site/: clone de referência de terceiros — não pode ir para repositório público
 # (questão de direito autoral) e tem HTML de 60MB.
 site/

@@ -1,6 +1,8 @@
 import { Worker } from 'worker_threads';
 import { createRequire } from 'node:module';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { app } from 'electron';
 import { Chess } from 'chess.js';
 import type { Move, Square } from 'chess.js';
 
@@ -30,8 +32,9 @@ const engineRequire = createRequire(__filename);
 /**
  * Build the bootstrap script for the Stockfish worker.
  *
- * The installed `stockfish.js` package (resolved at runtime via
- * `require.resolve('stockfish.js')` -> `stockfish.wasm.js`) is an Emscripten
+ * The engine is an OPTIONAL user-side download (see
+ * scripts/download-stockfish.mjs and resolveEnginePath below), never a
+ * bundled dependency. The entry file (`stockfish.wasm.js`) is an Emscripten
  * Web-Worker script: it talks through the globals `onmessage`/`postMessage`
  * and loads `stockfish.wasm` via `fetch()`. Neither exists in a Node
  * `worker_threads` worker, so the bootstrap shims them:
@@ -72,6 +75,43 @@ function buildBootstrap(enginePath: string): string {
 interface EngineSearchResult {
   uci: string;
   evalCp: number | null;
+}
+
+/**
+ * Resolve the Stockfish engine entry file (`stockfish.wasm.js`).
+ *
+ * Resolution order:
+ * (a) packaged app: <resourcesPath>/engine/stockfish.wasm.js (electron-builder
+ *     extraResources), used when `app?.isPackaged`;
+ * (b) dev checkout: <repoRoot>/resources/engine/stockfish.wasm.js — `__dirname`
+ *     is dist-electron/electron/services, so 3 ups = repo root (the candidate
+ *     is used only when the file actually exists, else resolution continues);
+ * (c) legacy: a manually installed `stockfish.js` package (try/catch).
+ * First hit with an existing `stockfish.wasm` sibling wins; otherwise throws
+ * an 'engine unavailable...' error (graceful degradation upstream).
+ */
+function resolveEnginePath(): string {
+  const candidates: string[] = [];
+  if (Boolean(app?.isPackaged) && typeof process.resourcesPath === 'string') {
+    candidates.push(path.join(process.resourcesPath, 'engine', 'stockfish.wasm.js'));
+  }
+  candidates.push(path.resolve(__dirname, '..', '..', '..', 'resources', 'engine', 'stockfish.wasm.js'));
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate) && fs.existsSync(path.join(path.dirname(candidate), 'stockfish.wasm'))) {
+      return candidate;
+    }
+  }
+  try {
+    const legacy = engineRequire.resolve('stockfish.js');
+    if (fs.existsSync(path.join(path.dirname(legacy), 'stockfish.wasm'))) {
+      return legacy;
+    }
+  } catch {
+    // No manually installed copy — fall through to the error below.
+  }
+  throw new ChessEngineError(
+    'engine unavailable: stockfish engine not found (run node scripts/download-stockfish.mjs to download the optional engine)',
+  );
 }
 
 export class ChessEngineService {
@@ -161,9 +201,9 @@ export class ChessEngineService {
 
       let enginePath: string;
       try {
-        enginePath = engineRequire.resolve('stockfish.js');
-      } catch {
-        fail(new ChessEngineError('engine unavailable: stockfish.js package not found'));
+        enginePath = resolveEnginePath();
+      } catch (err) {
+        fail(err instanceof ChessEngineError ? err : new ChessEngineError(`engine unavailable: ${err instanceof Error ? err.message : String(err)}`));
         return;
       }
 

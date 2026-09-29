@@ -11,7 +11,7 @@
     "build:electron:tsc": "tsc -p electron/tsconfig.json",
     "typecheck:electron": "tsc -p electron/tsconfig.json --noEmit",
     "preview": "vite preview",
-    "postinstall": "cross-env SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm rebuild sharp && node scripts/rebuild-native-electron.js && node scripts/download-models.js && node scripts/ensure-sqlite-vec.js && node scripts/patch-electron-plist.js && node scripts/verify-native-arch.js",
+    "postinstall": "cross-env SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm rebuild sharp && node scripts/rebuild-native-electron.js && node scripts/download-models.js && node scripts/ensure-sqlite-vec.js && node scripts/patch-electron-plist.js && node scripts/verify-native-arch.js && node scripts/download-stockfish.mjs",
     "rebuild:native": "node scripts/rebuild-native-electron.js && node scripts/verify-native-arch.js",
     "electron:dev": "npm run build:electron && cross-env NODE_ENV=development electron .",
     "electron:build": "npm run build:electron && cross-env NODE_ENV=production electron .",
@@ -105,8 +105,7 @@
       "**/*.dylib",
       "**/vectorSearchWorker.js",
       "**/whisperWorker.js",
-      "**/intentClassifierWorker.js",
-      "**/stockfish.js/**/*"
+      "**/intentClassifierWorker.js"
     ],
     "directories": {
       "output": "release",
@@ -124,6 +123,10 @@
       {
         "from": "resources/models/",
         "to": "models/"
+      },
+      {
+        "from": "resources/engine/",
+        "to": "engine/"
       }
     ],
     "mac": {
@@ -310,7 +313,6 @@
     "sharp": "^0.34.5",
     "sqlite-vec": "^0.1.7-alpha.2",
     "sqlite3": "^5.1.7",
-    "stockfish.js": "^10.0.2",
     "tailwind-merge": "^2.5.4",
     "tesseract.js": "^5.0.5",
     "three": "^0.182.0",
