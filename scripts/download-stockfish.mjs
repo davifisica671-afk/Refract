@@ -14,7 +14,7 @@ const __dirname = path.dirname(__filename);
 // Pinned engine version. Keep in sync with the size sanity table below.
 const VERSION = '10.0.2';
 
-const BASE_URL = `https://unpkg.com/stockfish.js@${VERSION}`;
+const MIRRORS = [`https://unpkg.com/stockfish.js@${VERSION}`, `https://cdn.jsdelivr.net/npm/stockfish.js@${VERSION}`];
 
 // NOTE: stockfish.js@10.0.2 also ships Copying.txt (GPL-3.0). We deliberately
 // do NOT download it: the engine is an OPTIONAL user-side download, never
@@ -95,20 +95,35 @@ async function downloadStockfish() {
     }
 
     for (const file of FILES) {
-      const url = `${BASE_URL}/${file.name}`;
       const dest = path.join(engineDir, file.name);
-      console.log(`[download-stockfish] Downloading ${url}...`);
-      await fetchToFile(url, dest, 3);
-      let size = 0;
-      try {
-        size = fs.statSync(dest).size;
-      } catch (e) {
-        void e;
+      let downloaded = false;
+      let lastError = null;
+      for (const base of MIRRORS) {
+        const url = `${base}/${file.name}`;
+        console.log(`[download-stockfish] Downloading ${url}...`);
+        try {
+          await fetchToFile(url, dest, 3);
+        } catch (e) {
+          console.log(`[download-stockfish] WARN mirror failed for ${file.name} via ${base}: ${e && e.message ? e.message : e}; trying next mirror`);
+          lastError = e;
+          continue;
+        }
+        let size = 0;
+        try {
+          size = fs.statSync(dest).size;
+        } catch (e) {
+          void e;
+        }
+        if (!plausibleSize(file, size)) {
+          console.log(`[download-stockfish] WARN size mismatch for ${file.name}: got ${size} bytes, expected ~${file.expectedSize} bytes; continuing without guarantees`);
+        } else {
+          console.log(`[download-stockfish] ${file.name} downloaded (${size} bytes).`);
+        }
+        downloaded = true;
+        break;
       }
-      if (!plausibleSize(file, size)) {
-        console.log(`[download-stockfish] WARN size mismatch for ${file.name}: got ${size} bytes, expected ~${file.expectedSize} bytes; continuing without guarantees`);
-      } else {
-        console.log(`[download-stockfish] ${file.name} downloaded (${size} bytes).`);
+      if (!downloaded) {
+        throw lastError || new Error(`all mirrors failed for ${file.name}`);
       }
     }
 
