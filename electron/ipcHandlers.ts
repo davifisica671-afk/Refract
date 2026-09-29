@@ -7755,6 +7755,39 @@ export function initializeIpcHandlers(appState: AppState): void {
           if (!allowed) return { success: false, error: 'cancelled' };
         }
       }
+      // SECURITY (P0-2 SSRF guard): validate baseUrl BEFORE persisting anything.
+      // Remote plain-http is always refused (the API key would travel plaintext
+      // to an arbitrary host). A changed remote-https URL needs the same native
+      // reconfirm as serverCommand, noting the key-exposure implication.
+      // Invalid/refused → return early without persisting ANY key (atomic-fail,
+      // same convention as the serverCommand gate above).
+      if (typeof cfg?.baseUrl === 'string') {
+        const { validateHindsightBaseUrl } = require('./services/HindsightManager') as typeof import('./services/HindsightManager');
+        const v = validateHindsightBaseUrl(cfg.baseUrl);
+        if (!v.ok) return { success: false, error: `invalid base URL: ${v.error}` };
+        const nextUrl = String(v.normalized ?? cfg.baseUrl.trim());
+        const storedUrl = String(sm.get('hindsightBaseUrl') || '').trim();
+        if (v.needsConfirm && nextUrl !== storedUrl) {
+          let allowed = false;
+          try {
+            const parentWin = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+            if (!parentWin || parentWin.isDestroyed()) return { success: false, error: 'cancelled' };
+            const choice = dialog.showMessageBoxSync(parentWin, {
+              type: 'warning',
+              buttons: ['Cancel', 'Allow once'],
+              defaultId: 0,
+              cancelId: 0,
+              title: 'Refract',
+              message: 'Allow this remote Hindsight server?',
+              detail: `${nextUrl}\n\nThe Hindsight API key will be sent to this server. Only allow hosts you trust.`,
+            });
+            allowed = choice === 1;
+          } catch {
+            return { success: false, error: 'cancelled' };
+          }
+          if (!allowed) return { success: false, error: 'cancelled' };
+        }
+      }
       if (typeof cfg?.baseUrl === 'string') put('hindsightBaseUrl', cfg.baseUrl.trim());
       // The API key lives in OS safeStorage, never in settings.json. A non-empty
       // value replaces the stored key; a blank value keeps the stored one (same

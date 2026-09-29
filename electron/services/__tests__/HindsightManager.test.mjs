@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { HindsightManager, validateHindsightServerCommand } from '../../../dist-electron/electron/services/HindsightManager.js';
+import { HindsightManager, validateHindsightBaseUrl, validateHindsightServerCommand } from '../../../dist-electron/electron/services/HindsightManager.js';
 
 const requireCjs = createRequire(import.meta.url);
 const HM = requireCjs('../../../dist-electron/electron/services/HindsightManager.js');
@@ -291,5 +291,69 @@ describe('resolveHindsightApiKey (security: safeStorage migration, one-time lega
     const l = makeLegacy(undefined);
     assert.equal(resolveHindsightApiKey(s.store, l.settings), 'cm-key');
     assert.deepEqual(l.calls.sets, []);
+  });
+});
+
+describe('validateHindsightBaseUrl (security: SSRF guard, key never leaves loopback unencrypted)', () => {
+  test('loopback http(s) with any port → ok, no confirm', () => {
+    for (const u of [
+      'http://localhost:8888',
+      'http://localhost',
+      'https://localhost:8888',
+      'http://127.0.0.1:8888',
+      'http://127.0.0.1',
+      'http://[::1]:8888',
+      'http://[::1]',
+    ]) {
+      const r = validateHindsightBaseUrl(u);
+      assert.equal(r.ok, true, u);
+      assert.equal(r.needsConfirm, false, u);
+      assert.equal(r.normalized, u.trim(), u);
+    }
+  });
+
+  test('lookalike loopback host over http → reject (exact hostname match only)', () => {
+    const r = validateHindsightBaseUrl('http://localhost.evil.com/');
+    assert.equal(r.ok, false);
+    assert.equal(r.needsConfirm, false);
+  });
+
+  test('https remote → ok, needs confirm', () => {
+    for (const u of ['https://x.example', 'https://x.example:443/api']) {
+      const r = validateHindsightBaseUrl(u);
+      assert.equal(r.ok, true, u);
+      assert.equal(r.needsConfirm, true, u);
+      assert.equal(r.normalized, u.trim(), u);
+    }
+  });
+
+  test('http remote → reject (keys must never travel plaintext)', () => {
+    for (const u of ['http://x.example', 'http://x.example:8080/api', 'http://0.0.0.0:8888']) {
+      const r = validateHindsightBaseUrl(u);
+      assert.equal(r.ok, false, u);
+      assert.equal(r.needsConfirm, false, u);
+    }
+  });
+
+  test('empty string → ok, no confirm (disabled/default)', () => {
+    for (const u of ['', '   ']) {
+      const r = validateHindsightBaseUrl(u);
+      assert.equal(r.ok, true, JSON.stringify(u));
+      assert.equal(r.needsConfirm, false, JSON.stringify(u));
+    }
+  });
+
+  test('ftp scheme, bare host, and garbage → reject', () => {
+    for (const u of ['ftp://x.example/file', 'x.example', 'not a url', 'http://']) {
+      const r = validateHindsightBaseUrl(u);
+      assert.equal(r.ok, false, u);
+      assert.equal(r.needsConfirm, false, u);
+    }
+  });
+
+  test('>2048 chars → reject', () => {
+    const r = validateHindsightBaseUrl('https://x.example/' + 'a'.repeat(2048));
+    assert.equal(r.ok, false);
+    assert.equal(r.needsConfirm, false);
   });
 });

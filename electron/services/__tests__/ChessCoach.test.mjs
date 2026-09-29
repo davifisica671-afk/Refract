@@ -1,5 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -43,6 +44,10 @@ describe('chessFenExtractor', () => {
 
 describe('chessEngineService', () => {
   test('finds mate in 1 (Scholar mate Qxf7)', async () => {
+    // Stockfish is an optional user-side download (scripts/download-stockfish.mjs):
+    // run this test only when the engine is present; otherwise skip (graceful degradation).
+    const enginePath = path.resolve(__dirname, '../../../resources/engine/stockfish.wasm.js');
+    if (!fs.existsSync(enginePath)) return;
     const mod = await import(pathToFileURL(path.resolve(__dirname, '../../../dist-electron/electron/services/ChessEngineService.js')).href);
     const svc = new mod.ChessEngineService();
     try {

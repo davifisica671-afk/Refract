@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import { fenToSquares, moveToArrow } from '../../lib/chessBoardLayout.mjs';
 
 interface Props {
@@ -13,9 +13,34 @@ interface Props {
 const GLYPH: Record<string, string> = { K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟', k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 
 export function ChessBoardView({ fen, turn, from, to, explanation, verified }: Props) {
-  const squares = useMemo(() => fenToSquares(fen), [fen]);
+  // Unique per instance: duplicate fixed ids break url(#...) refs when two boards coexist.
+  // useId() emits colons (e.g. "«r0»") which break url(#...) references, so strip them.
+  const markerId = useId().replace(/[^A-Za-z0-9_-]/g, '');
   const orientation = turn === 'w' ? 'white' : 'black';
-  const arrow = from && to ? moveToArrow(from, to, orientation) : null;
+  // FEN/move come from engine/LLM output = untrusted: either helper can throw.
+  // Any throw renders the graceful fallback below instead of crashing the overlay tree.
+  const parsed = useMemo(() => {
+    try {
+      return {
+        squares: fenToSquares(fen),
+        arrow: from && to ? moveToArrow(from, to, orientation) : null,
+      };
+    } catch {
+      return null;
+    }
+  }, [fen, from, to, orientation]);
+  if (parsed === null) {
+    return (
+      <div className="rounded-xl bg-[#141414] p-3 text-white">
+        <div className="text-sm text-neutral-300">{from && to ? `${from}→${to}` : 'posição inválida'}</div>
+        <div className="mt-2 flex items-center gap-2 text-sm">
+          {!verified && <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-amber-300">não verificado</span>}
+          <span className="text-neutral-300">{explanation}</span>
+        </div>
+      </div>
+    );
+  }
+  const { squares, arrow } = parsed;
   const ordered = orientation === 'white' ? squares : [...squares].reverse();
   return (
     <div className="rounded-xl bg-[#141414] p-3 text-white">
@@ -45,11 +70,11 @@ export function ChessBoardView({ fen, turn, from, to, explanation, verified }: P
         {arrow !== null && (
           <svg viewBox="0 0 100 100" className="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none">
             <defs>
-              <marker id="chess-arrow" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+              <marker id={markerId} markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
                 <path d="M0,0 L4,2 L0,4 Z" fill="#22c55e" />
               </marker>
             </defs>
-            <line x1={arrow.x1} y1={arrow.y1} x2={arrow.x2} y2={arrow.y2} stroke="#22c55e" strokeWidth="3" markerEnd="url(#chess-arrow)" strokeLinecap="round" />
+            <line x1={arrow.x1} y1={arrow.y1} x2={arrow.x2} y2={arrow.y2} stroke="#22c55e" strokeWidth="3" markerEnd={`url(#${markerId})`} strokeLinecap="round" />
           </svg>
         )}
       </div>
