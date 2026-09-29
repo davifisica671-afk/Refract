@@ -48,6 +48,9 @@ jobs:
         # com erro genérico de 1 linha).
         run: node scripts/build-electron-preflight.cjs
 
+      - name: Release-path reproducibility gate
+        run: npm run check:release
+
       - name: Typecheck renderer
         run: npx tsc --noEmit
 
@@ -71,8 +74,13 @@ jobs:
         # electron-builder ler a config de "publish" do package.json:
         #   provider: github, owner: davifisica671-afk, repo: Refract, releaseType: release
         # --publish always: publica/atualiza a release a cada tag push.
+        # Owner action (NO secrets work in this repo): signed artifacts require
+        # macOS signing/notarization + Windows code signing credentials as
+        # repository secrets (e.g. APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
+        # TEAM_ID / CSC_LINK / CSC_KEY_PASSWORD — see electron-builder docs).
+        # Unsigned builds work without them; signing/publish config untouched.
         # O build configurado no package.json gera:
-        #   - Windows: NSIS installer + portable (x64, ia32)
+        #   - Windows: NSIS installer + portable (x64)
         #   - macOS: zip + dmg (x64, arm64)
         #   - Linux: AppImage + deb (x64)
         run: cross-env REFRACT_BUILD_ALL_MAC_ARCHES=1 npx electron-builder --publish always
