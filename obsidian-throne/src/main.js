@@ -47,4 +47,24 @@ function fatal(err) {
   document.body.appendChild(el);
 }
 
+/* Erros em tempo de execução aparecem no canto da tela: se algo quebrar durante o jogo,
+ * a mensagem fica legível em vez de a tela simplesmente congelar. */
+let errCount = 0;
+function runtimeError(err) {
+  if (errCount++ > 3) return;
+  console.error(err);
+  let el = document.getElementById('rtErr');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'rtErr';
+    el.style.cssText = 'position:fixed;left:10px;bottom:10px;z-index:99;max-width:520px;padding:8px 12px;' +
+      'background:rgba(40,8,10,.92);border:1px solid #7b2b2b;color:#f0c8b8;font:12px/1.5 ui-monospace,monospace;' +
+      'border-radius:6px;white-space:pre-wrap;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  el.textContent = `${errCount}. ${String((err && err.stack) || err).split('\n').slice(0, 3).join('\n')}`;
+}
+window.addEventListener('error', (e) => runtimeError(e.error || e.message));
+window.addEventListener('unhandledrejection', (e) => runtimeError(e.reason));
+
 boot();
